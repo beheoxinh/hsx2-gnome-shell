@@ -1,0 +1,10 @@
+{
+  "name": "Alienware Suite (hsx2coder)",
+  "description": "Aggregated suite of Alienware GNOME Shell modules: Caps/Num indicator, Dash-to-Panel, Desktop Icons NG, System Monitor, Clipboard Indicator, Notification Configurator, Just Perfection, Touchpad Switcher. Each module can be enabled or disabled individually from a single preferences window.",
+  "uuid": "alienware-hsx2coder-gnome@hsx2coder.github.com",
+  "settings-schema": "org.gnome.shell.extensions.alienware-suite",
+  "gettext-domain": "alienware-suite",
+  "shell-version": ["46", "47", "48", "49", "50", "51", "52", "53", "54"],
+  "version": 1,
+  "url": "https://github.com/hsx2coder/alienware-suite"
+}

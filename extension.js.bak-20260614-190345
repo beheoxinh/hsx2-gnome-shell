@@ -1,0 +1,134 @@
+import Gio from 'gi://Gio';
+import GLib from 'gi://GLib';
+import {Extension} from 'resource:///org/gnome/shell/extensions/extension.js';
+
+import CapsNumTouchpadExtension from './modules/alienware-capsnum-touchpad@hsx2coder/extension.js';
+import ClipboardIndicatorExtension from './modules/alienware-clipboard-indicator@tudmotu.com/extension.js';
+import DashToPanelExtension from './modules/alienware-dash-to-panel@jderose9.github.com/extension.js';
+import DingExtension from './modules/alienware-desktop-enable-gnome@rastersoft.com/extension.js';
+import JustPerfectionExtension from './modules/alienware-just-perfection-desktop@just-perfection/extension.js';
+import SystemMonitorExtension from './modules/alienware-monitor@mgalgs.github.com/extension.js';
+import NotificationConfiguratorExtension from './modules/alienware-notification-configurator@exposedcat/extension.js';
+
+import {MODULES, buildSubMetadata} from './modules.js';
+
+const CLASS_REGISTRY = {
+    'alienware-capsnum-touchpad@hsx2coder': CapsNumTouchpadExtension,
+    'alienware-clipboard-indicator@tudmotu.com': ClipboardIndicatorExtension,
+    'alienware-dash-to-panel@jderose9.github.com': DashToPanelExtension,
+    'alienware-desktop-enable-gnome@rastersoft.com': DingExtension,
+    'alienware-just-perfection-desktop@just-perfection': JustPerfectionExtension,
+    'alienware-monitor@mgalgs.github.com': SystemMonitorExtension,
+    'alienware-notification-configurator@exposedcat': NotificationConfiguratorExtension,
+};
+
+export default class AlienwareSuiteExtension extends Extension {
+    constructor(metadata) {
+        super(metadata);
+        this._suiteSettings = null;
+        this._loaded = new Map();
+        this._signalIds = [];
+        this._origLookupByUUID = null;
+    }
+
+    enable() {
+        this._installLookupShim();
+        this._suiteSettings = this.getSettings();
+
+        for (const def of MODULES) {
+            if (this._suiteSettings.get_boolean(def.enableKey))
+                this._enableModule(def);
+
+            const handlerId = this._suiteSettings.connect(
+                `changed::${def.enableKey}`,
+                () => this._reactToToggle(def),
+            );
+            this._signalIds.push(handlerId);
+        }
+    }
+
+    disable() {
+        for (const id of this._signalIds)
+            this._suiteSettings?.disconnect(id);
+        this._signalIds = [];
+
+        for (const def of [...MODULES].reverse()) {
+            if (this._loaded.has(def.uuid))
+                this._disableModule(def);
+        }
+
+        this._suiteSettings = null;
+        this._restoreLookupShim();
+    }
+
+    _installLookupShim() {
+        if (this._origLookupByUUID)
+            return;
+        this._origLookupByUUID = Extension.lookupByUUID.bind(Extension);
+        const orig = this._origLookupByUUID;
+        const loaded = this._loaded;
+        const self = this;
+
+        Extension.lookupByUUID = function (uuid) {
+            if (uuid === self.uuid)
+                return self;
+            const sub = loaded.get(uuid);
+            if (sub)
+                return sub;
+            return orig(uuid);
+        };
+    }
+
+    _restoreLookupShim() {
+        if (!this._origLookupByUUID)
+            return;
+        Extension.lookupByUUID = this._origLookupByUUID;
+        this._origLookupByUUID = null;
+    }
+
+    _reactToToggle(def) {
+        const wantOn = this._suiteSettings.get_boolean(def.enableKey);
+        const isOn = this._loaded.has(def.uuid);
+        if (wantOn && !isOn)
+            this._enableModule(def);
+        else if (!wantOn && isOn)
+            this._disableModule(def);
+    }
+
+    _enableModule(def) {
+        try {
+            const Klass = CLASS_REGISTRY[def.uuid];
+            if (typeof Klass !== 'function')
+                throw new Error(`No class registered for ${def.uuid}`);
+
+            const subMetadata = buildSubMetadata(this, def);
+            const instance = new Klass(subMetadata);
+            this._loaded.set(def.uuid, instance);
+
+            const suiteExt = this;
+            instance.openPreferences = function () {
+                suiteExt.openPreferences();
+            };
+
+            instance.enable();
+
+            console.log(`[alienware-suite] enabled module ${def.uuid}`);
+        } catch (e) {
+            this._loaded.delete(def.uuid);
+            logError(e, `[alienware-suite] failed to enable ${def.uuid}`);
+        }
+    }
+
+    _disableModule(def) {
+        const instance = this._loaded.get(def.uuid);
+        if (!instance)
+            return;
+        try {
+            instance.disable();
+        } catch (e) {
+            logError(e, `[alienware-suite] failed to disable ${def.uuid}`);
+        }
+        this._loaded.delete(def.uuid);
+        console.log(`[alienware-suite] disabled module ${def.uuid}`);
+    }
+}

@@ -1,0 +1,117 @@
+import Gio from 'gi://Gio';
+
+export const SUITE_UUID = 'alienware-hsx2coder-gnome@hsx2coder.github.com';
+export const SUITE_SCHEMA = 'org.gnome.shell.extensions.alienware-suite';
+
+export const MODULES = [
+    {
+        key: 'capsnumTouchpad',
+        enableKey: 'enable-capsnum-touchpad',
+        title: 'Caps/Num and Touchpad',
+        iconName: 'input-keyboard-symbolic',
+        uuid: 'alienware-capsnum-touchpad@hsx2coder',
+        entry: 'extension.js',
+        prefsEntry: 'prefs.js',
+        sessionMode: 'user',
+        hasStylesheet: true,
+    },
+    {
+        key: 'dashToPanel',
+        enableKey: 'enable-dash-to-panel',
+        title: 'Dash to Panel',
+        iconName: 'view-app-grid-symbolic',
+        uuid: 'alienware-dash-to-panel@jderose9.github.com',
+        entry: 'extension.js',
+        prefsEntry: 'prefs.js',
+        sessionMode: 'user',
+        hasStylesheet: true,
+    },
+    {
+        key: 'desktopIcons',
+        enableKey: 'enable-desktop-icons',
+        title: 'Desktop Icons NG',
+        iconName: 'user-desktop-symbolic',
+        uuid: 'alienware-desktop-enable-gnome@rastersoft.com',
+        entry: 'extension.js',
+        prefsEntry: 'prefs.js',
+        sessionMode: 'user',
+        hasStylesheet: false,
+    },
+    {
+        key: 'systemMonitor',
+        enableKey: 'enable-system-monitor',
+        title: 'System Monitor',
+        iconName: 'utilities-system-monitor-symbolic',
+        uuid: 'alienware-monitor@mgalgs.github.com',
+        entry: 'extension.js',
+        prefsEntry: 'prefs.js',
+        sessionMode: 'user',
+        hasStylesheet: true,
+    },
+    {
+        key: 'clipboardIndicator',
+        enableKey: 'enable-clipboard-indicator',
+        title: 'Clipboard Indicator',
+        iconName: 'edit-paste-symbolic',
+        uuid: 'alienware-clipboard-indicator@tudmotu.com',
+        entry: 'extension.js',
+        prefsEntry: 'prefs.js',
+        sessionMode: 'user',
+        hasStylesheet: true,
+    },
+    {
+        key: 'notificationConfigurator',
+        enableKey: 'enable-notification-configurator',
+        title: 'Notification Configurator',
+        iconName: 'preferences-system-notifications-symbolic',
+        uuid: 'alienware-notification-configurator@exposedcat',
+        entry: 'extension.js',
+        prefsEntry: 'prefs.js',
+        sessionMode: 'user',
+        hasStylesheet: false,
+    },
+    {
+        key: 'justPerfection',
+        enableKey: 'enable-just-perfection',
+        title: 'Just Perfection',
+        iconName: 'preferences-desktop-symbolic',
+        uuid: 'alienware-just-perfection-desktop@just-perfection',
+        entry: 'extension.js',
+        prefsEntry: 'prefs.js',
+        sessionMode: 'user',
+        hasStylesheet: true,
+    },
+
+];
+
+export function buildSubMetadata(suiteExtension, moduleDef) {
+    const moduleDir = suiteExtension.dir
+        .get_child('modules')
+        .get_child(moduleDef.uuid);
+    const modulePath = moduleDir.get_path();
+
+    const original = JSON.parse(_readText(moduleDir.get_child('metadata.json')));
+
+    return {
+        ...original,
+        uuid: moduleDef.uuid,
+        dir: moduleDir,
+        path: modulePath,
+        url: `file://${modulePath}/`,
+    };
+}
+
+function _readText(file) {
+    const [ok, bytes] = file.load_contents(null);
+    if (!ok)
+        throw new Error(`Cannot read ${file.get_path()}`);
+    return new TextDecoder('utf-8').decode(bytes);
+}
+
+export function moduleEntryURL(suiteExtension, moduleDef, entryFile) {
+    const file = suiteExtension.dir
+        .get_child('modules')
+        .get_child(moduleDef.uuid)
+        .get_child(entryFile);
+    return file.get_uri();
+}

@@ -1,0 +1,36 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<schemalist>
+  <schema id="org.gnome.shell.extensions.capsnum-touchpad"
+          path="/org/gnome/shell/extensions/capsnum-touchpad/">
+    <key name="show-caps-lock" type="b">
+      <default>true</default>
+      <summary>Show Caps Lock indicator</summary>
+      <description>Display the Caps Lock indicator in the top panel.</description>
+    </key>
+    <key name="show-num-lock" type="b">
+      <default>true</default>
+      <summary>Show Num Lock indicator</summary>
+      <description>Display the Num Lock indicator in the top panel.</description>
+    </key>
+    <key name="hide-when-off" type="b">
+      <default>false</default>
+      <summary>Hide when inactive</summary>
+      <description>Hide the indicator completely when the lock is turned off instead of dimming it.</description>
+    </key>
+    <key name="show-notifications" type="b">
+      <default>true</default>
+      <summary>Show notifications</summary>
+      <description>Display OSD notification when toggling touchpad, Caps Lock or Num Lock.</description>
+    </key>
+    <key name="show-indicator" type="b">
+      <default>true</default>
+      <summary>Show touchpad indicator</summary>
+      <description>Whether to show the touchpad panel indicator.</description>
+    </key>
+    <key name="toggle-shortcut" type="as">
+      <default>['&lt;Super&gt;Insert', 'XF86TouchpadToggle']</default>
+      <summary>Touchpad toggle shortcut</summary>
+      <description>Shortcut to toggle the touchpad state.</description>
+    </key>
+  </schema>
+</schemalist>

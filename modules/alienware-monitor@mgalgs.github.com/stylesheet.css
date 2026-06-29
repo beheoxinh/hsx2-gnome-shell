@@ -1,0 +1,267 @@
+.sm-title {
+    font-size: 1.2em;
+    padding: 0px 25px 0px 0px;
+}
+
+.sm-label {
+    color: #bbb;
+    font-size: 9pt !important;
+    padding-top: 5px;
+    font-family: monospace;
+}
+
+.sm-label-left {
+    color: #bbb;
+    font-size: 9pt !important;
+    padding: 5px 5px 0 0;
+}
+
+.sm-value {
+    text-align: right;
+    min-width: 40px;
+    padding: 2px 5px 0 0;
+    font-family: monospace;
+    font-size: 10pt !important;
+}
+
+.sm-status-label {
+    color: #bbb;
+    font-size: 8pt !important;
+    padding: 0 2px 0 5px;
+}
+
+/* .sm-status-label.rotated,
+.sm-status-label-compact.rotated {
+    padding: 2px 0 0 0;
+} */
+
+.sm-unit-label,
+.sm-net-unit-label {
+    color: #aaa;
+    font-size: 8pt !important;
+    padding: 0 5px 0 2px;
+}
+
+.sm-disk-unit-label {
+    color: #aaa;
+    font-size: 12pt !important;
+    padding: 0 5px 0 2px;
+}
+
+.sm-net-unit-label {
+    min-width: 25px;
+}
+
+.sm-perc-label {
+    color: #aaa;
+    font-size: 9pt !important;
+    padding: 0 5px 0 2px;
+}
+
+.sm-temp-label {
+    color: #aaa;
+    font-size: 10pt !important;
+    padding: 0 5px 0 2px;
+}
+
+.sm-status-value {
+    min-width: 25px;
+    text-align: right;
+    font-size: 12pt !important;
+}
+
+.sm-net-value {
+    min-width: 80px;
+    text-align: center;
+    font-size: 12pt !important;
+}
+
+.sm-disk-value {
+    min-width: 25px;
+    text-align: right;
+    font-size: 12pt !important;
+}
+
+.sm-big-status-value {
+    min-width: 42px;
+    text-align: right;
+    font-size: 12pt !important;
+}
+
+.sm-chart {
+    padding: 0 2px;
+}
+
+.sm-tooltip-box {
+    font-size: 1.0em;
+    font-weight: bold;
+    color: rgba(255, 255, 255, 0.95);
+    background-color: rgba(20, 20, 20, 0.85);
+    border-radius: 8px;
+    padding: 8px 12px;
+    border: 1px solid rgba(255, 255, 255, 0.15);
+}
+
+.sm-tooltip-item {
+    padding: 4px 0px;
+    spacing: 12px;
+}
+
+.sm-status-icon {
+    padding: 0px 2px;
+    icon-size: 1.2em;
+}
+
+.sm-popup-menu-item-compact {}
+
+/* style definition when 'compact-display' option is activated */
+
+.sm-title-compact {
+    font-size: 1em;
+}
+
+.sm-label-compact {
+    color: #aaa;
+    font-size: 9pt !important;
+    font-family: monospace;
+    padding-left: 5px !important;
+}
+
+/* Bat, Net... units in menu items */
+
+.sm-value-compact {
+    color: white;
+    font-size: 9pt !important;
+    text-align: right;
+    font-family: monospace;
+}
+
+/* Values in menu items */
+
+.sm-status-label-compact {
+    color: #575757;
+    font-size: 5.5pt !important;
+    font-weight: 800 !important;
+    padding: 2px 0 0 0;
+    text-align: center !important;
+    vertical-align: middler !important;
+}
+
+.sm-unit-label-compact,
+.sm-net-unit-label-compact {
+    color: #aaa;
+    padding: 0 3px 0px 1px;
+    text-align: right;
+    font-size: 11pt !important;
+}
+
+/* Bat, Net... units in text items */
+
+.sm-disk-unit-label-compact {
+    color: #aaa;
+    padding: 0 3px 0px 0px;
+    text-align: right;
+    font-size: 11pt !important;
+}
+
+/* Disk units in text items */
+
+.sm-perc-label-compact {
+    padding: 0 3px 0 0px;
+    color: #aaa;
+    font-size: 10pt !important;
+}
+
+/* Cpu, Mem ... % sign in text items */
+
+.sm-temp-label-compact {
+    font-size: 10pt !important;
+    color: #aaa;
+    padding: 0 3px 0 1px;
+}
+
+/* Thermal °C sign in text items */
+
+.sm-status-value-compact {
+    padding: 0 0px 0 1px;
+    font-size: 11pt !important;
+    text-align: right;
+    min-width: 16px;
+}
+
+/* Cpu, Mem... value in text items */
+
+.sm-net-value-compact {
+    padding: 0 0px 0 1px;
+    font-size: 11pt !important;
+    text-align: right;
+    min-width: 80px;
+}
+
+/* Net value in text items */
+
+.sm-disk-value-compact {
+    padding: 0 1px 0 1px;
+    font-size: 11pt !important;
+    text-align: right;
+    min-width: 20px;
+}
+
+/* Disk value in text items */
+
+.sm-big-status-value-compact {
+    padding: 0 0px 0px 1px;
+    font-size: 11pt !important;
+    min-width: 38px;
+    text-align: right;
+}
+
+/* freq in text_items */
+
+.sm-chart-compact {
+    padding: 0 2px;
+}
+
+.sm-tooltip-item-compact {
+    padding: 0px;
+    spacing: 10px;
+}
+
+.sm-status-icon-compact {
+    padding: 1px 0 0 2px;
+    icon-size: 1.2em;
+}
+
+/* BAT icon in text_items */
+
+.sm-popup-menu-item-compact {
+    font-size: 12pt !important;
+    width: 22px;
+    padding: 1px 2px 1px 7px;
+}
+
+.sm-net-unit-icon-down {
+    /* Ép màu bằng filter hoặc shadow nếu color bị phế */
+    color: #0a680a !important;
+    icon-shadow: 0 0 1px #0b5a0b;
+    -st-icon-style: symbolic;
+    /* Nhắc nó đây là symbolic icon */
+}
+
+.sm-net-unit-icon-up {
+    color: #960872 !important;
+    icon-shadow: 0 0 1px #5f0f5f;
+}
+
+.sm-net-unit-icon-down,
+.sm-net-unit-icon-up {
+    margin-left: 10px;
+}
+
+.sm-info-table {
+    background-color: rgba(255, 255, 255, 0.05);
+    border-radius: 12px;
+    padding: 15px 25px;
+    margin: 5px 15px 15px 15px;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+}

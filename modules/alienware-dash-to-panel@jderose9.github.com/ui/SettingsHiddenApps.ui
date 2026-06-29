@@ -1,0 +1,39 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<interface>
+  <requires lib="adw" version="1.0"/>
+  <object class="AdwPreferencesPage" id="hidden_apps_page">
+    <property name="title">Hidden Applications</property>
+    <property name="name">hidden_apps</property>
+    <child>
+      <object class="AdwPreferencesGroup">
+        <child>
+          <object class="AdwActionRow">
+            <property name="title" translatable="yes">Add Application</property>
+            <child>
+              <object class="GtkButton" id="add_hidden_app_button">
+                <property name="icon-name">list-add-symbolic</property>
+                <property name="valign">center</property>
+              </object>
+            </child>
+          </object>
+        </child>
+      </object>
+    </child>
+    <child>
+      <object class="AdwPreferencesGroup">
+        <child>
+          <object class="GtkScrolledWindow">
+            <property name="hexpand">true</property>
+            <property name="vexpand">true</property>
+            <property name="min-content-height">300</property>
+            <property name="child">
+              <object class="GtkListBox" id="hidden_apps_listbox">
+                <style><class name="boxed-list"/></style>
+              </object>
+            </property>
+          </object>
+        </child>
+      </object>
+    </child>
+  </object>
+</interface>

@@ -1,0 +1,8 @@
+{
+    "name": "Alienware Topbar Clone",
+    "description": "Clones the native GNOME top bar (Activities, Clock/Date menu, Quick Settings) onto every secondary monitor. Independent from Dash to Panel; lives at the TOP of each non-primary monitor while Dash to Panel keeps its BOTTOM dash. Tracks monitor changes and matches the native top bar height.",
+    "uuid": "alienware-topbar-clone@hsx2coder",
+    "shell-version": ["49"],
+    "settings-schema": "org.gnome.shell.extensions.alienware-suite",
+    "session-modes": ["user"]
+}

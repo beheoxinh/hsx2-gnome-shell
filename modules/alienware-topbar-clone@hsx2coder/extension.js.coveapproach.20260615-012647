@@ -1,0 +1,966 @@
+/*
+ * Alienware Topbar Clone
+ *
+ * Clones the native GNOME top bar onto every secondary (non-primary) monitor.
+ * Each clone contains a fresh Activities button (left), Date/Clock menu
+ * (center) and Quick Settings system menu (right) — independent instances so
+ * the original Main.panel indicators are never moved or disturbed.
+ *
+ * The clone panel sits at the TOP of each secondary monitor as tracked chrome
+ * with affectsStruts=true, so it pushes content down. It is fully independent
+ * from Dash to Panel (which owns the BOTTOM dash on the same monitors).
+ *
+ * Target: GNOME Shell 49.x, GJS/ESM, Wayland.
+ */
+
+import Clutter from 'gi://Clutter';
+import Gio from 'gi://Gio';
+import GLib from 'gi://GLib';
+import GObject from 'gi://GObject';
+import Graphene from 'gi://Graphene';
+import St from 'gi://St';
+import Atk from 'gi://Atk';
+
+import * as Main from 'resource:///org/gnome/shell/ui/main.js';
+import * as PanelMenu from 'resource:///org/gnome/shell/ui/panelMenu.js';
+import * as PopupMenu from 'resource:///org/gnome/shell/ui/popupMenu.js';
+import * as CtrlAltTab from 'resource:///org/gnome/shell/ui/ctrlAltTab.js';
+import * as Util from 'resource:///org/gnome/shell/misc/util.js';
+import {DateMenuButton} from 'resource:///org/gnome/shell/ui/dateMenu.js';
+import {Extension, gettext as _} from 'resource:///org/gnome/shell/extensions/extension.js';
+
+const LOG_PREFIX = '[alienware-topbar-clone]';
+
+const INACTIVE_WORKSPACE_DOT_SCALE = 0.75;
+
+// Module-level settings handle, set in enable(). Used by the panel widgets
+// to decide which elements to build.
+let SETTINGS = null;
+
+/* --------------------------------------------------------------------- *
+ * Workspace dot + indicators, cloned from the native GNOME panel.js
+ * (WorkspaceDot / WorkspaceIndicators are not exported, so we reproduce
+ * them here). These render the workspace control dots and animate on
+ * workspace change, identical to the native top bar.
+ * --------------------------------------------------------------------- */
+const CloneWorkspaceDot = GObject.registerClass({
+    Properties: {
+        'expansion': GObject.ParamSpec.double('expansion', null, null,
+            GObject.ParamFlags.READWRITE, 0, 1, 0),
+        'width-multiplier': GObject.ParamSpec.double('width-multiplier', null, null,
+            GObject.ParamFlags.READWRITE, 1, 10, 1),
+    },
+}, class CloneWorkspaceDot extends Clutter.Actor {
+    constructor(params) {
+        super({
+            ...params,
+        });
+
+        this._dot = new St.Widget({
+            style_class: 'workspace-dot',
+            y_align: Clutter.ActorAlign.CENTER,
+            pivot_point: new Graphene.Point({x: 0.5, y: 0.5}),
+            request_mode: Clutter.RequestMode.WIDTH_FOR_HEIGHT,
+        });
+        this.add_child(this._dot);
+
+        this.connect('notify::width-multiplier', () => this.queue_relayout());
+        this.connect('notify::expansion', () => {
+            this._updateVisuals();
+            this.queue_relayout();
+        });
+        this._updateVisuals();
+
+        this._destroying = false;
+    }
+
+    _updateVisuals() {
+        const {expansion} = this;
+        this._dot.set({
+            opacity: Util.lerp(0.50, 1.0, expansion) * 255,
+            scaleX: Util.lerp(INACTIVE_WORKSPACE_DOT_SCALE, 1.0, expansion),
+            scaleY: Util.lerp(INACTIVE_WORKSPACE_DOT_SCALE, 1.0, expansion),
+        });
+    }
+
+    vfunc_get_preferred_width(forHeight) {
+        const factor = Util.lerp(1.0, this.widthMultiplier, this.expansion);
+        return this._dot.get_preferred_width(forHeight).map(v => Math.round(v * factor));
+    }
+
+    vfunc_get_preferred_height(forWidth) {
+        return this._dot.get_preferred_height(forWidth);
+    }
+
+    vfunc_allocate(box) {
+        this.set_allocation(box);
+        box.set_origin(0, 0);
+        this._dot.allocate(box);
+    }
+
+    scaleIn() {
+        this.set({scale_x: 0, scale_y: 0});
+        this.ease({
+            duration: 500,
+            mode: Clutter.AnimationMode.EASE_OUT_CUBIC,
+            scale_x: 1.0,
+            scale_y: 1.0,
+        });
+    }
+
+    scaleOutAndDestroy() {
+        this._destroying = true;
+        this.ease({
+            duration: 500,
+            mode: Clutter.AnimationMode.EASE_OUT_CUBIC,
+            scale_x: 0.0,
+            scale_y: 0.0,
+            onComplete: () => this.destroy(),
+        });
+    }
+
+    get destroying() {
+        return this._destroying;
+    }
+});
+
+const CloneWorkspaceIndicators = GObject.registerClass(
+class CloneWorkspaceIndicators extends St.BoxLayout {
+    constructor() {
+        super();
+
+        this._workspacesAdjustment = Main.createWorkspacesAdjustment(this);
+        this._workspacesAdjustment.connectObject(
+            'notify::value', () => this._updateExpansion(),
+            'notify::upper', () => this._recalculateDots(),
+            this);
+
+        for (let i = 0; i < this._workspacesAdjustment.upper; i++)
+            this.insert_child_at_index(new CloneWorkspaceDot(), i);
+        this._updateExpansion();
+    }
+
+    _getActiveIndicators() {
+        return [...this].filter(i => !i.destroying);
+    }
+
+    _recalculateDots() {
+        const activeIndicators = this._getActiveIndicators();
+        const nIndicators = activeIndicators.length;
+        const targetIndicators = this._workspacesAdjustment.upper;
+
+        let remaining = Math.abs(nIndicators - targetIndicators);
+        while (remaining--) {
+            if (nIndicators < targetIndicators) {
+                const indicator = new CloneWorkspaceDot();
+                this.add_child(indicator);
+                indicator.scaleIn();
+            } else {
+                const indicator = activeIndicators[nIndicators - remaining - 1];
+                indicator.scaleOutAndDestroy();
+            }
+        }
+
+        this._updateExpansion();
+    }
+
+    _updateExpansion() {
+        const nIndicators = this._getActiveIndicators().length;
+        const activeWorkspace = this._workspacesAdjustment.value;
+
+        let widthMultiplier;
+        if (nIndicators <= 2)
+            widthMultiplier = 3.625;
+        else if (nIndicators <= 5)
+            widthMultiplier = 3.25;
+        else
+            widthMultiplier = 2.75;
+
+        this.get_children().forEach((indicator, index) => {
+            const distance = Math.abs(index - activeWorkspace);
+            indicator.expansion = Math.clamp(1 - distance, 0, 1);
+            indicator.widthMultiplier = widthMultiplier;
+        });
+    }
+
+    destroy() {
+        if (this._workspacesAdjustment) {
+            this._workspacesAdjustment.disconnectObject(this);
+            this._workspacesAdjustment = null;
+        }
+        super.destroy();
+    }
+});
+
+/* --------------------------------------------------------------------- *
+ * Workspace control button (left). Mirrors the native ActivitiesButton:
+ * shows workspace dots, toggles overview on click, switches workspace on
+ * scroll. Uses fresh instances so the original button is never disturbed.
+ * --------------------------------------------------------------------- */
+const CloneWorkspaceButton = GObject.registerClass(
+class CloneWorkspaceButton extends PanelMenu.Button {
+    _init() {
+        super._init(0.0, null, true);
+
+        this.set({
+            name: 'panelActivities',
+            accessible_role: Atk.Role.TOGGLE_BUTTON,
+            accessible_name: _('Workspaces'),
+        });
+
+        this._indicators = new CloneWorkspaceIndicators();
+        this.add_child(this._indicators);
+
+        this._showingId = Main.overview.connect('showing', () => {
+            this.add_style_pseudo_class('checked');
+            this.add_style_pseudo_class('overview');
+        });
+        this._hidingId = Main.overview.connect('hiding', () => {
+            this.remove_style_pseudo_class('checked');
+            this.remove_style_pseudo_class('overview');
+        });
+    }
+
+    vfunc_event(event) {
+        if (event.type() === Clutter.EventType.TOUCH_END ||
+            event.type() === Clutter.EventType.BUTTON_RELEASE) {
+            if (Main.overview.shouldToggleByCornerOrButton())
+                Main.overview.toggle();
+        }
+        // Scroll over the button switches workspace, like the native bar.
+        return Main.wm.handleWorkspaceScroll(event);
+    }
+
+    vfunc_key_release_event(event) {
+        const symbol = event.get_key_symbol();
+        if (symbol === Clutter.KEY_Return || symbol === Clutter.KEY_space) {
+            if (Main.overview.shouldToggleByCornerOrButton()) {
+                Main.overview.toggle();
+                return Clutter.EVENT_STOP;
+            }
+        }
+        return Clutter.EVENT_PROPAGATE;
+    }
+
+    destroy() {
+        if (this._showingId) {
+            Main.overview.disconnect(this._showingId);
+            this._showingId = 0;
+        }
+        if (this._hidingId) {
+            Main.overview.disconnect(this._hidingId);
+            this._hidingId = 0;
+        }
+        super.destroy();
+    }
+});
+
+/* --------------------------------------------------------------------- *
+ * The clone panel widget itself. Mirrors the native Panel layout
+ * (left / center / right boxes) and inherits the 'panel' style class so it
+ * gets the exact native top bar height/colors from the active theme.
+ * --------------------------------------------------------------------- */
+const CloneTopBar = GObject.registerClass(
+class CloneTopBar extends St.Widget {
+    _init(monitorIndex) {
+        super._init({
+            name: 'panel',
+            reactive: true,
+            style_class: 'panel',
+            x_expand: true,
+            y_expand: false,
+            x_align: Clutter.ActorAlign.FILL,
+            y_align: Clutter.ActorAlign.START,
+            clip_to_allocation: true,
+        });
+
+        this.monitorIndex = monitorIndex;
+
+        // Swallow secondary/middle clicks on the bar so no context menu or
+        // stray menu pops up when clicking empty areas of the clone panel.
+        // Primary clicks still pass through to the transparent overlay buttons.
+        this.connect('button-press-event', (_a, event) => {
+            const btn = event.get_button();
+            if (btn === Clutter.BUTTON_SECONDARY || btn === Clutter.BUTTON_MIDDLE)
+                return Clutter.EVENT_STOP;
+            return Clutter.EVENT_PROPAGATE;
+        });
+
+        // Layer 1 — a single Clutter.Clone of the real GNOME top panel.
+        // This makes the secondary panel look pixel-identical (layout, theme,
+        // every indicator, live clock/battery/wifi) without rebuilding anything.
+        this._panelClone = new Clutter.Clone({
+            source: Main.panel,
+            x_expand: true,
+            y_expand: true,
+            x_align: Clutter.ActorAlign.FILL,
+            y_align: Clutter.ActorAlign.FILL,
+        });
+        this.add_child(this._panelClone);
+
+        // Cover pool — opaque strips painted in the panel background colour.
+        // We hide EVERYTHING on the clone except the known interactive zones
+        // (activities, dateMenu, quickSettings) by covering all gaps between/
+        // around them. Strips are reactive so they also eat clicks in those
+        // dead areas (no stray context menus). Allocated lazily in allocate().
+        this._covers = [];
+
+        // Layer 2 — transparent hit-area buttons placed exactly over the real
+        // indicators so clicks open the actual menus, positioned on THIS monitor.
+        // Each entry: { role, getActor, button }.
+        this._overlays = [];
+        this._menuCloseIds = new Map();
+        // role, getActor (indicator that owns the menu), getRect (actor whose
+        // x/width defines the visible zone). For quickSettings the container is
+        // padded and also wraps the tray icons, so the zone is measured from
+        // the inner QuickSettings widget itself, keeping the tray covered.
+        this._addOverlay('activities',
+            () => Main.panel.statusArea?.activities,
+            () => { const a = Main.panel.statusArea?.activities; return a?.container ?? a; });
+        this._addOverlay('dateMenu',
+            () => Main.panel.statusArea?.dateMenu,
+            () => Main.panel._centerBox);
+        this._addOverlay('quickSettings',
+            () => Main.panel.statusArea?.quickSettings,
+            () => Main.panel.statusArea?.quickSettings);
+
+        // Keep clone/overlay in sync with overview + panel relayouts.
+        this._showingId = Main.overview.connect('showing',
+            () => this.add_style_pseudo_class('overview'));
+        this._hidingId = Main.overview.connect('hiding',
+            () => this.remove_style_pseudo_class('overview'));
+        this._panelQueueId = Main.panel.connect('notify::allocation',
+            () => this.queue_relayout());
+
+        // TEMP DIAGNOSTIC: dump the real panel structure so we can see exactly
+        // what dash-to-panel puts where. Remove after tuning.
+        try { this._dumpPanelStructure(); } catch (_e) {}
+    }
+
+    _dumpPanelStructure() {
+        const dumpBox = (label, box) => {
+            if (!box) { log(`${LOG_PREFIX} DUMP ${label}: <none>`); return; }
+            const kids = box.get_children().map(c => {
+                const a = c.get_allocation_box?.();
+                const x = a ? Math.round(a.x1) : Math.round(c.x);
+                const w = Math.round(c.width);
+                return `${c.name || c.constructor.name}[x=${x},w=${w},vis=${c.visible}]`;
+            });
+            log(`${LOG_PREFIX} DUMP ${label} (${kids.length}): ${kids.join(' | ')}`);
+        };
+        log(`${LOG_PREFIX} DUMP statusArea keys: ${Object.keys(Main.panel.statusArea).join(', ')}`);
+        dumpBox('LEFT', Main.panel._leftBox);
+        dumpBox('CENTER', Main.panel._centerBox);
+        dumpBox('RIGHT', Main.panel._rightBox);
+        const qs = Main.panel.statusArea?.quickSettings;
+        if (qs) {
+            const qa = (qs.container ?? qs).get_allocation_box?.();
+            log(`${LOG_PREFIX} DUMP quickSettings x=${qa?Math.round(qa.x1):'?'} w=${Math.round((qs.container??qs).width)}`);
+            dumpBox('QS_CHILDREN', qs.container ?? qs);
+        }
+    }
+
+    // Whether the centre cluster (clock / dateMenu) should be shown on the
+    // clone. When false, the centre zone is covered like everything else.
+    _getShowClock() {
+        try {
+            if (SETTINGS && typeof SETTINGS.get_boolean === 'function')
+                return SETTINGS.get_boolean('topbar-clone-show-clock');
+        } catch (_e) { /* fallthrough */ }
+        return true;
+    }
+
+    _addOverlay(role, getActor, getRect) {
+        const button = new St.Button({
+            reactive: true,
+            can_focus: true,
+            track_hover: true,
+            x_expand: false,
+            y_expand: false,
+        });
+        // Transparent: the clone underneath provides the visuals.
+        button.opacity = 0;
+        this.add_child(button);
+
+        button.connect('clicked', () => this._activateRole(role, getActor, button));
+
+        // Workspace scrolling on the activities area.
+        if (role === 'activities') {
+            button.connect('scroll-event', (_actor, event) =>
+                this._onActivitiesScroll(event));
+        }
+
+        this._overlays.push({role, getActor, getRect: getRect || getActor, button});
+    }
+
+    _activateRole(role, getActor, button) {
+        const indicator = getActor();
+        if (!indicator)
+            return;
+
+        if (role === 'activities') {
+            // Toggle the Activities overview.
+            Main.overview.toggle();
+            return;
+        }
+
+        const menu = indicator.menu;
+        if (!menu) {
+            // No menu (rare): emulate a primary click on the indicator.
+            if (typeof indicator.vfunc_event === 'function')
+                indicator.emit('button-press-event', Clutter.get_current_event());
+            return;
+        }
+
+        if (menu.isOpen) {
+            menu.close(true);
+            return;
+        }
+
+        // Point the menu's BoxPointer at OUR overlay button so it opens on this
+        // monitor, then restore the original sourceActor when it closes.
+        const originalSource = menu.sourceActor;
+        menu.sourceActor = button;
+
+        if (typeof indicator._toggleMenu === 'function')
+            indicator._toggleMenu(indicator);
+        else
+            menu.open(true);
+
+        if (!this._menuCloseIds.has(role)) {
+            const id = menu.connect('open-state-changed', (m, isOpen) => {
+                if (!isOpen) {
+                    m.sourceActor = originalSource;
+                    m.disconnect(id);
+                    this._menuCloseIds.delete(role);
+                }
+            });
+            this._menuCloseIds.set(role, id);
+        }
+    }
+
+    _onActivitiesScroll(event) {
+        const dir = event.get_scroll_direction();
+        const wm = global.workspace_manager;
+        let offset = 0;
+        if (dir === Clutter.ScrollDirection.UP)
+            offset = -1;
+        else if (dir === Clutter.ScrollDirection.DOWN)
+            offset = 1;
+        else
+            return Clutter.EVENT_PROPAGATE;
+
+        const active = wm.get_active_workspace_index();
+        const target = active + offset;
+        if (target >= 0 && target < wm.get_n_workspaces())
+            wm.get_workspace_by_index(target).activate(global.get_current_time());
+        return Clutter.EVENT_STOP;
+    }
+
+    // Left edge of `actor` relative to Main.panel's left edge, in the panel's
+    // own logical coordinates (0 = panel left). The primary panel runs at
+    // scale 1.0, so transformed (stage) positions equal logical pixels here;
+    // subtracting the panel's own stage x gives a clean panel-relative x that
+    // is correct no matter how deeply dash-to-panel nests the indicators.
+    _logicalXInPanel(actor) {
+        try {
+            const [ax] = actor.get_transformed_position();
+            const [px] = Main.panel.get_transformed_position();
+            const v = ax - px;
+            if (Number.isFinite(v))
+                return v;
+        } catch (_e) { /* fallthrough */ }
+        // Fallback: accumulate allocation boxes up the parent chain.
+        let x = 0;
+        let node = actor;
+        let guard = 0;
+        while (node && node !== Main.panel && guard < 64) {
+            const a = node.get_allocation_box?.();
+            if (a && Number.isFinite(a.x1))
+                x += a.x1;
+            node = node.get_parent?.();
+            guard++;
+        }
+        return x;
+    }
+
+    vfunc_get_preferred_width(_forHeight) {
+        const monitors = Main.layoutManager.monitors;
+        if (monitors && monitors.length > this.monitorIndex)
+            return [0, monitors[this.monitorIndex].width];
+        return [0, 0];
+    }
+
+    vfunc_get_preferred_height(_forWidth) {
+        const h = Main.panel.height || Main.panel.get_preferred_height(-1)[1];
+        return [h, h];
+    }
+
+    vfunc_allocate(box) {
+        this.set_allocation(box);
+
+        const themeNode = this.get_theme_node();
+        const contentBox = themeNode.get_content_box(box);
+
+        // The clone mirrors the whole panel 1:1.
+        const childBox = new Clutter.ActorBox();
+        childBox.x1 = contentBox.x1;
+        childBox.y1 = contentBox.y1;
+        childBox.x2 = contentBox.x2;
+        childBox.y2 = contentBox.y2;
+        this._panelClone.allocate(childBox);
+
+        // Place each overlay button over its source indicator.
+        //
+        // All St/Clutter actor allocations are in LOGICAL pixels (already
+        // divided by each monitor's scale), so we work purely in the real
+        // panel's logical coordinate space and map it onto our local content
+        // box by the ratio of logical widths. This is correct even when the
+        // two monitors have different resolutions AND different scales
+        // (e.g. external 1920@1.0 primary + HiDPI laptop @1.333), because
+        // both sides of the ratio are logical.
+        const panelAlloc = Main.panel.get_allocation_box();
+        let panelW = panelAlloc.x2 - panelAlloc.x1;
+        const contentW = contentBox.x2 - contentBox.x1;
+        if (!Number.isFinite(panelW) || panelW < 1)
+            panelW = 1;
+        let scale = contentW / panelW;
+        if (!Number.isFinite(scale) || scale <= 0)
+            scale = 1;
+
+        const clampX = (v) => {
+            if (!Number.isFinite(v))
+                return contentBox.x1;
+            return Math.max(contentBox.x1, Math.min(contentBox.x2, v));
+        };
+
+        // Collect the on-screen extent (local x1..x2) of each KNOWN zone we
+        // want to keep visible & interactive. dateMenu is only kept when the
+        // "Show clock" setting is on; otherwise it is hidden and covered.
+        const showClock = this._getShowClock();
+        const visibleZones = [];
+
+        for (const entry of this._overlays) {
+            const actor = entry.getRect();
+            const btn = entry.button;
+
+            const hideThis = (entry.role === 'dateMenu' && !showClock);
+
+            if (hideThis || !actor || !actor.mapped || actor.width < 1) {
+                btn.allocate(new Clutter.ActorBox());
+                btn.hide();
+                continue;
+            }
+            btn.show();
+
+            // Logical x + width of the measuring actor relative to the panel.
+            const relX = this._logicalXInPanel(actor);
+            const w = actor.width || 1;
+
+            const zx1 = clampX(contentBox.x1 + relX * scale);
+            const zx2 = clampX(zx1 + w * scale);
+
+            if (zx2 <= zx1) {
+                // Degenerate (not laid out yet) — skip this frame.
+                btn.allocate(new Clutter.ActorBox());
+                btn.hide();
+                continue;
+            }
+
+            const ob = new Clutter.ActorBox();
+            ob.x1 = zx1;
+            ob.y1 = contentBox.y1;
+            ob.x2 = zx2;
+            ob.y2 = contentBox.y2;
+            btn.allocate(ob);
+
+            visibleZones.push([zx1, zx2]);
+        }
+
+        this._allocateCovers(contentBox, visibleZones);
+
+        // TEMP DIAGNOSTIC: dump real laid-out coords once.
+        if (!this._dumpedAlloc) {
+            this._dumpedAlloc = true;
+            try {
+                const lx = (a) => Math.round(this._logicalXInPanel(a));
+                const info = [];
+                for (const entry of this._overlays) {
+                    const act = entry.getRect();
+                    info.push(`${entry.role}: x=${act?lx(act):'?'} w=${act?Math.round(act.width):'?'} mapped=${act?act.mapped:'?'}`);
+                }
+                log(`${LOG_PREFIX} ALLOC contentW=${Math.round(contentW)} panelW=${Math.round(panelW)} scale=${scale.toFixed(3)} zones=${JSON.stringify(visibleZones.map(z=>[Math.round(z[0]),Math.round(z[1])]))} :: ${info.join(' || ')}`);
+            } catch (e) { logError(e, `${LOG_PREFIX} alloc dump`); }
+        }
+    }
+
+    // Hide EVERYTHING on the clone except the visible known zones by covering
+    // every horizontal gap around them with opaque, click-eating strips.
+    _allocateCovers(contentBox, visibleZones) {
+        // Sort zones left→right and merge any overlaps.
+        const zones = visibleZones
+            .filter(z => z[1] > z[0])
+            .sort((a, b) => a[0] - b[0]);
+        const merged = [];
+        for (const z of zones) {
+            const last = merged[merged.length - 1];
+            if (last && z[0] <= last[1] + 0.5)
+                last[1] = Math.max(last[1], z[1]);
+            else
+                merged.push([z[0], z[1]]);
+        }
+
+        // Build the list of gaps to cover: [contentLeft..zone0], between zones,
+        // and [lastZone..contentRight].
+        const gaps = [];
+        let cursor = contentBox.x1;
+        for (const [zx1, zx2] of merged) {
+            if (zx1 - cursor > 0.5)
+                gaps.push([cursor, zx1]);
+            cursor = Math.max(cursor, zx2);
+        }
+        if (contentBox.x2 - cursor > 0.5)
+            gaps.push([cursor, contentBox.x2]);
+
+        // Ensure we have enough cover widgets in the pool.
+        while (this._covers.length < gaps.length) {
+            const c = new St.Widget({
+                style_class: 'panel',
+                reactive: true, // eat clicks in covered dead zones
+            });
+            this.add_child(c);
+            // Keep covers above the clone but below the overlay buttons.
+            this.set_child_below_sibling(c, this._overlays[0]?.button ?? null);
+            this._covers.push(c);
+        }
+
+        // Allocate / show the needed covers, hide the rest.
+        for (let i = 0; i < this._covers.length; i++) {
+            const c = this._covers[i];
+            if (i < gaps.length) {
+                const [gx1, gx2] = gaps[i];
+                c.show();
+                const cb = new Clutter.ActorBox();
+                cb.x1 = gx1;
+                cb.y1 = contentBox.y1;
+                cb.x2 = gx2;
+                cb.y2 = contentBox.y2;
+                c.allocate(cb);
+            } else {
+                c.hide();
+                c.allocate(new Clutter.ActorBox());
+            }
+        }
+    }
+
+    destroy() {
+        if (this._showingId) {
+            Main.overview.disconnect(this._showingId);
+            this._showingId = 0;
+        }
+        if (this._hidingId) {
+            Main.overview.disconnect(this._hidingId);
+            this._hidingId = 0;
+        }
+        if (this._panelQueueId) {
+            try { Main.panel.disconnect(this._panelQueueId); } catch (_e) {}
+            this._panelQueueId = 0;
+        }
+
+        // Restore any menus still pointed at our overlay buttons.
+        if (this._menuCloseIds) {
+            for (const [role, id] of this._menuCloseIds) {
+                try {
+                    const ind = Main.panel.statusArea?.[role];
+                    if (ind && ind.menu) {
+                        ind.menu.disconnect(id);
+                        ind.menu.sourceActor = ind;
+                    }
+                } catch (_e) {}
+            }
+            this._menuCloseIds.clear();
+            this._menuCloseIds = null;
+        }
+
+        if (this._overlays) {
+            for (const entry of this._overlays) {
+                try { entry.button.destroy(); } catch (_e) {}
+            }
+            this._overlays = null;
+        }
+
+        if (this._covers) {
+            for (const c of this._covers) {
+                try { c.destroy(); } catch (_e) {}
+            }
+            this._covers = null;
+        }
+
+        if (this._panelClone) {
+            try { this._panelClone.destroy(); } catch (_e) {}
+            this._panelClone = null;
+        }
+
+        super.destroy();
+    }
+});
+
+/* --------------------------------------------------------------------- *
+ * Chrome wrapper: a vertical box added to the layout manager as tracked
+ * chrome with affectsStruts. Holds the CloneTopBar and keeps its geometry
+ * pinned to the monitor's top edge at native panel height.
+ * --------------------------------------------------------------------- */
+class ClonePanelBox {
+    constructor(monitorIndex, monitor) {
+        this._monitorIndex = monitorIndex;
+        this._monitor = {x: monitor.x, y: monitor.y, width: monitor.width};
+        this._geometryIdleId = 0;
+        this._allocationChangedId = 0;
+
+        this.panelBox = new St.BoxLayout({
+            name: 'alienwareCloneTopBarBox',
+            vertical: true,
+            clip_to_allocation: true,
+            visible: true,
+        });
+
+        this.panel = new CloneTopBar(monitorIndex);
+        this.panelBox.add_child(this.panel);
+
+        Main.layoutManager.addChrome(this.panelBox, {
+            affectsStruts: true,
+            trackFullscreen: true,
+        });
+
+        Main.ctrlAltTabManager.addGroup(this.panel, _('Top Bar'),
+            'shell-focus-top-bar-symbolic', {sortGroup: CtrlAltTab.SortGroup.TOP});
+
+        this._height = this._nativePanelHeight();
+        this.panelBox.set_position(monitor.x, monitor.y);
+        this.panelBox.set_size(monitor.width, this._height);
+
+        // Keep the clone painted below the real panelBox of the primary.
+        try {
+            Main.uiGroup.set_child_below_sibling(this.panelBox, Main.layoutManager.panelBox);
+        } catch (_e) {
+            // Non-fatal: ordering only matters for overlap on the same monitor.
+        }
+
+        this._allocationChangedId = this.panelBox.connect('notify::allocation',
+            this._onAllocationChanged.bind(this));
+    }
+
+    // Use the live native top bar height so we never exceed it. Falls back to
+    // the theme's preferred height, then a safe default.
+    _nativePanelHeight() {
+        try {
+            const h = Main.panel?.height;
+            if (h && h > 0)
+                return h;
+        } catch (_e) { /* fallthrough */ }
+        try {
+            const [, natHeight] = Main.panel.get_preferred_height(-1);
+            if (natHeight > 0)
+                return natHeight;
+        } catch (_e) { /* fallthrough */ }
+        const boxHeight = Main.layoutManager.panelBox?.height;
+        if (boxHeight && boxHeight > 0)
+            return boxHeight;
+        return 32;
+    }
+
+    _needsUpdate() {
+        return (
+            Math.round(this.panelBox.x) !== this._monitor.x ||
+            Math.round(this.panelBox.y) !== this._monitor.y ||
+            Math.round(this.panelBox.width) !== this._monitor.width ||
+            Math.round(this.panelBox.height) !== this._height
+        );
+    }
+
+    // Never re-enter layout from inside the allocation pass — defer to idle.
+    _onAllocationChanged() {
+        if (this._geometryIdleId || !this.panelBox || !this._monitor)
+            return;
+        if (!this._needsUpdate())
+            return;
+        this._geometryIdleId = GLib.idle_add(GLib.PRIORITY_DEFAULT, () => {
+            this._geometryIdleId = 0;
+            this._applyGeometry();
+            return GLib.SOURCE_REMOVE;
+        });
+    }
+
+    _applyGeometry() {
+        if (!this.panelBox || !this._monitor)
+            return;
+        if (!this._needsUpdate())
+            return;
+        this.panelBox.set_position(this._monitor.x, this._monitor.y);
+        this.panelBox.set_size(this._monitor.width, this._height);
+    }
+
+    updateMonitor(monitor) {
+        this._monitor = {x: monitor.x, y: monitor.y, width: monitor.width};
+        const h = this._nativePanelHeight();
+        if (h > 0)
+            this._height = h;
+        this._applyGeometry();
+    }
+
+    destroy() {
+        if (this._geometryIdleId) {
+            GLib.source_remove(this._geometryIdleId);
+            this._geometryIdleId = 0;
+        }
+        if (this._allocationChangedId) {
+            this.panelBox.disconnect(this._allocationChangedId);
+            this._allocationChangedId = 0;
+        }
+
+        try {
+            Main.ctrlAltTabManager.removeGroup(this.panel);
+        } catch (_e) { /* already removed */ }
+
+        try {
+            Main.layoutManager.removeChrome(this.panelBox);
+        } catch (_e) { /* already untracked */ }
+
+        // Destroying the box destroys the panel child (and its indicators).
+        this.panelBox.destroy();
+        this.panelBox = null;
+        this.panel = null;
+        this._monitor = null;
+    }
+}
+
+export default class TopbarCloneExtension extends Extension {
+    constructor(metadata) {
+        super(metadata);
+        this._boxes = [];
+        this._monitorsChangedId = 0;
+        this._workareasChangedId = 0;
+        this._rebuildIdleId = 0;
+    }
+
+    enable() {
+        this._settings = this._loadSuiteSettings();
+        SETTINGS = this._settings;
+
+        this._build();
+
+        this._monitorsChangedId = Main.layoutManager.connect('monitors-changed',
+            () => this._scheduleRebuild());
+
+        // Workareas can change (e.g. fullscreen) without a monitors-changed;
+        // re-pin geometry so struts/positions stay correct.
+        this._workareasChangedId = global.display.connect('workareas-changed',
+            () => this._syncGeometry());
+
+        // Rebuild clones when the clock/tray visibility settings change.
+        this._settingsChangedIds = [
+            this._settings.connect('changed::topbar-clone-show-clock',
+                () => this._scheduleRebuild()),
+            this._settings.connect('changed::topbar-clone-show-tray',
+                () => this._scheduleRebuild()),
+        ];
+
+        log(`${LOG_PREFIX} enabled (${this._boxes.length} clone panel(s))`);
+    }
+
+    disable() {
+        if (this._rebuildIdleId) {
+            GLib.source_remove(this._rebuildIdleId);
+            this._rebuildIdleId = 0;
+        }
+        if (this._monitorsChangedId) {
+            Main.layoutManager.disconnect(this._monitorsChangedId);
+            this._monitorsChangedId = 0;
+        }
+        if (this._workareasChangedId) {
+            global.display.disconnect(this._workareasChangedId);
+            this._workareasChangedId = 0;
+        }
+        if (this._settingsChangedIds) {
+            for (const id of this._settingsChangedIds)
+                this._settings.disconnect(id);
+            this._settingsChangedIds = null;
+        }
+
+        this._teardown();
+        this._settings = null;
+        SETTINGS = null;
+        log(`${LOG_PREFIX} disabled`);
+    }
+
+    // Load the suite settings schema. The module lives under the suite but has
+    // no schemas/ dir of its own, so resolve the compiled schema from the suite
+    // root (this.dir is the module dir; its parent's parent is the suite dir).
+    _loadSuiteSettings() {
+        const schemaId = 'org.gnome.shell.extensions.alienware-suite';
+        try {
+            // Prefer the standard extension helper if the schema is resolvable.
+            return this.getSettings(schemaId);
+        } catch (_e) {
+            // Fall back to loading the compiled schema from the suite's schemas dir.
+            const suiteSchemasDir = this.dir.get_parent().get_parent()
+                .get_child('schemas').get_path();
+            const source = Gio.SettingsSchemaSource.new_from_directory(
+                suiteSchemasDir,
+                Gio.SettingsSchemaSource.get_default(),
+                false);
+            const schema = source.lookup(schemaId, true);
+            if (!schema)
+                throw new Error(`${LOG_PREFIX} schema ${schemaId} not found in ${suiteSchemasDir}`);
+            return new Gio.Settings({settings_schema: schema});
+        }
+    }
+
+    _build() {
+        const monitors = Main.layoutManager.monitors || [];
+        const primaryIndex = Main.layoutManager.primaryIndex;
+
+        for (let i = 0; i < monitors.length; i++) {
+            if (i === primaryIndex)
+                continue;
+            try {
+                const box = new ClonePanelBox(i, monitors[i]);
+                this._boxes.push(box);
+            } catch (e) {
+                logError(e, `${LOG_PREFIX} failed to build clone for monitor ${i}`);
+            }
+        }
+    }
+
+    _teardown() {
+        while (this._boxes.length > 0) {
+            const box = this._boxes.pop();
+            try {
+                box.destroy();
+            } catch (e) {
+                logError(e, `${LOG_PREFIX} failed to destroy clone panel`);
+            }
+        }
+    }
+
+    _scheduleRebuild() {
+        if (this._rebuildIdleId)
+            return;
+        // Defer rebuild slightly so monitor geometry settles before we read it.
+        this._rebuildIdleId = GLib.timeout_add(GLib.PRIORITY_DEFAULT, 250, () => {
+            this._rebuildIdleId = 0;
+            this._teardown();
+            this._build();
+            return GLib.SOURCE_REMOVE;
+        });
+    }
+
+    _syncGeometry() {
+        const monitors = Main.layoutManager.monitors || [];
+        for (const box of this._boxes) {
+            const idx = box._monitorIndex;
+            if (idx < monitors.length)
+                box.updateMonitor(monitors[idx]);
+        }
+    }
+}

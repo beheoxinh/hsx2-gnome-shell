@@ -1,0 +1,22 @@
+.touchpad-notification {
+    background-color: rgba(30, 30, 30, 0.85);
+    /* Dark translucent */
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    /* Subtle bright border */
+    border-radius: 16px;
+    padding: 14px 24px;
+    color: #f6f6f6;
+    box-shadow: 0px 8px 24px rgba(0, 0, 0, 0.4);
+    font-family: inherit;
+}
+
+.touchpad-notification-icon {
+    margin-right: 14px;
+    icon-size: 28px;
+    color: #ffffff;
+}
+
+.touchpad-notification-label {
+    font-size: 13pt;
+    font-weight: 600;
+}
