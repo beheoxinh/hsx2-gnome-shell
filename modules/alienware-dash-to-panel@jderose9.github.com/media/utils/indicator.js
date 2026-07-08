@@ -40,12 +40,12 @@ export const MediaIndicator = GObject.registerClass(
       this._blockPopup = true;
       const origToggle = this.menu.toggle.bind(this.menu);
       this.menu.toggle = () => {
-        if (this._blockPopup) return;
+        if (this._blockPopup && !this._state?._currentPlayer) return;
         origToggle();
       };
       const origOpen = this.menu.open.bind(this.menu);
       this.menu.open = (animate) => {
-        if (this._blockPopup) return;
+        if (this._blockPopup && !this._state?._currentPlayer) return;
         origOpen(animate);
       };
 
