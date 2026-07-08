@@ -32,7 +32,7 @@ import * as PanelSettings from './panelSettings.js'
 import * as PanelManager from './panelManager.js'
 import * as AppIcons from './appIcons.js'
 import * as Utils from './utils.js'
-import MediaControllerExtension from './mediacontroller/extension.js'
+import MediaControllerExtension from './media/MediaController.js'
 
 const UBUNTU_DOCK_UUID = 'ubuntu-dock@ubuntu.com'
 
@@ -83,7 +83,7 @@ export default class DashToPanelExtension extends Extension {
     if (SETTINGS.get_boolean('show-media-player')) {
       try {
         const GioSSS = Gio.SettingsSchemaSource
-        const schemaDir = GLib.build_filenamev([this.path, 'mediacontroller', 'schemas'])
+        const schemaDir = GLib.build_filenamev([this.path, 'media', 'schemas'])
         if (GLib.file_test(schemaDir, GLib.FileTest.IS_DIR)) {
           const schemaSource = GioSSS.new_from_directory(schemaDir, GioSSS.get_default(), false)
           const schemaObj = schemaSource.lookup('org.gnome.shell.extensions.advanced-media-controller', true)
@@ -106,7 +106,7 @@ export default class DashToPanelExtension extends Extension {
         if (!this._mcSettings) {
           try {
             const GioSSS = Gio.SettingsSchemaSource
-            const schemaDir = GLib.build_filenamev([this.path, 'mediacontroller', 'schemas'])
+            const schemaDir = GLib.build_filenamev([this.path, 'media', 'schemas'])
             if (GLib.file_test(schemaDir, GLib.FileTest.IS_DIR)) {
               const schemaSource = GioSSS.new_from_directory(schemaDir, GioSSS.get_default(), false)
               const schemaObj = schemaSource.lookup('org.gnome.shell.extensions.advanced-media-controller', true)
@@ -233,7 +233,7 @@ export default class DashToPanelExtension extends Extension {
 
   _enableMediaController() {
     if (this._mediaController) return
-    this._mediaController = new MediaControllerExtension(this._mcSettings, this.path + '/mediacontroller')
+    this._mediaController = new MediaControllerExtension(this._mcSettings, this.path + '/media')
     this._mediaController.enable()
   }
 
