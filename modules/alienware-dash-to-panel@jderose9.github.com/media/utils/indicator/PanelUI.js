@@ -439,6 +439,7 @@ export class PanelUI {
       this._icon.gicon = Gio.ThemedIcon.new("audio-x-generic-symbolic");
     this.panelPlayBtn.child.icon_name = "media-playback-start-symbolic";
     this.label.set_text("");
+    this._indicator.reactive = false;
   }
 
   _refreshIcon() {
