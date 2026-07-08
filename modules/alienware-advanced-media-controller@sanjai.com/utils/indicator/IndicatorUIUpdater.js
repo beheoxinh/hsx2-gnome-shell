@@ -83,13 +83,15 @@ export class IndicatorUIUpdater {
 
       const manager = this._indicator._manager;
       if (!manager) {
-        this._indicator.hide();
+        this._indicator.show();
+        this._indicator._panelUI.label.hide();
         return;
       }
 
       const players = manager.getPlayers();
       if (players.length === 0) {
-        this._indicator.hide();
+        this._indicator.show();
+        this._indicator._panelUI.label.hide();
         return;
       }
 
@@ -161,7 +163,8 @@ export class IndicatorUIUpdater {
         }
       }
 
-      this._indicator.hide();
+      this._indicator._panelUI.label.hide();
+      this._indicator.show();
     } catch (e) {}
   }
 
@@ -176,7 +179,7 @@ export class IndicatorUIUpdater {
       if (!this._indicator._state._currentPlayer) {
         this._indicator._panelUI.stopScrolling();
         this._indicator._panelUI.label.hide();
-        this._indicator.hide();
+        this._indicator.show();
         return;
       }
 
@@ -186,7 +189,7 @@ export class IndicatorUIUpdater {
       if (!info) {
         this._indicator._panelUI.stopScrolling();
         this._indicator._panelUI.label.hide();
-        this._indicator.hide();
+        this._indicator.show();
         return;
       }
 

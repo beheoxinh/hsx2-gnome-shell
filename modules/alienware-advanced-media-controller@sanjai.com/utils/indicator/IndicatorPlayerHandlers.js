@@ -206,11 +206,11 @@ export class IndicatorPlayerHandlers {
       this._indicator._uiUpdater.updateTabs();
       this._indicator._uiUpdater.updateVisibility();
     } else {
-      // No players at all — safe to hide.
+      // No players — keep icon visible but hide label.
       this._indicator._state._currentPlayer = null;
       this._indicator._panelUI.stopScrolling();
       this._indicator._panelUI.label.hide();
-      this._indicator.hide();
+      this._indicator.show();
     }
   }
 
