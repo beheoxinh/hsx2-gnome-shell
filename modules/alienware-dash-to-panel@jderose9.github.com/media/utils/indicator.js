@@ -16,7 +16,10 @@ export const MediaIndicator = GObject.registerClass(
     _init(settings, extension) {
       const _ = extension.gettext ? extension.gettext.bind(extension) : (s) => s;
 
+      this._blockPopup = true;
+      this._menuItem = null;
       super._init(0.5, _("Media Controls"), false);
+      if (this.menu) this._savedSourceActor = this.menu._sourceActor;
 
       this._settings = settings;
       this._extension = extension;
@@ -29,25 +32,12 @@ export const MediaIndicator = GObject.registerClass(
       this._playerHandlers = new IndicatorPlayerHandlers(this);
       this._uiUpdater = new IndicatorUIUpdater(this);
 
-      const item = new PopupMenu.PopupBaseMenuItem({
+      this._menuItem = new PopupMenu.PopupBaseMenuItem({
         reactive: false,
         can_focus: false,
       });
-      item.add_child(this._controls);
-      this.menu.addMenuItem(item);
-
-      // block popup when no player is active
-      this._blockPopup = true;
-      const origToggle = this.menu.toggle.bind(this.menu);
-      this.menu.toggle = () => {
-        if (this._blockPopup && !this._state?._currentPlayer) return;
-        origToggle();
-      };
-      const origOpen = this.menu.open.bind(this.menu);
-      this.menu.open = (animate) => {
-        if (this._blockPopup && !this._state?._currentPlayer) return;
-        origOpen(animate);
-      };
+      this._menuItem.add_child(this._controls);
+      this.menu.addMenuItem(this._menuItem);
 
       this._eventHandlers.connectControlSignals();
 

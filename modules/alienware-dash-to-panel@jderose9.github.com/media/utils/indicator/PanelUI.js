@@ -440,7 +440,12 @@ export class PanelUI {
     this.panelPlayBtn.child.icon_name = "media-playback-start-symbolic";
     this.label.set_text("");
     this._indicator._blockPopup = true;
-    this._indicator.menu._sourceActor = null;
+    // physically remove menu source actor to block all clicks
+    if (this._indicator.menu) {
+      this._indicator._savedSourceActor = this._indicator.menu._sourceActor;
+      this._indicator.menu._sourceActor = null;
+    }
+    if (this._indicator._menuItem) this._indicator._menuItem.visible = false;
     console.log(`[MC] popup blocked`);
     if (this._indicator.menu) this._indicator.menu.close();
   }
