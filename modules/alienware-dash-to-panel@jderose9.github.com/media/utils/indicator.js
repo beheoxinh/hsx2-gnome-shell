@@ -43,6 +43,11 @@ export const MediaIndicator = GObject.registerClass(
         if (this._blockPopup) return;
         origToggle();
       };
+      const origOpen = this.menu.open.bind(this.menu);
+      this.menu.open = (animate) => {
+        if (this._blockPopup) return;
+        origOpen(animate);
+      };
 
       this._eventHandlers.connectControlSignals();
 
