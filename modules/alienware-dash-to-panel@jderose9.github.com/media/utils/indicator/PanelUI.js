@@ -442,7 +442,6 @@ export class PanelUI {
     this._indicator._blockPopup = true;
     // physically remove menu source actor to block all clicks
     if (this._indicator.menu) {
-      this._indicator._savedSourceActor = this._indicator.menu._sourceActor;
       this._indicator.menu._sourceActor = null;
     }
     if (this._indicator._menuItem) this._indicator._menuItem.visible = false;
