@@ -78,50 +78,16 @@ export default class DashToPanelExtension extends Extension {
     //create a global object that can emit signals and conveniently expose functionalities to other extensions
     global.dashToPanel = new EventEmitter()
 
-    // load media controller settings
+    // init media controller settings
     this._mcSettings = null
-    if (SETTINGS.get_boolean('show-media-player')) {
-      try {
-        const GioSSS = Gio.SettingsSchemaSource
-        const schemaDir = GLib.build_filenamev([this.path, 'media', 'schemas'])
-        if (GLib.file_test(schemaDir, GLib.FileTest.IS_DIR)) {
-          const schemaSource = GioSSS.new_from_directory(schemaDir, GioSSS.get_default(), false)
-          const schemaObj = schemaSource.lookup('org.gnome.shell.extensions.advanced-media-controller', true)
-          if (schemaObj)
-            this._mcSettings = new Gio.Settings({settings_schema: schemaObj})
-        }
-      } catch (e) {
-        logError(e, 'Failed to load Media Controller settings')
-      }
-    }
+    this._mediaController = null
+    if (SETTINGS.get_boolean('show-media-player'))
+      this._loadMcSettings()
 
     // reset to be safe
     SETTINGS.set_boolean('prefs-opened', false)
 
     await PanelSettings.init(SETTINGS)
-
-    // listen to media player toggle changes
-    this._mcChangedId = SETTINGS.connect('changed::show-media-player', () => {
-      if (SETTINGS.get_boolean('show-media-player')) {
-        if (!this._mcSettings) {
-          try {
-            const GioSSS = Gio.SettingsSchemaSource
-            const schemaDir = GLib.build_filenamev([this.path, 'media', 'schemas'])
-            if (GLib.file_test(schemaDir, GLib.FileTest.IS_DIR)) {
-              const schemaSource = GioSSS.new_from_directory(schemaDir, GioSSS.get_default(), false)
-              const schemaObj = schemaSource.lookup('org.gnome.shell.extensions.advanced-media-controller', true)
-              if (schemaObj)
-                this._mcSettings = new Gio.Settings({settings_schema: schemaObj})
-            }
-          } catch (e) {
-            logError(e, 'Failed to load Media Controller settings')
-          }
-        }
-        this._enableMediaController()
-      } else {
-        this._disableMediaController()
-      }
-    })
 
     // To remove later, try to map settings using monitor indexes to monitor ids
     PanelSettings.adjustMonitorSettings(SETTINGS)
@@ -165,13 +131,17 @@ export default class DashToPanelExtension extends Extension {
 
     this.enableGlobalStyles()
 
+    // enable media controller if dtp toggle is on
+    if (SETTINGS.get_boolean('show-media-player'))
+      this._loadMcSettings()
+
     let completeEnable = () => {
       panelManager = new PanelManager.PanelManager()
       panelManager.enable()
       ubuntuDockDelayId = 0
 
-      // enable media controller if dtp toggle is on
-      if (this._mcSettings && SETTINGS.get_boolean('show-media-player'))
+      // enable media controller
+      if (this._mcSettings)
         this._enableMediaController()
 
       return GLib.SOURCE_REMOVE
@@ -223,12 +193,23 @@ export default class DashToPanelExtension extends Extension {
       this._mediaController.disable()
       this._mediaController = null
     }
-    if (this._mcChangedId) {
-      SETTINGS.disconnect(this._mcChangedId)
-      this._mcChangedId = 0
-    }
-
     Main.sessionMode.hasOverview = this._realHasOverview
+  }
+
+  _loadMcSettings() {
+    if (this._mcSettings) return
+    try {
+      const GioSSS = Gio.SettingsSchemaSource
+      const schemaDir = GLib.build_filenamev([this.path, 'media', 'schemas'])
+      if (GLib.file_test(schemaDir, GLib.FileTest.IS_DIR)) {
+        const schemaSource = GioSSS.new_from_directory(schemaDir, GioSSS.get_default(), false)
+        const schemaObj = schemaSource.lookup('org.gnome.shell.extensions.advanced-media-controller', true)
+        if (schemaObj)
+          this._mcSettings = new Gio.Settings({settings_schema: schemaObj})
+      }
+    } catch (e) {
+      logError(e, 'Failed to load Media Controller settings')
+    }
   }
 
   _enableMediaController() {
