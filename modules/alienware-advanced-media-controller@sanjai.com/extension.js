@@ -15,27 +15,45 @@ const DTP_BOX_MAP = {
 };
 
 export default class MediaExtension extends Extension {
+  _loadSettings(schemaId) {
+    try {
+      const GioSSS = Gio.SettingsSchemaSource;
+      const schemaDir = GLib.build_filenamev([this.path, 'schemas']);
+      if (GLib.file_test(schemaDir, GLib.FileTest.IS_DIR)) {
+        const schemaSource = GioSSS.new_from_directory(schemaDir, GioSSS.get_default(), false);
+        const schemaObj = schemaSource.lookup(schemaId, true);
+        if (schemaObj)
+          return new Gio.Settings({settings_schema: schemaObj});
+      }
+    } catch (e) {
+      logError(e, `Failed to load schema ${schemaId}`);
+    }
+    return null;
+  }
+
   _getDtPSettings() {
     try {
       const GioSSS = Gio.SettingsSchemaSource;
       const schemaDir = GLib.build_filenamev([
         this.path, '..', 'alienware-dash-to-panel@jderose9.github.com', 'schemas'
       ]);
-      const schemaSource = GioSSS.new_from_directory(
-        schemaDir, GioSSS.get_default(), false
-      );
-      const schemaObj = schemaSource.lookup(
-        'org.gnome.shell.extensions.dash-to-panel', true
-      );
-      if (schemaObj)
-        return new Gio.Settings({settings_schema: schemaObj});
+      if (GLib.file_test(schemaDir, GLib.FileTest.IS_DIR)) {
+        const schemaSource = GioSSS.new_from_directory(
+          schemaDir, GioSSS.get_default(), false
+        );
+        const schemaObj = schemaSource.lookup(
+          'org.gnome.shell.extensions.dash-to-panel', true
+        );
+        if (schemaObj)
+          return new Gio.Settings({settings_schema: schemaObj});
+      }
     } catch (e) {
       logError(e, 'Failed to load DtP settings');
     }
     return null;
   }
   enable() {
-    this._settings = this.getSettings();
+    this._settings = this._loadSettings('org.gnome.shell.extensions.advanced-media-controller');
     this._dtpSettings = this._getDtPSettings();
     this._repositionDebounceId = null;
     this._settingsChangedId = 0;

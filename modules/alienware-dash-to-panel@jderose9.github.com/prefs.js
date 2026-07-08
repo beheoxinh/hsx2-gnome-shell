@@ -155,6 +155,23 @@ const Preferences = class {
     this._settings = settings
     this._path = path
 
+    this._suiteSettings = null
+    try {
+      const GioSSS = Gio.SettingsSchemaSource
+      let schemaDir = GLib.build_filenamev([path, 'schemas'])
+      let schemaSource = GioSSS.new_from_directory(schemaDir, GioSSS.get_default(), false)
+      let schemaObj = schemaSource.lookup('org.gnome.shell.extensions.alienware-suite', true)
+      if (!schemaObj) {
+        schemaDir = GLib.build_filenamev([path, '..', '..', 'schemas'])
+        schemaSource = GioSSS.new_from_directory(schemaDir, GioSSS.get_default(), false)
+        schemaObj = schemaSource.lookup('org.gnome.shell.extensions.alienware-suite', true)
+      }
+      if (schemaObj)
+        this._suiteSettings = new Gio.Settings({settings_schema: schemaObj})
+    } catch (e) {
+      logError(e, 'Failed to load suite settings')
+    }
+
     this._metadata = ExtensionPreferences.lookupByURL(import.meta.url).metadata
     this._builder.set_translation_domain(this._metadata['gettext-domain'])
 
@@ -2754,23 +2771,24 @@ const Preferences = class {
       Gio.SettingsBindFlags.DEFAULT,
     )
 
-    this._settings.bind(
-      'show-media-player',
-      this._builder.get_object('show_media_player_switch'),
-      'active',
-      Gio.SettingsBindFlags.DEFAULT,
-    )
+    const sw = this._builder.get_object('show_media_player_switch')
+    if (this._suiteSettings) {
+      sw.set_active(this._suiteSettings.get_boolean('enable-advanced-media-controller'))
+      sw.connect('notify::active', () => {
+        this._settings.set_boolean('show-media-player', sw.active)
+        this._suiteSettings.set_boolean('enable-advanced-media-controller', sw.active)
+      })
+    } else {
+      this._settings.bind('show-media-player', sw, 'active', Gio.SettingsBindFlags.DEFAULT)
+    }
 
     this._builder
       .get_object('show_media_player_options_button')
       .connect('clicked', () => {
         try {
-          let app = Gio.AppInfo.create_from_commandline(
-            'gnome-extensions prefs alienware-advanced-media-controller@sanjai.com',
-            null,
-            Gio.AppInfoCreateFlags.NONE,
+          GLib.spawn_command_line_async(
+            'gnome-extensions prefs alienware-hsx2coder-gnome@hsx2coder.github.com'
           )
-          if (app) app.launch([], null)
         } catch (e) {
           logError(e, 'Failed to open Media Player settings')
         }
