@@ -205,19 +205,27 @@ export default class DashToPanelExtension extends Extension {
     try {
       const GioSSS = Gio.SettingsSchemaSource
       const schemaDir = GLib.build_filenamev([this.path, 'media', 'schemas'])
+      console.log(`[MC] loading settings from ${schemaDir}`)
       if (GLib.file_test(schemaDir, GLib.FileTest.IS_DIR)) {
         const schemaSource = GioSSS.new_from_directory(schemaDir, GioSSS.get_default(), false)
         const schemaObj = schemaSource.lookup('org.gnome.shell.extensions.advanced-media-controller', true)
-        if (schemaObj)
+        if (schemaObj) {
           this._mcSettings = new Gio.Settings({settings_schema: schemaObj})
+          console.log(`[MC] settings loaded OK`)
+        } else {
+          console.log(`[MC] schema not found in ${schemaDir}`)
+        }
+      } else {
+        console.log(`[MC] schema dir not found: ${schemaDir}`)
       }
     } catch (e) {
-      logError(e, 'Failed to load Media Controller settings')
+      logError(e, '[MC] Failed to load Media Controller settings')
     }
   }
 
   _enableMediaController() {
     if (this._mediaController) return
+    console.log(`[MC] enabling media controller`)
     this._mediaController = new MediaControllerExtension(this._mcSettings, this.path + '/media')
     this._mediaController.enable()
   }
