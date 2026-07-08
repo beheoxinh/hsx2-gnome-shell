@@ -179,6 +179,7 @@ export class IndicatorUIUpdater {
       if (!this._indicator._state._currentPlayer) {
         this._indicator._panelUI.stopScrolling();
         this._indicator._panelUI.label.hide();
+        this._indicator._panelUI.resetToDefault();
         this._indicator.show();
         return;
       }
@@ -189,6 +190,7 @@ export class IndicatorUIUpdater {
       if (!info) {
         this._indicator._panelUI.stopScrolling();
         this._indicator._panelUI.label.hide();
+        this._indicator._panelUI.resetToDefault();
         this._indicator.show();
         return;
       }

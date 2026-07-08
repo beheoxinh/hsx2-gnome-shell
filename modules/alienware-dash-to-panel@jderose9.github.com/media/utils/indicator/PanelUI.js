@@ -430,6 +430,16 @@ export class PanelUI {
     this.setCurrentPlayer(currentPlayer, manager);
   }
 
+  resetToDefault() {
+    this._playingPlayer = null;
+    this._currentPlayer = null;
+    this._lastIconSource = null;
+    this._lastColourGicon = null;
+    if (this._icon)
+      this._icon.gicon = Gio.ThemedIcon.new("audio-x-generic-symbolic");
+    this.panelPlayBtn.child.icon_name = "media-playback-start-symbolic";
+  }
+
   _refreshIcon() {
     if (!this._icon) return;
 
