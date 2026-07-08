@@ -1414,4 +1414,133 @@
     width: 0;
     height: 0;
     padding: 0;
+    margin: 0;
+}
+
+/* ===== alienware-advanced-media-controller@sanjai.com ===== */
+
+.colored-icon {
+    -st-icon-style: requested;
+}
+
+.symbolic-icon {
+    -st-icon-style: symbolic;
+}
+
+/* ---- Panel media indicator ---- */
+.panel-status-menu-box.panel-button-box {
+    spacing: 6px;
+}
+
+.panel-controls-box {
+    spacing: 2px;
+}
+
+.panel-media-button {
+    padding: 2px 4px;
+    border-radius: 5px;
+}
+
+/* ---- Popup ---- */
+.media-controls-popup {
+    padding: 0;
+}
+
+.media-controls-popup .popup-menu-item {
+    padding: 0;
+}
+
+.media-controls-popup .popup-menu-item:active,
+.media-controls-popup .popup-menu-item:checked {
+    background: none;
+    box-shadow: none;
+}
+
+.media-controls-popup .popup-menu-item:focus,
+.media-controls-popup .popup-menu-item:hover {
+    background: none;
+}
+
+/* ---- Album art rotation ---- */
+.album-art-spinning {
+    transition: none;
+}
+
+/* ---- Scrolling label ---- */
+.scrolling-label-container {
+    overflow: hidden;
+    white-space: nowrap;
+}
+
+.scrolling-label-text {
+    white-space: nowrap;
+}
+
+/* ---- Control buttons ---- */
+.media-control-button {
+    padding: 8px;
+    border-radius: 100px;
+}
+
+.media-control-button:hover {
+    background-color: rgba(128, 128, 128, 0.15);
+}
+
+.media-control-button:active {
+    background-color: rgba(128, 128, 128, 0.25);
+}
+
+.media-control-button-favorite {
+    color: #ffb347;
+}
+
+/* ---- Progress slider ---- */
+.media-progress-slider {
+    height: 6px;
+    border-radius: 3px;
+    background-color: rgba(128, 128, 128, 0.2);
+}
+
+.media-progress-slider .slider-handle {
+    border-radius: 10px;
+    background-color: currentColor;
+}
+
+.media-progress-slider .slider-value {
+    background-color: currentColor;
+    border-radius: 3px;
+}
+
+/* ---- Player tabs ---- */
+.player-tab-button {
+    padding: 4px 8px;
+    border-radius: 6px;
+}
+
+.player-tab-button:hover {
+    background-color: rgba(128, 128, 128, 0.15);
+}
+
+.player-tab-button:checked,
+.player-tab-button:active {
+    background-color: rgba(128, 128, 128, 0.25);
+}
+
+/* ---- Lyrics ---- */
+.lyrics-widget {
+    padding: 12px;
+}
+
+.lyrics-line-active {
+    color: currentColor;
+    font-weight: bold;
+}
+
+.lyrics-line-inactive {
+    color: rgba(128, 128, 128, 0.6);
+}
+
+/* ---- Tonearm ---- */
+.tonearm-container {
+    transition: none;
 }

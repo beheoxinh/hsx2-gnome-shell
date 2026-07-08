@@ -2540,21 +2540,6 @@ export const MyShowAppsIconMenu = class extends PopupMenu.PopupMenu {
 
     this._appendSeparator()
 
-    let moveAllToFirstItem = this._appendMenuItem(
-      _('Move all windows to Workspace 1'),
-    )
-    moveAllToFirstItem.connect('activate', () => {
-      let firstWorkspace = Utils.getWorkspaceByIndex(0)
-      let nWorkspaces = Utils.getWorkspaceCount()
-
-      for (let i = 1; i < nWorkspaces; i++) {
-        let windows = Utils.getWorkspaceByIndex(i).list_windows()
-        windows.forEach((w) => {
-          if (!w.is_on_all_workspaces()) w.change_workspace(firstWorkspace)
-        })
-      }
-    })
-
     let lockTaskbarMenuItem = this._appendMenuItem(
       SETTINGS.get_boolean('taskbar-locked')
         ? _('Unlock taskbar')
@@ -2583,6 +2568,19 @@ export const MyShowAppsIconMenu = class extends PopupMenu.PopupMenu {
         'activate',
         this._dtpPanel._onShowDesktopButtonPress.bind(this._dtpPanel),
       )
+
+      this._appendSeparator()
+      let collapseItem = this._appendMenuItem(_('Collapse Workspace'))
+      collapseItem.connect('activate', () => {
+        let firstWorkspace = Utils.getWorkspaceByIndex(0)
+        let nWorkspaces = Utils.getWorkspaceCount()
+        for (let i = 1; i < nWorkspaces; i++) {
+          let windows = Utils.getWorkspaceByIndex(i).list_windows()
+          windows.forEach((w) => {
+            if (!w.is_on_all_workspaces()) w.change_workspace(firstWorkspace)
+          })
+        }
+      })
     }
   }
 

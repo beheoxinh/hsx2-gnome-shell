@@ -289,7 +289,7 @@ export const PanelManager = class {
             await PanelSettings.setMonitorsInfo(SETTINGS).catch((e) =>
               console.log(e),
             )
-            this._reset()
+            this._scheduleReset()
           }
         },
       ],
@@ -322,6 +322,10 @@ export const PanelManager = class {
   }
 
   disable(reset) {
+    if (this._resetTimeoutId) {
+      GLib.source_remove(this._resetTimeoutId)
+      this._resetTimeoutId = 0
+    }
     this.primaryPanel && this.overview.disable()
     this.proximityManager.destroy()
 
@@ -500,6 +504,10 @@ export const PanelManager = class {
       Main.overview._overview._controls.layout_manager._updateWorkAreaBox()
       Main.layoutManager.primaryMonitor =
         Main.layoutManager.monitors[Main.layoutManager.primaryIndex]
+      if (!Main.layoutManager.primaryMonitor) {
+        Main.layoutManager.primaryMonitor =
+          Main.layoutManager.monitors[0]
+      }
     }
   }
 
@@ -723,6 +731,16 @@ export const PanelManager = class {
     panel.taskbar.iconAnimator.start()
 
     return panel
+  }
+
+  _scheduleReset() {
+    if (this._resetTimeoutId)
+      return
+    this._resetTimeoutId = GLib.timeout_add(GLib.PRIORITY_DEFAULT, 500, () => {
+      this._resetTimeoutId = 0
+      this._reset()
+      return GLib.SOURCE_REMOVE
+    })
   }
 
   _reset() {

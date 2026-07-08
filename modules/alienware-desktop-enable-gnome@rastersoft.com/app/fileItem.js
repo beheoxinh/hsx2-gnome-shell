@@ -362,6 +362,14 @@ var FileItem = class extends desktopIconItem.desktopIconItem {
             this._isHidden = fileInfo.get_is_hidden() | fileInfo.get_is_backup();
             this._isSymlink = fileInfo.get_is_symlink();
         }
+        if (this.container) {
+            let context = this.container.get_style_context();
+            if (this._isHidden) {
+                context.add_class('file-item-hidden');
+            } else {
+                context.remove_class('file-item-hidden');
+            }
+        }
         this._modifiedTime = fileInfo.get_attribute_uint64('time::modified');
         /*
          * This is a glib trick to detect broken symlinks. If a file is a symlink, the filetype

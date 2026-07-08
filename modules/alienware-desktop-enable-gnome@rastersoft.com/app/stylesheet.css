@@ -1,3 +1,4 @@
+/* ===== Desktop Icon Labels ===== */
 .file-label, label.file-label:backdrop {
     text-shadow: 0px 0px 3px black;
     color: white;
@@ -20,6 +21,10 @@
    background-color: rgba(238, 238, 238, 0.2);
 }
 
+.file-item-hidden {
+   opacity: 0.55;
+}
+
 .not-found {
     color: rgb(255, 0, 0);
 }
@@ -30,4 +35,66 @@ window.desktopwindow {
 
 window.testwindow {
     background-color: rgba(0, 0, 0, 100);
+}
+
+/* ===== File Progress Popup Window ===== */
+.file-progress-popup-box {
+    padding: 8px 10px;
+}
+
+.file-progress-status {
+    font-size: 12px;
+    color: #ffffff;
+    font-weight: 500;
+}
+
+.file-progress-popup-bar {
+    min-height: 3px;
+    border: none;
+    background-color: rgba(255, 255, 255, 0.12);
+    padding: 0;
+    margin: 3px 0 0 0;
+}
+
+.file-progress-popup-bar trough {
+    border: none;
+    background-color: rgba(255, 255, 255, 0.12);
+    min-height: 3px;
+}
+
+.file-progress-popup-bar progress {
+    border: none;
+    background-color: @theme_selected_bg_color;
+    min-height: 3px;
+}
+
+.file-progress-popup-bar trough progress {
+    border: none;
+    background-color: @theme_selected_bg_color;
+}
+
+button.file-progress-popup-cancel {
+    min-height: 22px;
+    min-width: 52px;
+    padding: 0 8px;
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    background-color: rgba(255, 255, 255, 0.08);
+    color: #ffffff;
+    font-size: 11px;
+    font-weight: 500;
+}
+
+button.file-progress-popup-cancel:hover {
+    background-color: rgba(255, 255, 255, 0.15);
+}
+
+button.file-progress-popup-cancel:active {
+    background-color: rgba(255, 255, 255, 0.22);
+}
+
+.desktopmenu {
+    padding-left: 0;
+}
+.desktopmenu menuitem {
+    padding-left: 5px;
 }

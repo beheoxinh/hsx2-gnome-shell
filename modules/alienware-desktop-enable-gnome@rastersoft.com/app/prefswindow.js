@@ -85,7 +85,12 @@ function preferencesFrame(_Gtk, desktopSettings, nautilusSettings, gtkSettings) 
 
     frame.add(buildSwitcher(desktopSettings, 'dark-text-in-labels', _('Use dark text in icon labels')));
 
-    frame.add(buildSwitcher(desktopSettings, 'antigravity-cdp-mode', _('Open with Antigravity in CDP (Debug) mode')));
+    frame.add(buildSwitcher(desktopSettings, 'open-with-enabled', _('Enable custom context menu entry')));
+    frame.add(buildTextEntry(desktopSettings, 'open-with-label', _('Context menu label')));
+    frame.add(buildTextEntry(desktopSettings, 'open-with-command', _('Command to execute')));
+
+    frame.add(buildSwitcher(desktopSettings, 'use-native-progress',
+        _('Use Nautilus progress (requires Nautilus running)')));
 
     frame.add(new Gtk.Separator({orientation: Gtk.Orientation.HORIZONTAL}));
 

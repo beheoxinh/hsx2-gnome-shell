@@ -110,10 +110,25 @@
         <summary>Custom terminal emulator</summary>
         <description>Terminal emulator to use for \"Open in Console\". Leave empty to use the system default.</description>
     </key>
-    <key type="b" name="antigravity-cdp-mode">
+    <key type="b" name="open-with-enabled">
+        <default>true</default>
+        <summary>Enable custom context menu entry</summary>
+        <description>If true, shows a custom entry in the desktop context menu.</description>
+    </key>
+    <key type="s" name="open-with-label">
+        <default>'IDE'</default>
+        <summary>Label for custom context menu entry</summary>
+        <description>The text shown on the desktop context menu entry.</description>
+    </key>
+    <key type="s" name="open-with-command">
+        <default>'antigravity'</default>
+        <summary>Command for custom context menu entry</summary>
+        <description>The command to execute when the custom context menu entry is selected.</description>
+    </key>
+    <key type="b" name="use-native-progress">
         <default>false</default>
-        <summary>Open with Antigravity in CDP/Debug mode</summary>
-        <description>If true, launches Antigravity with the --cdp flag for Chrome DevTools Protocol (debug) mode.</description>
+        <summary>Use Nautilus-style progress</summary>
+        <description>If true, file operations show Nautilus progress dialogs instead of the desktop progress popup. Requires Nautilus running.</description>
     </key>
     </schema>
 </schemalist>

@@ -45,6 +45,16 @@
       <summary>Show the system tray on the cloned top bar</summary>
       <description>Show the Quick Settings / system tray on the right of the cloned top bar.</description>
     </key>
+    <key name="enable-advanced-media-controller" type="b">
+      <default>true</default>
+      <summary>Enable Advanced Media Controller module</summary>
+      <description>Display media controls for MPRIS-compatible players on the Dash-to-Panel taskbar.</description>
+    </key>
+    <key name="enable-command-menu2" type="b">
+      <default>true</default>
+      <summary>Enable Command Menu 2 module</summary>
+      <description>Custom dropdown menus in the top panel.</description>
+    </key>
 
   </schema>
 </schemalist>

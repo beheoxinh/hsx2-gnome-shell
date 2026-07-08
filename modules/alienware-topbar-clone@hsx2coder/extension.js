@@ -492,7 +492,7 @@ class CloneTopBar extends St.BoxLayout {
 class ClonePanelBox {
     constructor(monitorIndex, monitor) {
         this._monitorIndex = monitorIndex;
-        this._monitor = {x: monitor.x, y: monitor.y, width: monitor.width};
+        this._monitor = null;
         this._geometryIdleId = 0;
         this._allocationChangedId = 0;
 
@@ -515,8 +515,11 @@ class ClonePanelBox {
             'shell-focus-top-bar-symbolic', {sortGroup: CtrlAltTab.SortGroup.TOP});
 
         this._height = this._nativePanelHeight();
-        this.panelBox.set_position(monitor.x, monitor.y);
-        this.panelBox.set_size(monitor.width, this._height);
+        this._setMonitorData(monitor);
+        if (this._monitor) {
+            this.panelBox.set_position(this._monitor.x, this._monitor.y);
+            this.panelBox.set_size(this._monitor.width, this._height);
+        }
 
         // Keep the clone painted below the real panelBox of the primary.
         try {
@@ -534,21 +537,24 @@ class ClonePanelBox {
     _nativePanelHeight() {
         try {
             const h = Main.panel?.height;
-            if (h && h > 0)
+            if (h && h > 0 && !isNaN(h))
                 return h;
         } catch (_e) { /* fallthrough */ }
         try {
+            if (!Main.panel) return 32;
             const [, natHeight] = Main.panel.get_preferred_height(-1);
-            if (natHeight > 0)
+            if (natHeight > 0 && !isNaN(natHeight))
                 return natHeight;
         } catch (_e) { /* fallthrough */ }
         const boxHeight = Main.layoutManager.panelBox?.height;
-        if (boxHeight && boxHeight > 0)
+        if (boxHeight && boxHeight > 0 && !isNaN(boxHeight))
             return boxHeight;
         return 32;
     }
 
     _needsUpdate() {
+        if (!this._monitor || !this.panelBox)
+            return false;
         return (
             Math.round(this.panelBox.x) !== this._monitor.x ||
             Math.round(this.panelBox.y) !== this._monitor.y ||
@@ -570,6 +576,14 @@ class ClonePanelBox {
         });
     }
 
+    _setMonitorData(monitor) {
+        if (!monitor || isNaN(monitor.x) || isNaN(monitor.y) || !monitor.width || monitor.width <= 0) {
+            this._monitor = null;
+            return;
+        }
+        this._monitor = {x: monitor.x, y: monitor.y, width: monitor.width};
+    }
+
     _applyGeometry() {
         if (!this.panelBox || !this._monitor)
             return;
@@ -580,7 +594,12 @@ class ClonePanelBox {
     }
 
     updateMonitor(monitor) {
-        this._monitor = {x: monitor.x, y: monitor.y, width: monitor.width};
+        const prevMonitor = this._monitor;
+        this._setMonitorData(monitor);
+        if (!this._monitor) {
+            this._monitor = prevMonitor;
+            return;
+        }
         const h = this._nativePanelHeight();
         if (h > 0)
             this._height = h;
@@ -620,6 +639,7 @@ export default class TopbarCloneExtension extends Extension {
         this._monitorsChangedId = 0;
         this._workareasChangedId = 0;
         this._rebuildIdleId = 0;
+        this._syncGeometryIdle = 0;
     }
 
     enable() {
@@ -651,6 +671,10 @@ export default class TopbarCloneExtension extends Extension {
         if (this._rebuildIdleId) {
             GLib.source_remove(this._rebuildIdleId);
             this._rebuildIdleId = 0;
+        }
+        if (this._syncGeometryIdle) {
+            GLib.source_remove(this._syncGeometryIdle);
+            this._syncGeometryIdle = 0;
         }
         if (this._monitorsChangedId) {
             Main.layoutManager.disconnect(this._monitorsChangedId);
@@ -725,8 +749,9 @@ export default class TopbarCloneExtension extends Extension {
     _scheduleRebuild() {
         if (this._rebuildIdleId)
             return;
-        // Defer rebuild slightly so monitor geometry settles before we read it.
-        this._rebuildIdleId = GLib.timeout_add(GLib.PRIORITY_DEFAULT, 250, () => {
+        // Defer rebuild long enough for monitor geometry to fully settle
+        // and other extensions (Dash-to-Panel, DING) to finish their handlers.
+        this._rebuildIdleId = GLib.timeout_add(GLib.PRIORITY_DEFAULT, 800, () => {
             this._rebuildIdleId = 0;
             this._teardown();
             this._build();
@@ -735,11 +760,18 @@ export default class TopbarCloneExtension extends Extension {
     }
 
     _syncGeometry() {
-        const monitors = Main.layoutManager.monitors || [];
-        for (const box of this._boxes) {
-            const idx = box._monitorIndex;
-            if (idx < monitors.length)
-                box.updateMonitor(monitors[idx]);
-        }
+        // Defer to idle so we only read geometry once the layout has settled.
+        if (this._syncGeometryIdle)
+            return;
+        this._syncGeometryIdle = GLib.idle_add(GLib.PRIORITY_DEFAULT_IDLE, () => {
+            this._syncGeometryIdle = 0;
+            const monitors = Main.layoutManager.monitors || [];
+            for (const box of this._boxes) {
+                const idx = box._monitorIndex;
+                if (idx < monitors.length && monitors[idx] && !isNaN(monitors[idx].x))
+                    box.updateMonitor(monitors[idx]);
+            }
+            return GLib.SOURCE_REMOVE;
+        });
     }
 }

@@ -40,6 +40,9 @@ const Thumbnails = imports.thumbnails;
 const FileItemMenu = imports.fileItemMenu;
 const AutoAr = imports.autoAr;
 const SignalManager = imports.signalManager;
+const FileUtils = imports.fileUtils;
+const FileProgressManager = imports.fileProgressManager;
+const LocalFileOps = imports.localFileOps;
 
 const Gettext = imports.gettext.domain('ding');
 
@@ -77,6 +80,7 @@ var DesktopManager = class {
 
         this.dbusManager = dbusManager;
         this.autoAr = new AutoAr.AutoAr(this);
+        this.fileProgress = new FileProgressManager.FileProgressManager(this);
 
         this.templatesMonitor = new TemplatesScriptsManager.TemplatesScriptsManager(
             DesktopIconsUtil.getTemplatesDir(),
@@ -190,6 +194,13 @@ var DesktopManager = class {
         Prefs.gtkSettings.connect('changed', (obj, key) => {
             if (key == 'show-hidden') {
                 this._showHidden = Prefs.gtkSettings.get_boolean('show-hidden');
+                if (this._showHiddenMenuItem) {
+                    this._showHiddenIcon.set_from_icon_name(
+                        this._showHidden ? 'view-conceal-symbolic' : 'view-visible-symbolic',
+                        Gtk.IconSize.MENU
+                    );
+                    this._showHiddenLabel.set_label(this._showHidden ? _('Hide Hidden Files') : _('Show Hidden Files'));
+                }
                 this._updateDesktop().catch(e => {
                     print(`Exception while updating Desktop after Hidden Settings Changed: ${e.message}\n${e.stack}`);
                 });
@@ -1174,7 +1185,7 @@ var DesktopManager = class {
     _createDesktopBackgroundMenu() {
         this._menu = DesktopIconsUtil.createDesktopMenu();
 
-        let refreshItem = new Gtk.MenuItem({label: _('Refresh')});
+        let refreshItem = this._createIconMenuItem(_('Refresh'), 'view-refresh-symbolic');
         refreshItem.connect('activate', () => {
             this._updateDesktop().catch(e => {
                 print(`Exception while updating Desktop after Refresh: ${e.message}\n${e.stack}`);
@@ -1184,30 +1195,30 @@ var DesktopManager = class {
 
         this._menu.add(new Gtk.SeparatorMenuItem());
 
-        let newFolder = new Gtk.MenuItem({label: _('New Folder')});
+        let newFolder = this._createIconMenuItem(_('New Folder'), 'folder-new-symbolic');
         newFolder.connect('activate', () => this.doNewFolder());
         this._menu.add(newFolder);
 
-        this._newDocumentItem = new Gtk.MenuItem({label: _('New Document')});
+        this._newDocumentItem = this._createIconMenuItem(_('New Document'), 'document-new-symbolic');
         this._menu.add(this._newDocumentItem);
 
         this._menu.add(new Gtk.SeparatorMenuItem());
 
-        this._pasteMenuItem = new Gtk.MenuItem({label: _('Paste')});
+        this._pasteMenuItem = this._createIconMenuItem(_('Paste'), 'edit-paste-symbolic');
         this._pasteMenuItem.connect('activate', () => this._doPaste());
         this._menu.add(this._pasteMenuItem);
 
-        this._undoMenuItem = new Gtk.MenuItem({label: _('Undo')});
+        this._undoMenuItem = this._createIconMenuItem(_('Undo'), 'edit-undo-symbolic');
         this._undoMenuItem.connect('activate', () => this._doUndo());
         this._menu.add(this._undoMenuItem);
 
-        this._redoMenuItem = new Gtk.MenuItem({label: _('Redo')});
+        this._redoMenuItem = this._createIconMenuItem(_('Redo'), 'edit-redo-symbolic');
         this._redoMenuItem.connect('activate', () => this._doRedo());
         this._menu.add(this._redoMenuItem);
 
         this._menu.add(new Gtk.SeparatorMenuItem());
 
-        let selectAll = new Gtk.MenuItem({label: _('Select All')});
+        let selectAll = this._createIconMenuItem(_('Select All'), 'edit-select-all-symbolic');
         selectAll.connect('activate', () => this._selectAll());
         this._menu.add(selectAll);
 
@@ -1215,19 +1226,48 @@ var DesktopManager = class {
 
         this._menu.add(new Gtk.SeparatorMenuItem());
 
-        this._openTerminalMenuItem = new Gtk.MenuItem({label: _('Open in Console')});
+        this._showHiddenIcon = new Gtk.Image({
+            icon_name: this._showHidden ? 'view-conceal-symbolic' : 'view-visible-symbolic',
+            icon_size: Gtk.IconSize.MENU,
+        });
+        this._showHiddenLabel = new Gtk.Label({
+            label: this._showHidden ? _('Hide Hidden Files') : _('Show Hidden Files'),
+            xalign: 0,
+        });
+        let showHiddenBox = new Gtk.Box({orientation: Gtk.Orientation.HORIZONTAL, spacing: 6});
+        showHiddenBox.pack_start(this._showHiddenIcon, false, false, 0);
+        showHiddenBox.pack_start(this._showHiddenLabel, true, true, 0);
+        this._showHiddenMenuItem = new Gtk.MenuItem();
+        this._showHiddenMenuItem.add(showHiddenBox);
+        this._showHiddenMenuItem.connect('activate', () => {
+            Prefs.gtkSettings.set_boolean('show-hidden', !this._showHidden);
+        });
+        this._menu.add(this._showHiddenMenuItem);
+
+        this._menu.add(new Gtk.SeparatorMenuItem());
+
+        this._openTerminalMenuItem = this._createIconMenuItem(_('Open in Console'), 'utilities-terminal-symbolic');
         this._openTerminalMenuItem.connect('activate', () => this._onOpenTerminalClicked());
         this._menu.add(this._openTerminalMenuItem);
 
         this._menu.add(new Gtk.SeparatorMenuItem());
 
-        this._showDesktopInFilesMenuItem = new Gtk.MenuItem({label: _('Show Desktop in Files')});
+        this._showDesktopInFilesMenuItem = this._createIconMenuItem(_('Show Desktop in Files'), 'folder-open-symbolic');
         this._showDesktopInFilesMenuItem.connect('activate', () => this._onOpenDesktopInFilesClicked());
         this._menu.add(this._showDesktopInFilesMenuItem);
 
-        // Hidden: Change background, Desktop Icons Settings, Display Settings
-
         this._menu.show_all();
+    }
+
+    _createIconMenuItem(label, iconName) {
+        let icon = new Gtk.Image({icon_name: iconName, icon_size: Gtk.IconSize.MENU});
+        let lbl = new Gtk.Label({label: label, xalign: 0});
+        let box = new Gtk.Box({orientation: Gtk.Orientation.HORIZONTAL, spacing: 6});
+        box.pack_start(icon, false, false, 0);
+        box.pack_start(lbl, true, true, 0);
+        let item = new Gtk.MenuItem();
+        item.add(box);
+        return item;
     }
 
     _selectAll() {
@@ -1258,16 +1298,70 @@ var DesktopManager = class {
         DesktopIconsUtil.launchTerminal(desktopPath, null);
     }
 
-    _doPaste() {
-        if (this._clipboardFiles === null) {
+    async _doPaste() {
+        if (this._clipboardFiles === null)
+            return;
+
+        const desktopDir = this._desktopDir.get_uri();
+
+        if (Prefs.desktopSettings.get_boolean('use-native-progress')) {
+            if (this._isCut)
+                DBusUtils.RemoteFileOperations.MoveURIsRemote(this._clipboardFiles, desktopDir);
+            else
+                DBusUtils.RemoteFileOperations.CopyURIsRemote(this._clipboardFiles, desktopDir);
             return;
         }
 
-        let desktopDir = this._desktopDir.get_uri();
-        if (this._isCut) {
-            DBusUtils.RemoteFileOperations.MoveURIsRemote(this._clipboardFiles, desktopDir);
-        } else {
-            DBusUtils.RemoteFileOperations.CopyURIsRemote(this._clipboardFiles, desktopDir);
+        let progressItem = null;
+        try {
+            const count = this._clipboardFiles.length;
+            const opType = this._isCut ? 'MOVE' : 'COPY';
+            const opLabel = this._isCut
+                ? _('Moving %d item(s) to Desktop\u2026')
+                : _('Copying %d item(s) to Desktop\u2026');
+
+            progressItem = this.fileProgress.addOperation(
+                `paste_${Date.now()}`, opType, count,
+                opLabel.replace('%d', String(count)));
+
+            let success;
+            if (this._isCut) {
+                success = await LocalFileOps.copyItemsWithProgress(
+                    this._clipboardFiles, desktopDir, progressItem);
+                if (success) {
+                    for (const uri of this._clipboardFiles) {
+                        const file = Gio.File.new_for_uri(uri);
+                        try {
+                            const info = await file.query_info_async_promise(
+                                Gio.FILE_ATTRIBUTE_STANDARD_TYPE,
+                                Gio.FileQueryInfoFlags.NONE, GLib.PRIORITY_DEFAULT, null);
+                            if (info.get_file_type() === Gio.FileType.DIRECTORY)
+                                await FileUtils.recursivelyDeleteDir(file, true, null);
+                            else
+                                await file.delete_async_promise(GLib.PRIORITY_DEFAULT, null);
+                        } catch (e) {
+                            if (!e.matches(Gio.IOErrorEnum, Gio.IOErrorEnum.NOT_FOUND))
+                                print(`Error deleting source after move: ${e.message}`);
+                        }
+                    }
+                }
+            } else {
+                success = await LocalFileOps.copyItemsWithProgress(
+                    this._clipboardFiles, desktopDir, progressItem);
+            }
+
+            if (success) {
+                progressItem.setCompleted();
+                GLib.timeout_add(GLib.PRIORITY_DEFAULT, 500, () => {
+                    this._updateDesktop().catch(e =>
+                        print(`Exception updating desktop after paste: ${e.message}`));
+                    return false;
+                });
+            }
+        } catch (e) {
+            if (progressItem)
+                progressItem.setError(e.message);
+            print(`Error during paste operation: ${e.message}\n${e.stack}`);
         }
     }
 
@@ -1744,9 +1838,27 @@ var DesktopManager = class {
         const selection = this._fileList.filter(i => (i.isSelected || i.isKeyboardSelected) && !i.isSpecial).map(i =>
             i.file.get_uri());
 
-        if (selection.length) {
+        if (!selection.length)
+            return;
+
+        if (Prefs.desktopSettings.get_boolean('use-native-progress')) {
             DBusUtils.RemoteFileOperations.TrashURIsRemote(selection);
+            return;
         }
+
+        const progressItem = this.fileProgress.addOperation(
+            `trash_${Date.now()}`, 'TRASH', selection.length);
+
+        DBusUtils.RemoteFileOperations.TrashURIsRemote(selection, (result, error) => {
+            if (error) {
+                progressItem.setError(error.message);
+            } else {
+                progressItem.setCompleted();
+                this._updateDesktop().catch(e => {
+                    print(`Exception updating desktop after trash: ${e.message}`);
+                });
+            }
+        });
     }
 
     doDeletePermanently() {
@@ -1760,11 +1872,45 @@ var DesktopManager = class {
             return;
         }
 
-        DBusUtils.RemoteFileOperations.DeleteURIsRemote(toDelete);
+        if (Prefs.desktopSettings.get_boolean('use-native-progress')) {
+            DBusUtils.RemoteFileOperations.DeleteURIsRemote(toDelete);
+            return;
+        }
+
+        const progressItem = this.fileProgress.addOperation(
+            `delete_${Date.now()}`, 'DELETE', toDelete.length);
+
+        DBusUtils.RemoteFileOperations.DeleteURIsRemote(toDelete, (result, error) => {
+            if (error) {
+                progressItem.setError(error.message);
+            } else {
+                progressItem.setCompleted();
+                this._updateDesktop().catch(e => {
+                    print(`Exception updating desktop after delete: ${e.message}`);
+                });
+            }
+        });
     }
 
     doEmptyTrash(askConfirmation = true) {
-        DBusUtils.RemoteFileOperations.EmptyTrashRemote(askConfirmation);
+        if (Prefs.desktopSettings.get_boolean('use-native-progress')) {
+            DBusUtils.RemoteFileOperations.EmptyTrashRemote(askConfirmation);
+            return;
+        }
+
+        const progressItem = this.fileProgress.addOperation(
+            `emptytrash_${Date.now()}`, 'EMPTY_TRASH', 1);
+
+        DBusUtils.RemoteFileOperations.EmptyTrashRemote(askConfirmation, (result, error) => {
+            if (error) {
+                progressItem.setError(error.message);
+            } else {
+                progressItem.setCompleted();
+                this._updateDesktop().catch(e => {
+                    print(`Exception updating desktop after empty trash: ${e.message}`);
+                });
+            }
+        });
     }
 
     checkIfSpecialFilesAreSelected() {
@@ -1924,11 +2070,11 @@ var DesktopManager = class {
     _addSortingMenu() {
         this._menu.add(new Gtk.SeparatorMenuItem());
 
-        this._cleanUpMenuItem = new Gtk.MenuItem({label: _('Arrange Icons')});
+        this._cleanUpMenuItem = this._createIconMenuItem(_('Arrange Icons'), 'view-grid-symbolic');
         this._cleanUpMenuItem.connect('activate', () => this._sortAllFilesFromGridsByPosition());
         this._menu.add(this._cleanUpMenuItem);
 
-        this._ArrangeByMenuItem = new Gtk.MenuItem({label: _('Arrange By...')});
+        this._ArrangeByMenuItem = this._createIconMenuItem(_('Arrange By...'), 'view-sort-ascending-symbolic');
         this._menu.add(this._ArrangeByMenuItem);
         this._addSortingSubMenu();
     }

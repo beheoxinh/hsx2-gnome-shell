@@ -44,6 +44,7 @@ export default class DING extends Extension {
         this.DesktopIconsUsableArea = null;
         this.data = {};
         this.data.isEnabled = false;
+        this._geomIdleId = 0;
         this.data.launchDesktopId = 0;
         this.data.currentProcess = null;
         this.data.dbusTimeoutId = 0;
@@ -118,6 +119,10 @@ export default class DING extends Extension {
             this.data.disableTimer.disconnect(this.data.disableTimerId);
             this.data.disableTimerId = 0;
             this.data.disableTimer = undefined;
+        }
+        if (this._geomIdleId) {
+            GLib.source_remove(this._geomIdleId);
+            this._geomIdleId = 0;
         }
 
         this.data.desktopGeometry = undefined;
@@ -331,10 +336,17 @@ export default class DING extends Extension {
      *
      */
     updateDesktopGeometry() {
-        if (this.data.actionGroup && (Main.layoutManager.monitors.length != 0)) {
-            this.data.actionGroup.change_action_state('desktopGeometry', this.getDesktopGeometry());
-            this.data.x11Manager.refreshWindowsPosition();
+        if (this._geomIdleId) {
+            GLib.source_remove(this._geomIdleId);
         }
+        this._geomIdleId = GLib.idle_add(GLib.PRIORITY_DEFAULT_IDLE, () => {
+            this._geomIdleId = 0;
+            if (this.data.actionGroup && (Main.layoutManager.monitors.length != 0)) {
+                this.data.actionGroup.change_action_state('desktopGeometry', this.getDesktopGeometry());
+                this.data.x11Manager.refreshWindowsPosition();
+            }
+            return GLib.SOURCE_REMOVE;
+        });
     }
 
     /**

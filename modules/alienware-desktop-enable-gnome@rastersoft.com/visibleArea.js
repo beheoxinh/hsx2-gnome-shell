@@ -106,10 +106,11 @@ export class VisibleArea {
      */
 
     getMonitorGeometry(ws, monitorIndex) {
-        const display = ws.get_display();
-        const geometry = display.get_monitor_geometry(monitorIndex);
-        const scale = display.get_monitor_scale(monitorIndex);
-        let area = ws.get_work_area_for_monitor(monitorIndex);
+        try {
+            const display = ws.get_display();
+            const geometry = display.get_monitor_geometry(monitorIndex);
+            const scale = display.get_monitor_scale(monitorIndex);
+            let area = ws.get_work_area_for_monitor(monitorIndex);
 
         // calculate the margins due to the difference between the monitor geometry and the work area, ie. the work area margins
         let marginTop = area.y - geometry.y;
@@ -138,6 +139,13 @@ export class VisibleArea {
             marginLeft,
             marginRight,
         };
+        } catch (e) {
+            console.log(`Error getting monitor geometry: ${e.message}\n${e.stack}`);
+            return {
+                x: 0, y: 0, width: 0, height: 0, scale: 1,
+                marginTop: 0, marginBottom: 0, marginLeft: 0, marginRight: 0,
+            };
+        }
     }
 
     get uuid() {

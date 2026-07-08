@@ -375,15 +375,17 @@ var FileItemMenu = class {
                 this._doDuplicate.bind(this)
             );
 
-            let cdpSuffix = Prefs.desktopSettings.get_boolean('antigravity-cdp-mode') ? ' (CDP)' : '';
-            let antiLabel = selectedItemsNum === 1
-                ? _('Open with Antigravity') + cdpSuffix
-                : _(`Open ${selectedItemsNum} items with Antigravity`) + cdpSuffix;
-            this._addElementToMenu(
-                antiLabel,
-                this._doOpenWithAntigravity.bind(this)
-            );
-            
+            if (Prefs.desktopSettings.get_boolean('open-with-enabled')) {
+                let owLabel = Prefs.desktopSettings.get_string('open-with-label');
+                let owDisplay = selectedItemsNum === 1
+                    ? `Open with ${owLabel}`
+                    : `Open ${selectedItemsNum} items with ${owLabel}`;
+                this._addElementToMenu(
+                    owDisplay,
+                    this._doOpenWithAntigravity.bind(this)
+                );
+            }
+
             this._addSeparator();
         }
 
@@ -684,9 +686,8 @@ var FileItemMenu = class {
 
     _doOpenWithAntigravity() {
         let fileItems = this._desktopManager.getCurrentSelection(false);
-        let args = ['antigravity'];
-        if (Prefs.desktopSettings.get_boolean('antigravity-cdp-mode'))
-            args.push('--cdp');
+        let cmd = Prefs.desktopSettings.get_string('open-with-command');
+        let args = [cmd];
         for (let target of fileItems) {
             let filePath = target.file.get_path();
             DesktopIconsUtil.trySpawn(null, [...args, filePath]);

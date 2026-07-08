@@ -386,7 +386,10 @@ export class EmulateX11WindowType {
     }
 
     refreshWindowsPosition() {
-        this._windowList.forEach(window => {window.customJS_ding.refreshWindowPosition();});
+        this._windowList.forEach(window => {
+            if (!window.customJS_ding) return;
+            window.customJS_ding.refreshWindowPosition();
+        });
     }
 
     _clearWindow(window) {
@@ -400,6 +403,7 @@ export class EmulateX11WindowType {
             this._activate_window_ID = GLib.idle_add(GLib.PRIORITY_LOW, () => {
                 if (this._enableRefresh) {
                     for (let window of this._windowList) {
+                        if (!window.customJS_ding) continue;
                         window.customJS_ding.refreshState(checkWorkspace);
                     }
                     if (checkWorkspace) {

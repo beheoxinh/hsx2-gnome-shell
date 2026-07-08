@@ -13,6 +13,8 @@ import JustPerfectionPrefs from './modules/alienware-just-perfection-desktop@jus
 import SystemMonitorPrefs from './modules/alienware-monitor@mgalgs.github.com/prefs.js';
 import NotificationConfiguratorPrefs from './modules/alienware-notification-configurator@exposedcat/prefs.js';
 import TopbarClonePrefs from './modules/alienware-topbar-clone@hsx2coder/prefs.js';
+import MediaControllerPrefs from './modules/alienware-advanced-media-controller@sanjai.com/prefs.js';
+import CommandMenu2Prefs from './modules/alienware-command-menu2@goldentree1.github.com/prefs.js';
 
 import {MODULES, buildSubMetadata} from './modules.js';
 
@@ -25,6 +27,8 @@ const PREFS_REGISTRY = {
     'alienware-monitor@mgalgs.github.com': SystemMonitorPrefs,
     'alienware-notification-configurator@exposedcat': NotificationConfiguratorPrefs,
     'alienware-topbar-clone@hsx2coder': TopbarClonePrefs,
+    'alienware-advanced-media-controller@sanjai.com': MediaControllerPrefs,
+    'alienware-command-menu2@goldentree1.github.com': CommandMenu2Prefs,
 };
 
 export default class AlienwareSuitePreferences extends ExtensionPreferences {
