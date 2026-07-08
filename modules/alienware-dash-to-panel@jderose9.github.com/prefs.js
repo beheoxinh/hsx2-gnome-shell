@@ -2754,6 +2754,28 @@ const Preferences = class {
       Gio.SettingsBindFlags.DEFAULT,
     )
 
+    this._settings.bind(
+      'show-media-player',
+      this._builder.get_object('show_media_player_switch'),
+      'active',
+      Gio.SettingsBindFlags.DEFAULT,
+    )
+
+    this._builder
+      .get_object('show_media_player_options_button')
+      .connect('clicked', () => {
+        try {
+          let app = Gio.AppInfo.create_from_commandline(
+            'gnome-extensions prefs alienware-advanced-media-controller@sanjai.com',
+            null,
+            Gio.AppInfoCreateFlags.NONE,
+          )
+          if (app) app.launch([], null)
+        } catch (e) {
+          logError(e, 'Failed to open Media Player settings')
+        }
+      })
+
     this._builder
       .get_object('group_apps_label_font_color_colorbutton')
       .connect('color-set', (button) => {

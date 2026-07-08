@@ -74,6 +74,32 @@
             </child>
           </object>
         </child>
+        <child>
+          <object class="AdwActionRow">
+            <property name="title" translatable="yes">Media Player</property>
+            <child>
+              <object class="GtkButton" id="show_media_player_options_button">
+                <property name="receives-default">True</property>
+                <property name="valign">center</property>
+                <child>
+                  <object class="GtkImage">
+                    <property name="icon-name">emblem-system-symbolic</property>
+                  </object>
+                </child>
+                <style>
+                  <class name="circular"/>
+                </style>
+              </object>
+            </child>
+            <child>
+              <object class="GtkSwitch" id="show_media_player_switch">
+                <property name="halign">end</property>
+                <property name="valign">center</property>
+                <property name="visible">True</property>
+              </object>
+            </child>
+          </object>
+        </child>
       </object>
     </child>
     <child>

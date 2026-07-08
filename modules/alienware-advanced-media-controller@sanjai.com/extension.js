@@ -5,6 +5,7 @@ import {
 } from "resource:///org/gnome/shell/extensions/extension.js";
 import * as Main from "resource:///org/gnome/shell/ui/main.js";
 import GLib from "gi://GLib";
+import Gio from "gi://Gio";
 import { MediaIndicator } from "./utils/indicator.js";
 import * as Mpris from "resource:///org/gnome/shell/ui/mpris.js";
 
@@ -14,13 +15,34 @@ const DTP_BOX_MAP = {
 };
 
 export default class MediaExtension extends Extension {
+  _getDtPSettings() {
+    try {
+      const GioSSS = Gio.SettingsSchemaSource;
+      const schemaDir = GLib.build_filenamev([
+        this.path, '..', 'alienware-dash-to-panel@jderose9.github.com', 'schemas'
+      ]);
+      const schemaSource = GioSSS.new_from_directory(
+        schemaDir, GioSSS.get_default(), false
+      );
+      const schemaObj = schemaSource.lookup(
+        'org.gnome.shell.extensions.dash-to-panel', true
+      );
+      if (schemaObj)
+        return new Gio.Settings({settings_schema: schemaObj});
+    } catch (e) {
+      logError(e, 'Failed to load DtP settings');
+    }
+    return null;
+  }
   enable() {
     this._settings = this.getSettings();
+    this._dtpSettings = this._getDtPSettings();
     this._repositionDebounceId = null;
     this._settingsChangedId = 0;
     this._hideDefaultChangedId = null;
     this._injectionManager = null;
     this._dtpPanelsId = 0;
+    this._dtpChangedId = 0;
     this._addedToDTP = false;
     this._indicatorDestroyId = 0;
 
@@ -47,6 +69,17 @@ export default class MediaExtension extends Extension {
     );
 
     this._updateDefaultPlayerVisibility();
+
+    if (this._dtpSettings) {
+      this._dtpChangedId = this._dtpSettings.connect(
+        'changed::show-media-player', () => {
+          if (this._dtpSettings.get_boolean('show-media-player'))
+            this._repositionIndicator();
+          else
+            this._removeFromDTP();
+        }
+      );
+    }
 
     this._settingsChangedId = this._settings.connect("changed", (_, key) => {
       if (key !== "amc-dtp-box") return;
@@ -90,6 +123,10 @@ export default class MediaExtension extends Extension {
       global.dashToPanel.disconnect(this._dtpPanelsId);
       this._dtpPanelsId = 0;
     }
+    if (this._dtpChangedId && this._dtpSettings) {
+      this._dtpSettings.disconnect(this._dtpChangedId);
+      this._dtpChangedId = 0;
+    }
 
     this._applyHideDefaultPlayer(false);
     if (this._indicatorDestroyId && this._indicator) {
@@ -102,6 +139,7 @@ export default class MediaExtension extends Extension {
     this._updateDefaultPlayerVisibility(true);
 
     this._settings = null;
+    this._dtpSettings = null;
     this._injectionManager = null;
   }
 
@@ -119,8 +157,15 @@ export default class MediaExtension extends Extension {
     }
   }
 
+  _showForDtPSettings() {
+    if (this._dtpSettings && !this._dtpSettings.get_boolean('show-media-player'))
+      return false;
+    return true;
+  }
+
   _addToDTP(boxSide) {
     if (!global.dashToPanel || !global.dashToPanel.panels) return;
+    if (!this._showForDtPSettings()) return;
 
     if (!this._indicator) {
       this._indicator = new MediaIndicator(this._settings, this);

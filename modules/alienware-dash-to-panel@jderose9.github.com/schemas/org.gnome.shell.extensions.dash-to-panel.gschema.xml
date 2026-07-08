@@ -530,6 +530,11 @@
       <summary>Show running apps</summary>
       <description>Show or hide running application icons in the dash</description>
     </key>
+    <key type="b" name="show-media-player">
+      <default>true</default>
+      <summary>Show Media Player</summary>
+      <description>Show media playback controls in the panel</description>
+    </key>
     <key type="b" name="show-favorites">
       <default>true</default>
       <summary>Show favorites apps</summary>
