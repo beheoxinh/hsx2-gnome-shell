@@ -10,7 +10,6 @@ import JustPerfectionExtension from './modules/alienware-just-perfection-desktop
 import SystemMonitorExtension from './modules/alienware-monitor@mgalgs.github.com/extension.js';
 import NotificationConfiguratorExtension from './modules/alienware-notification-configurator@exposedcat/extension.js';
 import TopbarCloneExtension from './modules/alienware-topbar-clone@hsx2coder/extension.js';
-import MediaControllerExtension from './modules/alienware-advanced-media-controller@sanjai.com/extension.js';
 import CommandMenu2Extension from './modules/alienware-command-menu2@goldentree1.github.com/extension.js';
 
 import {MODULES, buildSubMetadata} from './modules.js';
@@ -24,7 +23,6 @@ const CLASS_REGISTRY = {
     'alienware-monitor@mgalgs.github.com': SystemMonitorExtension,
     'alienware-notification-configurator@exposedcat': NotificationConfiguratorExtension,
     'alienware-topbar-clone@hsx2coder': TopbarCloneExtension,
-    'alienware-advanced-media-controller@sanjai.com': MediaControllerExtension,
     'alienware-command-menu2@goldentree1.github.com': CommandMenu2Extension,
 };
 

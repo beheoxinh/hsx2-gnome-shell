@@ -93,17 +93,6 @@ export const MODULES = [
         hasStylesheet: false,
     },
     {
-        key: 'advancedMediaController',
-        enableKey: 'enable-advanced-media-controller',
-        title: 'Advanced Media Controller',
-        iconName: 'media-playback-start-symbolic',
-        uuid: 'alienware-advanced-media-controller@sanjai.com',
-        entry: 'extension.js',
-        prefsEntry: 'prefs.js',
-        sessionMode: 'user',
-        hasStylesheet: true,
-    },
-    {
         key: 'commandMenu2',
         enableKey: 'enable-command-menu2',
         title: 'Command Menu 2',

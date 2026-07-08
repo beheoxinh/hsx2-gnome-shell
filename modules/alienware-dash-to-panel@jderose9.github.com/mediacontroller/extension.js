@@ -1,7 +1,5 @@
 import {
-  Extension,
   gettext as _,
-  InjectionManager,
 } from "resource:///org/gnome/shell/extensions/extension.js";
 import * as Main from "resource:///org/gnome/shell/ui/main.js";
 import GLib from "gi://GLib";
@@ -14,28 +12,26 @@ const DTP_BOX_MAP = {
   right: '_rightBox',
 };
 
-export default class MediaExtension extends Extension {
-  _loadSettings(schemaId) {
-    try {
-      const GioSSS = Gio.SettingsSchemaSource;
-      const schemaDir = GLib.build_filenamev([this.path, 'schemas']);
-      if (GLib.file_test(schemaDir, GLib.FileTest.IS_DIR)) {
-        const schemaSource = GioSSS.new_from_directory(schemaDir, GioSSS.get_default(), false);
-        const schemaObj = schemaSource.lookup(schemaId, true);
-        if (schemaObj)
-          return new Gio.Settings({settings_schema: schemaObj});
-      }
-    } catch (e) {
-      logError(e, `Failed to load schema ${schemaId}`);
-    }
-    return null;
+export default class MediaController {
+  constructor(settings, path) {
+    this._settings = settings;
+    this._path = path;
+    this._dtpSettings = this._loadDtPSettings();
+    this._repositionDebounceId = null;
+    this._settingsChangedId = 0;
+    this._hideDefaultChangedId = null;
+    this._injectionManager = null;
+    this._dtpPanelsId = 0;
+    this._dtpChangedId = 0;
+    this._addedToDTP = false;
+    this._indicatorDestroyId = 0;
   }
 
-  _getDtPSettings() {
+  _loadDtPSettings() {
     try {
       const GioSSS = Gio.SettingsSchemaSource;
       const schemaDir = GLib.build_filenamev([
-        this.path, '..', 'alienware-dash-to-panel@jderose9.github.com', 'schemas'
+        this._path, '..', 'schemas'
       ]);
       if (GLib.file_test(schemaDir, GLib.FileTest.IS_DIR)) {
         const schemaSource = GioSSS.new_from_directory(
@@ -52,9 +48,8 @@ export default class MediaExtension extends Extension {
     }
     return null;
   }
+
   enable() {
-    this._settings = this._loadSettings('org.gnome.shell.extensions.advanced-media-controller');
-    this._dtpSettings = this._getDtPSettings();
     this._repositionDebounceId = null;
     this._settingsChangedId = 0;
     this._hideDefaultChangedId = null;

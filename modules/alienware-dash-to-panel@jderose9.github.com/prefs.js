@@ -2771,16 +2771,12 @@ const Preferences = class {
       Gio.SettingsBindFlags.DEFAULT,
     )
 
-    const sw = this._builder.get_object('show_media_player_switch')
-    if (this._suiteSettings) {
-      sw.set_active(this._suiteSettings.get_boolean('enable-advanced-media-controller'))
-      sw.connect('notify::active', () => {
-        this._settings.set_boolean('show-media-player', sw.active)
-        this._suiteSettings.set_boolean('enable-advanced-media-controller', sw.active)
-      })
-    } else {
-      this._settings.bind('show-media-player', sw, 'active', Gio.SettingsBindFlags.DEFAULT)
-    }
+    this._settings.bind(
+      'show-media-player',
+      this._builder.get_object('show_media_player_switch'),
+      'active',
+      Gio.SettingsBindFlags.DEFAULT,
+    )
 
     this._builder
       .get_object('show_media_player_options_button')
