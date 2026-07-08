@@ -440,6 +440,7 @@ export class PanelUI {
     this.panelPlayBtn.child.icon_name = "media-playback-start-symbolic";
     this.label.set_text("");
     this._indicator._blockPopup = true;
+    if (this._indicator.menu) this._indicator.menu.close();
   }
 
   _refreshIcon() {
