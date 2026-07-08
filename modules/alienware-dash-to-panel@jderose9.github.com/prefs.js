@@ -2783,7 +2783,7 @@ const Preferences = class {
       .connect('clicked', () => {
         try {
           GLib.spawn_command_line_async(
-            'gnome-extensions prefs alienware-dash-to-panel@jderose9.github.com'
+            'gnome-extensions prefs alienware-hsx2coder-gnome@hsx2coder.github.com'
           )
         } catch (e) {
           logError(e, 'Failed to open Media Player settings')

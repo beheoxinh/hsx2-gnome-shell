@@ -61,7 +61,16 @@ export default class DashToPanelExtension extends Extension {
 
   async enable() {
     DTP_EXTENSION = this
-    SETTINGS = this.getSettings('org.gnome.shell.extensions.dash-to-panel')
+    // load settings manually so schema source is correct
+    const GioSSS = Gio.SettingsSchemaSource
+    const schemaDir = GLib.build_filenamev([this.path, 'schemas'])
+    let schemaSource
+    if (GLib.file_test(schemaDir, GLib.FileTest.IS_DIR))
+      schemaSource = GioSSS.new_from_directory(schemaDir, GioSSS.get_default(), false)
+    else
+      schemaSource = GioSSS.get_default()
+    const schemaObj = schemaSource.lookup('org.gnome.shell.extensions.dash-to-panel', true)
+    SETTINGS = new Gio.Settings({settings_schema: schemaObj})
     DESKTOPSETTINGS = new Gio.Settings({
       schema_id: 'org.gnome.desktop.interface',
     })
@@ -78,11 +87,10 @@ export default class DashToPanelExtension extends Extension {
     //create a global object that can emit signals and conveniently expose functionalities to other extensions
     global.dashToPanel = new EventEmitter()
 
-    // init media controller settings
+    // init media controller
     this._mcSettings = null
     this._mediaController = null
-    if (SETTINGS.get_boolean('show-media-player'))
-      this._loadMcSettings()
+    this._loadMcSettings()
 
     // reset to be safe
     SETTINGS.set_boolean('prefs-opened', false)
@@ -130,10 +138,6 @@ export default class DashToPanelExtension extends Extension {
     }
 
     this.enableGlobalStyles()
-
-    // enable media controller if dtp toggle is on
-    if (SETTINGS.get_boolean('show-media-player'))
-      this._loadMcSettings()
 
     let completeEnable = () => {
       panelManager = new PanelManager.PanelManager()
