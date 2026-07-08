@@ -202,6 +202,7 @@ export class IndicatorUIUpdater {
         this._indicator._state._currentPlayer,
       );
       this._indicator._blockPopup = false;
+      this._indicator.menu._sourceActor = this._indicator;
       console.log(`[MC] popup unblocked for ${this._indicator._state._currentPlayer}`);
 
       const playIcon =
