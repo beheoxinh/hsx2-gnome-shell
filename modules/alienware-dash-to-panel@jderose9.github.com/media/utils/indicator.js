@@ -36,6 +36,13 @@ export const MediaIndicator = GObject.registerClass(
       item.add_child(this._controls);
       this.menu.addMenuItem(item);
 
+      // block popup when no player is active
+      this._blockPopup = true;
+      this.connect('button-press-event', (actor, event) => {
+        if (this._blockPopup) return Clutter.EVENT_STOP;
+        return Clutter.EVENT_PROPAGATE;
+      });
+
       this._eventHandlers.connectControlSignals();
 
       this._menuStateChangedId = this.menu.connect(

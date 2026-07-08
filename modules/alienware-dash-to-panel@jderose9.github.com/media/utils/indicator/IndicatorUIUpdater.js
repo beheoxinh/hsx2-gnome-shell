@@ -201,7 +201,7 @@ export class IndicatorUIUpdater {
         this._indicator._manager,
         this._indicator._state._currentPlayer,
       );
-      this._indicator.reactive = true;
+      this._indicator._blockPopup = false;
 
       const playIcon =
         info.status === "Playing"
