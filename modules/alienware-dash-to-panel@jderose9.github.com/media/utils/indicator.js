@@ -38,6 +38,11 @@ export const MediaIndicator = GObject.registerClass(
 
       // block popup when no player is active
       this._blockPopup = true;
+      const origToggle = this.menu.toggle.bind(this.menu);
+      this.menu.toggle = () => {
+        if (this._blockPopup) return;
+        origToggle();
+      };
 
       this._eventHandlers.connectControlSignals();
 
