@@ -129,7 +129,7 @@ export class IndicatorUIUpdater {
           this._indicator._state._currentPlayer = null;
           this._indicator._panelUI.stopScrolling();
           this._indicator._panelUI.label.hide();
-          this._indicator.hide();
+          this._indicator.show();
           return;
         }
 
