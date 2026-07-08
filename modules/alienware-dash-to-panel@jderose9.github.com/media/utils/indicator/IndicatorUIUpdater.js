@@ -43,8 +43,6 @@ export class IndicatorUIUpdater {
 
   _findBestFallback(players, exclude, manager) {
     let paused = null;
-    let stoppedWithTitle = null;
-    let stoppedAny = null;
 
     for (const name of players) {
       if (name === exclude) continue;
@@ -53,14 +51,10 @@ export class IndicatorUIUpdater {
         if (!pInfo) continue;
         if (pInfo.status === "Playing") return name;
         if (pInfo.status === "Paused" && !paused) paused = name;
-        if (pInfo.status === "Stopped") {
-          if (pInfo.title && !stoppedWithTitle) stoppedWithTitle = name;
-          if (!stoppedAny && !this._isBrowserPlayer(name)) stoppedAny = name;
-        }
       } catch (_) {}
     }
 
-    return paused ?? stoppedWithTitle ?? stoppedAny ?? null;
+    return paused ?? null;
   }
 
   updateVisibility() {
@@ -110,6 +104,9 @@ export class IndicatorUIUpdater {
       }
 
       if (currentIsStopped && currentPlayer) {
+        // reset icon and label to defaults when player is stopped
+        this._indicator._panelUI.resetToDefault();
+        this._indicator.show();
         const currentIsIdleBrowser = this._browserIsIdle(currentPlayer, manager);
 
         if (currentIsIdleBrowser) {

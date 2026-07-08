@@ -201,15 +201,24 @@ export class IndicatorPlayerHandlers {
         null,
         this._indicator._manager,
       );
-      this._indicator._state._currentPlayer = fallback ?? players[0];
-      this._indicator._uiUpdater.updateUI();
-      this._indicator._uiUpdater.updateTabs();
-      this._indicator._uiUpdater.updateVisibility();
+      if (fallback) {
+        this._indicator._state._currentPlayer = fallback;
+        this._indicator._uiUpdater.updateUI();
+        this._indicator._uiUpdater.updateTabs();
+        this._indicator._uiUpdater.updateVisibility();
+      } else {
+        this._indicator._state._currentPlayer = null;
+        this._indicator._panelUI.stopScrolling();
+        this._indicator._panelUI.label.hide();
+        this._indicator._panelUI.resetToDefault();
+        this._indicator.show();
+      }
     } else {
       // No players — keep icon visible but hide label.
       this._indicator._state._currentPlayer = null;
       this._indicator._panelUI.stopScrolling();
       this._indicator._panelUI.label.hide();
+      this._indicator._panelUI.resetToDefault();
       this._indicator.show();
     }
   }
