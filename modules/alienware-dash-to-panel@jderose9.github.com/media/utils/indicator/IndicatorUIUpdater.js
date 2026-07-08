@@ -84,8 +84,8 @@ export class IndicatorUIUpdater {
 
       const players = manager.getPlayers();
       if (players.length === 0) {
+        this._indicator._panelUI.resetToDefault();
         this._indicator.show();
-        this._indicator._panelUI.label.hide();
         return;
       }
 
@@ -160,7 +160,7 @@ export class IndicatorUIUpdater {
         }
       }
 
-      this._indicator._panelUI.label.hide();
+      this._indicator._panelUI.resetToDefault();
       this._indicator.show();
     } catch (e) {}
   }

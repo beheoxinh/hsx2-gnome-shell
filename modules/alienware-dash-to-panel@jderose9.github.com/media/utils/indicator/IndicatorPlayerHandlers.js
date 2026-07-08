@@ -129,7 +129,16 @@ export class IndicatorPlayerHandlers {
           name,
           this._indicator._manager,
         );
-        if (fallback) this._indicator._state._currentPlayer = fallback;
+        if (fallback) {
+          this._indicator._state._currentPlayer = fallback;
+        } else {
+          this._indicator._state._currentPlayer = null;
+          this._indicator._panelUI.stopScrolling();
+          this._indicator._panelUI.label.hide();
+          this._indicator._panelUI.resetToDefault();
+          this._indicator.show();
+          return;
+        }
       }
 
       this._indicator._uiUpdater.updateUI();
