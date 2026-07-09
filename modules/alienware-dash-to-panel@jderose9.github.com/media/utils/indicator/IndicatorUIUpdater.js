@@ -206,7 +206,7 @@ export class IndicatorUIUpdater {
         this._indicator.menu._sourceActor = this._indicator._savedSourceActor;
       }
       if (this._indicator._menuItem) this._indicator._menuItem.visible = true;
-      console.log(`[MC] popup unblocked for ${this._indicator._state._currentPlayer}`);
+      console.log(`[MC] popup unblocked for ${this._indicator._state._currentPlayer}, sourceActor=${this._indicator.menu?._sourceActor}`);
 
       const playIcon =
         info.status === "Playing"

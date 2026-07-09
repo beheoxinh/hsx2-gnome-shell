@@ -445,7 +445,7 @@ export class PanelUI {
       this._indicator.menu._sourceActor = null;
     }
     if (this._indicator._menuItem) this._indicator._menuItem.visible = false;
-    console.log(`[MC] popup blocked`);
+    console.log(`[MC] popup blocked, sourceActor=${this._indicator.menu?._sourceActor}`);
     if (this._indicator.menu) this._indicator.menu.close();
   }
 

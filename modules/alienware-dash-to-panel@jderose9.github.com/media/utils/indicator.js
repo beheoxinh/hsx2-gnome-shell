@@ -44,6 +44,7 @@ export const MediaIndicator = GObject.registerClass(
       this._menuStateChangedId = this.menu.connect(
         "open-state-changed",
         (menu, open) => {
+          console.log(`[MC] menu open=${open} blockPopup=${this._blockPopup} curPlayer=${this._state?._currentPlayer}`);
           if (open && this._blockPopup) {
             menu.close();
             return;
