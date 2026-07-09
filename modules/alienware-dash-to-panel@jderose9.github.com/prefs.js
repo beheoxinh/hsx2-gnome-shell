@@ -2796,20 +2796,20 @@ const Preferences = class {
 
           let content = new Gtk.Box({orientation: Gtk.Orientation.VERTICAL, spacing: 8, margin_top: 8, margin_bottom: 8, margin_start: 8, margin_end: 8})
 
-          let boxRow = new Adw.ActionRow({title: _('Panel Position'), subtitle: _('Which side of the panel to show the media indicator')})
-          let boxCombo = new Gtk.ComboBoxText()
-          boxCombo.append('left', _('Left'))
-          boxCombo.append('right', _('Right'))
-          boxCombo.set_active_id(mcSettings.get_string('amc-dtp-box'))
-          boxCombo.connect('changed', () => mcSettings.set_string('amc-dtp-box', boxCombo.get_active_id()))
-          boxRow.add_suffix(boxCombo)
-          content.append(boxRow)
-
           let hideRow = new Adw.ActionRow({title: _('Hide Default Player'), subtitle: _('Hide the default player indicator from the notification area')})
           let hideSw = new Gtk.Switch({active: mcSettings.get_boolean('hide-default-player'), valign: Gtk.Align.CENTER})
-          hideSw.connect('state-set', (w, state) => { mcSettings.set_boolean('hide-default-player', state); return false })
+          mcSettings.bind('hide-default-player', hideSw, 'active', Gio.SettingsBindFlags.DEFAULT)
           hideRow.add_suffix(hideSw)
           content.append(hideRow)
+
+          let boxRow = new Adw.ActionRow({title: _('Panel box'), subtitle: _('Which box in the panel to show the media indicator')})
+          let boxCombo = new Gtk.ComboBoxText()
+          boxCombo.append('right', _('Right box'))
+          boxCombo.append('left', _('Left box'))
+          boxCombo.set_active_id(mcSettings.get_string('amc-dtp-box'))
+          mcSettings.bind('amc-dtp-box', boxCombo, 'active-id', Gio.SettingsBindFlags.DEFAULT)
+          boxRow.add_suffix(boxCombo)
+          content.append(boxRow)
 
           let dialog = this._createPreferencesDialog(_('Media Player Settings'), content)
           dialog.show()
