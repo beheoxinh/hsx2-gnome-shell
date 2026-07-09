@@ -43,9 +43,13 @@ export const MediaIndicator = GObject.registerClass(
       this._menuStateChangedId = this.menu.connect(
         "open-state-changed",
         (menu, open) => {
-          if (open && !this._state?._currentPlayer) {
-            menu.close();
-            return;
+          if (open) {
+            const cp = this._state?._currentPlayer;
+            const info = cp && this._manager?.getPlayerInfo(cp);
+            if (!cp || !info || (info.status !== "Playing" && info.status !== "Paused")) {
+              menu.close();
+              return;
+            }
           }
           this._state.safeExecute(() => {
             if (open) {

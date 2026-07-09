@@ -2782,9 +2782,37 @@ const Preferences = class {
       .get_object('show_media_player_options_button')
       .connect('clicked', () => {
         try {
-          GLib.spawn_command_line_async(
-            'gnome-extensions prefs alienware-hsx2coder-gnome@hsx2coder.github.com'
-          )
+          // load media controller settings
+          const GioSSS = Gio.SettingsSchemaSource
+          const schemaDir = GLib.build_filenamev([this._path, 'media', 'schemas'])
+          let mcSettings = null
+          if (GLib.file_test(schemaDir, GLib.FileTest.IS_DIR)) {
+            const schemaSource = GioSSS.new_from_directory(schemaDir, GioSSS.get_default(), false)
+            const schemaObj = schemaSource.lookup('org.gnome.shell.extensions.advanced-media-controller', true)
+            if (schemaObj)
+              mcSettings = new Gio.Settings({settings_schema: schemaObj})
+          }
+          if (!mcSettings) return
+
+          let content = new Gtk.Box({orientation: Gtk.Orientation.VERTICAL, spacing: 8, margin_top: 8, margin_bottom: 8, margin_start: 8, margin_end: 8})
+
+          let boxRow = new Adw.ActionRow({title: _('Panel Position'), subtitle: _('Which side of the panel to show the media indicator')})
+          let boxCombo = new Gtk.ComboBoxText()
+          boxCombo.append('left', _('Left'))
+          boxCombo.append('right', _('Right'))
+          boxCombo.set_active_id(mcSettings.get_string('amc-dtp-box'))
+          boxCombo.connect('changed', () => mcSettings.set_string('amc-dtp-box', boxCombo.get_active_id()))
+          boxRow.add_suffix(boxCombo)
+          content.append(boxRow)
+
+          let hideRow = new Adw.ActionRow({title: _('Hide Default Player'), subtitle: _('Hide the default player indicator from the notification area')})
+          let hideSw = new Gtk.Switch({active: mcSettings.get_boolean('hide-default-player'), valign: Gtk.Align.CENTER})
+          hideSw.connect('state-set', (w, state) => { mcSettings.set_boolean('hide-default-player', state); return false })
+          hideRow.add_suffix(hideSw)
+          content.append(hideRow)
+
+          let dialog = this._createPreferencesDialog(_('Media Player Settings'), content)
+          dialog.show()
         } catch (e) {
           logError(e, 'Failed to open Media Player settings')
         }
