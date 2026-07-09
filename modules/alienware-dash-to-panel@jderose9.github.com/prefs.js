@@ -32,6 +32,10 @@ import Gdk from 'gi://Gdk'
 import * as PanelSettings from './panelSettings.js'
 import * as Pos from './panelPositions.js'
 
+import {buildGeneralPage} from './media/ui/generalPage.js'
+import {buildPopupPage} from './media/ui/popupPage.js'
+import {buildAppearancePage} from './media/ui/appearancePage.js'
+
 import {
   ExtensionPreferences,
   gettext as _,
@@ -2794,25 +2798,18 @@ const Preferences = class {
           }
           if (!mcSettings) return
 
-          let content = new Gtk.Box({orientation: Gtk.Orientation.VERTICAL, spacing: 8, margin_top: 8, margin_bottom: 8, margin_start: 8, margin_end: 8})
+          let win = new Adw.PreferencesWindow({
+            title: _('Media Player'),
+            transient_for: this.notebook.get_root(),
+            modal: true,
+            default_width: 700,
+            default_height: 760,
+          })
 
-          let hideRow = new Adw.ActionRow({title: _('Hide Default Player'), subtitle: _('Hide the default player indicator from the notification area')})
-          let hideSw = new Gtk.Switch({active: mcSettings.get_boolean('hide-default-player'), valign: Gtk.Align.CENTER})
-          mcSettings.bind('hide-default-player', hideSw, 'active', Gio.SettingsBindFlags.DEFAULT)
-          hideRow.add_suffix(hideSw)
-          content.append(hideRow)
-
-          let boxRow = new Adw.ActionRow({title: _('Panel box'), subtitle: _('Which box in the panel to show the media indicator')})
-          let boxCombo = new Gtk.ComboBoxText()
-          boxCombo.append('right', _('Right box'))
-          boxCombo.append('left', _('Left box'))
-          boxCombo.set_active_id(mcSettings.get_string('amc-dtp-box'))
-          mcSettings.bind('amc-dtp-box', boxCombo, 'active-id', Gio.SettingsBindFlags.DEFAULT)
-          boxRow.add_suffix(boxCombo)
-          content.append(boxRow)
-
-          let dialog = this._createPreferencesDialog(_('Media Player Settings'), content)
-          dialog.show()
+          win.add(buildGeneralPage(mcSettings))
+          win.add(buildPopupPage(mcSettings))
+          win.add(buildAppearancePage(mcSettings))
+          win.show()
         } catch (e) {
           logError(e, 'Failed to open Media Player settings')
         }
