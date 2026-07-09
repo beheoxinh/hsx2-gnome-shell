@@ -529,7 +529,7 @@ const Preferences = class {
     labels[Pos.SYSTEM_MENU] = _('System menu')
     labels[Pos.LEFT_BOX] = _('Left box')
     labels[Pos.CENTER_BOX] = _('Center box')
-    labels[Pos.RIGHT_BOX] = _('Right box')
+    labels[Pos.RIGHT_BOX] = _('Media box')
     labels[Pos.DESKTOP_BTN] = _('Desktop button')
 
     panelElementPositions.forEach((el) => {

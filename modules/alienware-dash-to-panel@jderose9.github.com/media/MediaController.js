@@ -7,18 +7,11 @@ import Gio from "gi://Gio";
 import { MediaIndicator } from "./utils/indicator.js";
 import * as Mpris from "resource:///org/gnome/shell/ui/mpris.js";
 
-const DTP_BOX_MAP = {
-  left: '_leftBox',
-  right: '_rightBox',
-};
-
 export default class MediaController {
   constructor(settings, path) {
     this._settings = settings;
     this._path = path;
     this._dtpSettings = this._loadDtPSettings();
-    this._repositionDebounceId = null;
-    this._settingsChangedId = 0;
     this._hideDefaultChangedId = null;
     this._injectionManager = null;
     this._dtpPanelsId = 0;
@@ -87,44 +80,15 @@ export default class MediaController {
       this._dtpChangedId = this._dtpSettings.connect(
         'changed::show-media-player', () => {
           if (this._dtpSettings.get_boolean('show-media-player'))
-            this._repositionIndicator();
+            this._addToDTP();
           else
             this._removeFromDTP();
         }
       );
     }
-
-    this._settingsChangedId = this._settings.connect("changed", (_, key) => {
-      if (key !== "amc-dtp-box") return;
-
-      if (this._repositionDebounceId) {
-        GLib.source_remove(this._repositionDebounceId);
-        this._repositionDebounceId = null;
-      }
-
-      this._repositionDebounceId = GLib.timeout_add(
-        GLib.PRIORITY_DEFAULT_IDLE,
-        150,
-        () => {
-          this._repositionDebounceId = null;
-          this._repositionIndicator();
-          return GLib.SOURCE_REMOVE;
-        },
-      );
-    });
   }
 
   disable() {
-    if (this._repositionDebounceId) {
-      GLib.source_remove(this._repositionDebounceId);
-      this._repositionDebounceId = null;
-    }
-
-    if (this._settingsChangedId) {
-      this._settings.disconnect(this._settingsChangedId);
-      this._settingsChangedId = 0;
-    }
-
     if (this._hideDefaultChangedId) {
       this._settings.disconnect(this._hideDefaultChangedId);
       this._hideDefaultChangedId = null;
@@ -157,14 +121,12 @@ export default class MediaController {
   }
 
   _addToPanel() {
-    const dtpBox = this._settings.get_string('amc-dtp-box');
-
     if (global.dashToPanel && global.dashToPanel.panels && global.dashToPanel.panels.length > 0) {
-      this._addToDTP(dtpBox);
+      this._addToDTP();
     } else if (global.dashToPanel) {
       this._dtpPanelsId = global.dashToPanel.connect('panels-created', () => {
         this._dtpPanelsId = 0;
-        this._addToDTP(dtpBox);
+        this._addToDTP();
       });
       this._indicator.hide();
     }
@@ -176,7 +138,7 @@ export default class MediaController {
     return true;
   }
 
-  _addToDTP(boxSide) {
+  _addToDTP() {
     if (!global.dashToPanel || !global.dashToPanel.panels) return;
     if (!this._showForDtPSettings()) return;
 
@@ -189,11 +151,10 @@ export default class MediaController {
       });
     }
 
-    const boxName = DTP_BOX_MAP[boxSide] ?? '_rightBox';
     const panel = global.dashToPanel.panels[0];
     if (!panel) return;
 
-    const box = panel[boxName];
+    const box = panel._rightBox;
     if (!box) return;
 
     const parent = this._indicator.get_parent();
@@ -211,12 +172,6 @@ export default class MediaController {
     const parent = this._indicator.get_parent();
     if (parent) parent.remove_child(this._indicator);
     this._addedToDTP = false;
-  }
-
-  _repositionIndicator() {
-    if (!this._indicator) return;
-    const dtpBox = this._settings.get_string('amc-dtp-box');
-    this._addToDTP(dtpBox);
   }
 
   _applyHideDefaultPlayer(hide) {
