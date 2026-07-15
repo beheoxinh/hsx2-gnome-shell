@@ -1,0 +1,18 @@
+{
+  "_generated": "BeHeoXinh",
+  "description": "Adds icons to the desktop. Fork of the original Desktop Icons extension, with several enhancements .",
+  "name": "Alienware Desktop Icons NG",
+  "shell-version": [
+    "46",
+    "47",
+    "48",
+    "49",
+    "50",
+    "51",
+    "52"
+  ],
+  "url": "https://gitlab.com/rastersoft/desktop-icons-ng",
+  "uuid": "alienware-desktop-enable-gnome@hsx2coder",
+  "version": 84,
+  "settings-schema": "org.gnome.shell.extensions.ding"
+}

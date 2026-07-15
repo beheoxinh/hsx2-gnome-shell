@@ -50,6 +50,16 @@
       <summary>Enable Command Menu 2 module</summary>
       <description>Custom dropdown menus in the top panel.</description>
     </key>
+    <key name="enable-appindicator" type="b">
+      <default>true</default>
+      <summary>Enable AppIndicator Support module</summary>
+      <description>AppIndicator, KStatusNotifierItem and legacy tray icons support.</description>
+    </key>
+    <key name="enable-advanced-alt-tab" type="b">
+      <default>true</default>
+      <summary>Enable AATWS module</summary>
+      <description>Advanced Alt-Tab Window Switcher — highly customizable Alt+Tab replacement.</description>
+    </key>
 
   </schema>
 </schemalist>

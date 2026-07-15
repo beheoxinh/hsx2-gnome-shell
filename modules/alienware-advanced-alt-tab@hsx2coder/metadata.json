@@ -1,0 +1,19 @@
+{
+  "description": "A highly customizable replacement for Alt+Tab window and app switchers with type-to-search, filtering, sorting, workspace/monitor navigation, window control, app launcher, and dash mode.",
+  "name": "AATWS (Advanced Alt-Tab Window Switcher)",
+  "settings-schema": "org.gnome.shell.extensions.advanced-alt-tab-window-switcher",
+  "shell-version": [
+    "45",
+    "46",
+    "47",
+    "48",
+    "49",
+    "50",
+    "51",
+    "52",
+    "53",
+    "54"
+  ],
+  "uuid": "alienware-advanced-alt-tab@hsx2coder",
+  "version": 66
+}

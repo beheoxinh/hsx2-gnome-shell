@@ -6,27 +6,31 @@ import Gtk from 'gi://Gtk';
 import {ExtensionPreferences} from 'resource:///org/gnome/Shell/Extensions/js/extensions/prefs.js';
 
 import CapsNumTouchpadPrefs from './modules/alienware-capsnum-touchpad@hsx2coder/prefs.js';
-import ClipboardIndicatorPrefs from './modules/alienware-clipboard-indicator@tudmotu.com/prefs.js';
-import DashToPanelPrefs from './modules/alienware-dash-to-panel@jderose9.github.com/prefs.js';
-import DingPrefs from './modules/alienware-desktop-enable-gnome@rastersoft.com/prefs.js';
-import JustPerfectionPrefs from './modules/alienware-just-perfection-desktop@just-perfection/prefs.js';
-import SystemMonitorPrefs from './modules/alienware-monitor@mgalgs.github.com/prefs.js';
-import NotificationConfiguratorPrefs from './modules/alienware-notification-configurator@exposedcat/prefs.js';
+import ClipboardIndicatorPrefs from './modules/alienware-clipboard-indicator@hsx2coder/prefs.js';
+import DashToPanelPrefs from './modules/alienware-dash-to-panel@hsx2coder/prefs.js';
+import DingPrefs from './modules/alienware-desktop-enable-gnome@hsx2coder/prefs.js';
+import JustPerfectionPrefs from './modules/alienware-just-perfection-desktop@hsx2coder/prefs.js';
+import SystemMonitorPrefs from './modules/alienware-monitor@hsx2coder/prefs.js';
+import NotificationConfiguratorPrefs from './modules/alienware-notification-configurator@hsx2coder/prefs.js';
 import TopbarClonePrefs from './modules/alienware-topbar-clone@hsx2coder/prefs.js';
-import CommandMenu2Prefs from './modules/alienware-command-menu2@goldentree1.github.com/prefs.js';
+import CommandMenu2Prefs from './modules/alienware-command-menu2@hsx2coder/prefs.js';
+import AppIndicatorPrefs from './modules/alienware-appindicatorsupport@hsx2coder/prefs.js';
+import AdvancedAltTabPrefs from './modules/alienware-advanced-alt-tab@hsx2coder/prefs.js';
 
 import {MODULES, buildSubMetadata} from './modules.js';
 
 const PREFS_REGISTRY = {
     'alienware-capsnum-touchpad@hsx2coder': CapsNumTouchpadPrefs,
-    'alienware-clipboard-indicator@tudmotu.com': ClipboardIndicatorPrefs,
-    'alienware-dash-to-panel@jderose9.github.com': DashToPanelPrefs,
-    'alienware-desktop-enable-gnome@rastersoft.com': DingPrefs,
-    'alienware-just-perfection-desktop@just-perfection': JustPerfectionPrefs,
-    'alienware-monitor@mgalgs.github.com': SystemMonitorPrefs,
-    'alienware-notification-configurator@exposedcat': NotificationConfiguratorPrefs,
+    'alienware-clipboard-indicator@hsx2coder': ClipboardIndicatorPrefs,
+    'alienware-dash-to-panel@hsx2coder': DashToPanelPrefs,
+    'alienware-desktop-enable-gnome@hsx2coder': DingPrefs,
+    'alienware-just-perfection-desktop@hsx2coder': JustPerfectionPrefs,
+    'alienware-monitor@hsx2coder': SystemMonitorPrefs,
+    'alienware-notification-configurator@hsx2coder': NotificationConfiguratorPrefs,
     'alienware-topbar-clone@hsx2coder': TopbarClonePrefs,
-    'alienware-command-menu2@goldentree1.github.com': CommandMenu2Prefs,
+    'alienware-command-menu2@hsx2coder': CommandMenu2Prefs,
+    'alienware-appindicatorsupport@hsx2coder': AppIndicatorPrefs,
+    'alienware-advanced-alt-tab@hsx2coder': AdvancedAltTabPrefs,
 };
 
 export default class AlienwareSuitePreferences extends ExtensionPreferences {

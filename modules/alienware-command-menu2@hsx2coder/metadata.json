@@ -1,0 +1,18 @@
+{
+  "description": "Custom dropdown menus in the top panel. Forked from Command Menu by arunk140.",
+  "name": "Command Menu 2",
+  "settings-schema": "org.gnome.shell.extensions.commandmenu2",
+  "shell-version": [
+    "46",
+    "47",
+    "48",
+    "49",
+    "50",
+    "51",
+    "52",
+    "53",
+    "54"
+  ],
+  "uuid": "alienware-command-menu2@hsx2coder",
+  "version": 1
+}
