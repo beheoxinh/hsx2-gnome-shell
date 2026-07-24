@@ -137,6 +137,7 @@ export const BluetoothStatus = GObject.registerClass(
 
         this.add_child(this._panelBox)
         this._buildMenu()
+        console.log(`${TAG} panel built`)
 
         // Rebuild menu items on open (using latest device data)
         this.menu.connect('open-state-changed', (menu, isOpen) => {
@@ -193,11 +194,14 @@ export const BluetoothStatus = GObject.registerClass(
     /* ---- Polling ---- */
 
     _connectAndPoll() {
+      console.log(`${TAG} _connectAndPoll start`)
       try {
+        console.log(`${TAG} creating DBusProxy for BlueZ`)
         this._omProxy = Gio.DBusProxy.new_for_bus_sync(
           Gio.BusType.SYSTEM, Gio.DBusProxyFlags.NONE, null,
           BLUEZ_SERVICE, BLUEZ_ROOT, DBUS_OM_IFACE, null,
         )
+        console.log(`${TAG} DBusProxy OK, connected=${this._connected}`)
         this._connected = true
         this._poll()
         this._timerId = GLib.timeout_add_seconds(
@@ -214,12 +218,14 @@ export const BluetoothStatus = GObject.registerClass(
     }
 
     _poll() {
+      console.log(`${TAG} _poll start`)
       let result
       try {
         result = this._omProxy.call_sync(
           'GetManagedObjects', null,
           Gio.DBusCallFlags.NONE, CALL_TIMEOUT, null,
         )
+        console.log(`${TAG} _poll got result: ${!!result}`)
       } catch (e) {
         // BlueZ not responding — keep last known state
         return
