@@ -1,8 +1,8 @@
 # PLAN — Restructure Extension Suite
 
 > File: `.hermes/plan/restructure-plan.md`
-> Trạng thái: DRAFT
-> Target: Gộp 13 module → 5 module thật (standalone extension), xoá 2 legacy
+> Trạng thái: **COMPLETED** — 8 wired modules, 2 merged (topbar-widgets, indicators), 5 legacy unwired
+> Last updated: 2026-07-15
 
 ---
 

@@ -1,0 +1,129 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<schemalist>
+  <schema id="org.gnome.shell.extensions.gnome-customizer-manager"
+    path="/org/gnome/shell/extensions/gnome-customizer-manager/">
+
+    <!-- Animation -->
+    <key type="i" name="animation">
+      <default>1</default>
+      <range min="0" max="8"/>
+      <summary>Animation Speed</summary>
+      <description>0 disabled, 1 default, 2-8 faster</description>
+    </key>
+
+    <!-- Window -->
+    <key type="b" name="window-demands-attention-focus">
+      <default>false</default>
+      <summary>Focus Window on Demand Attention</summary>
+    </key>
+    <key type="b" name="window-maximized-on-create">
+      <default>false</default>
+      <summary>Maximize Window on Create</summary>
+    </key>
+    <key type="b" name="window-preview-caption">
+      <default>true</default>
+      <summary>Window Preview Caption</summary>
+    </key>
+    <key type="b" name="window-preview-close-button">
+      <default>true</default>
+      <summary>Window Preview Close Button</summary>
+    </key>
+    <key type="b" name="window-picker-icon">
+      <default>true</default>
+      <summary>Window Picker Icon</summary>
+    </key>
+    <key type="b" name="window-menu">
+      <default>true</default>
+      <summary>Window Menu</summary>
+    </key>
+    <key type="b" name="window-menu-take-screenshot-button">
+      <default>true</default>
+      <summary>Screenshot Button in Window Menu</summary>
+    </key>
+
+    <!-- OSD -->
+    <key type="b" name="osd">
+      <default>true</default>
+      <summary>OSD Visibility</summary>
+    </key>
+    <key type="i" name="osd-position">
+      <default>0</default>
+      <range min="0" max="9"/>
+      <summary>OSD Position</summary>
+    </key>
+
+    <!-- Quick Settings -->
+    <key type="b" name="quick-settings">
+      <default>true</default>
+      <summary>Quick Settings Menu</summary>
+    </key>
+    <key type="b" name="quick-settings-dark-mode">
+      <default>true</default>
+      <summary>Dark Mode Toggle in Quick Settings</summary>
+    </key>
+    <key type="b" name="quick-settings-night-light">
+      <default>true</default>
+      <summary>Night Light Toggle in Quick Settings</summary>
+    </key>
+    <key type="b" name="quick-settings-do-not-disturb">
+      <default>true</default>
+      <summary>Do Not Disturb Toggle in Quick Settings</summary>
+    </key>
+    <key type="b" name="quick-settings-backlight">
+      <default>true</default>
+      <summary>Backlight Toggle in Quick Settings</summary>
+    </key>
+    <key type="b" name="quick-settings-airplane-mode">
+      <default>true</default>
+      <summary>Airplane Mode Toggle in Quick Settings</summary>
+    </key>
+
+    <!-- Theme -->
+    <key type="b" name="theme">
+      <default>false</default>
+      <summary>Theme</summary>
+    </key>
+
+    <!-- Looking Glass -->
+    <key type="i" name="looking-glass-width">
+      <default>0</default>
+      <range min="0" max="9"/>
+      <summary>Looking Glass Width</summary>
+    </key>
+    <key type="i" name="looking-glass-height">
+      <default>0</default>
+      <range min="0" max="9"/>
+      <summary>Looking Glass Height</summary>
+    </key>
+
+    <!-- Accent/Style -->
+    <key type="b" name="accent-color-icon">
+      <default>false</default>
+      <summary>Accent Color for Icons</summary>
+    </key>
+
+    <!-- Search -->
+    <key type="i" name="max-displayed-search-results">
+      <default>0</default>
+      <range min="0" max="40"/>
+      <summary>Max Displayed Search Results</summary>
+    </key>
+
+    <!-- Screenshot -->
+    <key type="b" name="remove-preselected-box">
+      <default>true</default>
+      <summary>Remove Screenshot Preselected Box</summary>
+    </key>
+    <key type="b" name="screenshot-on-release">
+      <default>true</default>
+      <summary>Screenshot On Mouse Release</summary>
+    </key>
+
+    <!-- Calendar -->
+    <key type="b" name="invert-calendar-column-items">
+      <default>false</default>
+      <summary>Invert Calendar Column Items</summary>
+    </key>
+
+  </schema>
+</schemalist>

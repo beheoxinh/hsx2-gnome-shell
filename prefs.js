@@ -5,32 +5,30 @@ import Gtk from 'gi://Gtk';
 
 import {ExtensionPreferences} from 'resource:///org/gnome/Shell/Extensions/js/extensions/prefs.js';
 
-import CapsNumTouchpadPrefs from './modules/alienware-capsnum-touchpad@hsx2coder/prefs.js';
-import ClipboardIndicatorPrefs from './modules/alienware-clipboard-indicator@hsx2coder/prefs.js';
 import DashToPanelPrefs from './modules/alienware-dash-to-panel@hsx2coder/prefs.js';
-import DingPrefs from './modules/alienware-desktop-enable-gnome@hsx2coder/prefs.js';
-import JustPerfectionPrefs from './modules/alienware-just-perfection-desktop@hsx2coder/prefs.js';
 import SystemMonitorPrefs from './modules/alienware-monitor@hsx2coder/prefs.js';
-import NotificationConfiguratorPrefs from './modules/alienware-notification-configurator@hsx2coder/prefs.js';
-import TopbarClonePrefs from './modules/alienware-topbar-clone@hsx2coder/prefs.js';
-import CommandMenu2Prefs from './modules/alienware-command-menu2@hsx2coder/prefs.js';
-import AppIndicatorPrefs from './modules/alienware-appindicatorsupport@hsx2coder/prefs.js';
+import TopbarWidgetsPrefs from './modules/alienware-topbar-widgets@hsx2coder/prefs.js';
+import IndicatorsPrefs from './modules/alienware-indicators@hsx2coder/prefs.js';
+import DingPrefs from './modules/alienware-desktop-enable-gnome@hsx2coder/prefs.js';
 import AdvancedAltTabPrefs from './modules/alienware-advanced-alt-tab@hsx2coder/prefs.js';
+import NotificationConfiguratorPrefs from './modules/alienware-notification-configurator@hsx2coder/prefs.js';
+import WorkspaceControlPrefs from './modules/alienware-workspace-control@hsx2coder/prefs.js';
+import TopbarPanelControlsPrefs from './modules/alienware-topbar-panel-controls@hsx2coder/prefs.js';
+import GnomeCustomizerManagerPrefs from './modules/alienware-gnome-customizer-manager@hsx2coder/prefs.js';
 
-import {MODULES, buildSubMetadata} from './modules.js';
+import {MODULES, buildSubMetadata, moduleEntryURL} from './modules.js';
 
 const PREFS_REGISTRY = {
-    'alienware-capsnum-touchpad@hsx2coder': CapsNumTouchpadPrefs,
-    'alienware-clipboard-indicator@hsx2coder': ClipboardIndicatorPrefs,
     'alienware-dash-to-panel@hsx2coder': DashToPanelPrefs,
-    'alienware-desktop-enable-gnome@hsx2coder': DingPrefs,
-    'alienware-just-perfection-desktop@hsx2coder': JustPerfectionPrefs,
     'alienware-monitor@hsx2coder': SystemMonitorPrefs,
-    'alienware-notification-configurator@hsx2coder': NotificationConfiguratorPrefs,
-    'alienware-topbar-clone@hsx2coder': TopbarClonePrefs,
-    'alienware-command-menu2@hsx2coder': CommandMenu2Prefs,
-    'alienware-appindicatorsupport@hsx2coder': AppIndicatorPrefs,
+    'alienware-topbar-widgets@hsx2coder': TopbarWidgetsPrefs,
+    'alienware-indicators@hsx2coder': IndicatorsPrefs,
+    'alienware-desktop-enable-gnome@hsx2coder': DingPrefs,
     'alienware-advanced-alt-tab@hsx2coder': AdvancedAltTabPrefs,
+    'alienware-notification-configurator@hsx2coder': NotificationConfiguratorPrefs,
+    'alienware-workspace-control@hsx2coder': WorkspaceControlPrefs,
+    'alienware-gnome-customizer-manager@hsx2coder': GnomeCustomizerManagerPrefs,
+    'alienware-topbar-panel-controls@hsx2coder': TopbarPanelControlsPrefs,
 };
 
 export default class AlienwareSuitePreferences extends ExtensionPreferences {
@@ -48,7 +46,7 @@ export default class AlienwareSuitePreferences extends ExtensionPreferences {
         const headerGroup = new Adw.PreferencesGroup({
             title: 'Alienware Suite',
             description:
-                'Master switches for every aggregated module. ' +
+                'Master switches for every module. ' +
                 'Open per-module settings with the Configure button.',
         });
         page.add(headerGroup);
@@ -64,8 +62,6 @@ export default class AlienwareSuitePreferences extends ExtensionPreferences {
         for (const def of MODULES) {
             const row = new Adw.ActionRow({
                 title: def.title,
-                subtitle: def.uuid,
-                icon_name: def.iconName,
             });
 
             const toggle = new Gtk.Switch({
@@ -127,13 +123,26 @@ export default class AlienwareSuitePreferences extends ExtensionPreferences {
             return;
         }
 
+        // Module provides its own window (ViewSwitcher + ViewStack top tabs)
+        log(`[alienware-suite] prefs for ${def.uuid}: openPreferences=${typeof subPrefs.openPreferences}`);
+        if (typeof subPrefs.openPreferences === 'function') {
+            try {
+                subPrefs.openPreferences(parent);
+            } catch (e) {
+                logError(e, `[alienware-suite] openPreferences threw for ${def.uuid}`);
+                this._notify(parent, `Preferences failed for ${def.title}`);
+            }
+            return;
+        }
+
+        // Fallback: legacy Adw.PreferencesWindow sub-window
         const subWindow = new Adw.PreferencesWindow({
             transient_for: parent,
             modal: true,
             title: def.title,
             search_enabled: true,
         });
-        subWindow.set_default_size(820, 720);
+        subWindow.set_default_size(720, 650);
 
         const restoreShim = this._installLookupShim(def.uuid, subPrefs);
         subWindow.connect('close-request', () => {

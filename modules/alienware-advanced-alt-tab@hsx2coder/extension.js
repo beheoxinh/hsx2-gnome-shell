@@ -75,6 +75,10 @@ export default class AATWS extends Extension {
         this._opt.connect('changed', this._updateSettings.bind(this));
 
         console.debug(`${this.metadata.name}: enabled`);
+
+        // === JP borrowed keys handler ===
+        this._jpHandler = new _AatJpHandler(Me.gSettings);
+        this._jpHandler.start();
     }
 
     disable() {
@@ -104,6 +108,9 @@ export default class AATWS extends Extension {
         this.Me = null;
 
         console.debug(`${this.metadata.name}: enabled`);
+
+        this._jpHandler?.stop();
+        this._jpHandler = null;
     }
 
     _updateSettings(settings, key) {
@@ -314,5 +321,72 @@ export default class AATWS extends Extension {
         const fsAllowed = this._opt.get('hotEdgeFullScreen');
         if (!(!fsAllowed && monitor.inFullscreen))
             this._toggleSwitcher(true);
+    }
+}
+
+/**
+ * JP borrowed keys handler — reads jp-alt-tab-* + jp-switcher-* keys.
+ */
+class _AatJpHandler {
+    #s = null;
+    #api = null;
+
+    constructor(s) { this.#s = s; }
+
+    start() {
+        try {
+            const gcm = Extension.lookupByUUID('alienware-gnome-customizer-manager@hsx2coder');
+            if (gcm?._api) {
+                this.#api = gcm._api;
+                console.log('[AAT-JP] API found, connecting JP alt-tab keys');
+                this.#s.connectObject(
+                    'changed::jp-alt-tab-window-preview-size', () => this.#applyPreviewSize(false),
+                    'changed::jp-alt-tab-icons-size',          () => this.#applyIconSize(false),
+                    'changed::jp-switcher-popup-delay',        () => this.#applyPopupDelay(false),
+                    this
+                );
+                this.#applyPreviewSize(false);
+                this.#applyIconSize(false);
+                this.#applyPopupDelay(false);
+            } else {
+                console.warn('[AAT-JP] GCM API not available');
+            }
+        } catch (e) {
+            logError(e, '[AAT-JP] init failed');
+        }
+    }
+
+    stop() {
+        try { this.#s.disconnectObject(this); } catch(e) {}
+        this.#api = null;
+    }
+
+    #a() { return this.#api; }
+
+    #applyPreviewSize(f) {
+        const a = this.#a(); if (!a) return;
+        const size = this.#s.get_int('jp-alt-tab-window-preview-size');
+        if (f || size === 0)
+            a.altTabWindowPreviewSetDefaultSize();
+        else
+            a.altTabWindowPreviewSetSize(size);
+    }
+
+    #applyIconSize(f) {
+        const a = this.#a(); if (!a) return;
+        const size = this.#s.get_int('jp-alt-tab-icons-size');
+        if (f || size === 0)
+            a.altTabIconSetDefaultSize();
+        else
+            a.altTabIconSetSize(size);
+    }
+
+    #applyPopupDelay(f) {
+        const a = this.#a(); if (!a) return;
+        // true = keep default delay, false = remove delay
+        if (f || this.#s.get_boolean('jp-switcher-popup-delay'))
+            a.switcherPopupDelaySetDefault();
+        else
+            a.removeSwitcherPopupDelay();
     }
 }

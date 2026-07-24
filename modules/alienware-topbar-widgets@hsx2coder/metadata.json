@@ -1,0 +1,7 @@
+{
+    "description": "Topbar Widgets — clipboard indicator, command menus, and panel clone",
+    "name": "Topbar Widgets",
+    "shell-version": ["45", "46", "47", "48", "49", "50"],
+    "uuid": "alienware-topbar-widgets@hsx2coder",
+    "version": 1
+}

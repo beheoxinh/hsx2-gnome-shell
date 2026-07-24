@@ -3,7 +3,7 @@
   "description": "Display system information in GNOME Shell status bar, such as memory, CPU, disk and battery usages, network rates\u2026\n\nPlease see the extension homepage for prerequisite packages that must be installed first.\n\nIf you get an error after updating, try restarting GNOME Shell or logging out and logging back in.",
   "gettext-domain": "system-monitor",
   "name": "Alienware System Monitor",
-  "settings-schema": "org.gnome.shell.extensions.system-monitor",
+  "settings-schema": "org.gnome.shell.extensions.system-monitor-next-applet",
   "shell-version": [
     "45",
     "46",

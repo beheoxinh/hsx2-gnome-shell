@@ -2,32 +2,30 @@ import Gio from 'gi://Gio';
 import GLib from 'gi://GLib';
 import {Extension} from 'resource:///org/gnome/shell/extensions/extension.js';
 
-import CapsNumTouchpadExtension from './modules/alienware-capsnum-touchpad@hsx2coder/extension.js';
-import ClipboardIndicatorExtension from './modules/alienware-clipboard-indicator@hsx2coder/extension.js';
 import DashToPanelExtension from './modules/alienware-dash-to-panel@hsx2coder/extension.js';
-import DingExtension from './modules/alienware-desktop-enable-gnome@hsx2coder/extension.js';
-import JustPerfectionExtension from './modules/alienware-just-perfection-desktop@hsx2coder/extension.js';
 import SystemMonitorExtension from './modules/alienware-monitor@hsx2coder/extension.js';
-import NotificationConfiguratorExtension from './modules/alienware-notification-configurator@hsx2coder/extension.js';
-import TopbarCloneExtension from './modules/alienware-topbar-clone@hsx2coder/extension.js';
-import CommandMenu2Extension from './modules/alienware-command-menu2@hsx2coder/extension.js';
-import AppIndicatorExtension from './modules/alienware-appindicatorsupport@hsx2coder/extension.js';
+import TopbarWidgetsExtension from './modules/alienware-topbar-widgets@hsx2coder/extension.js';
+import IndicatorsExtension from './modules/alienware-indicators@hsx2coder/extension.js';
+import DingExtension from './modules/alienware-desktop-enable-gnome@hsx2coder/extension.js';
 import AdvancedAltTabExtension from './modules/alienware-advanced-alt-tab@hsx2coder/extension.js';
+import NotificationConfiguratorExtension from './modules/alienware-notification-configurator@hsx2coder/extension.js';
+import WorkspaceControlExtension from './modules/alienware-workspace-control@hsx2coder/extension.js';
+import TopbarPanelControlsExtension from './modules/alienware-topbar-panel-controls@hsx2coder/extension.js';
+import GnomeCustomizerManagerExtension from './modules/alienware-gnome-customizer-manager@hsx2coder/extension.js';
 
 import {MODULES, buildSubMetadata} from './modules.js';
 
 const CLASS_REGISTRY = {
-    'alienware-capsnum-touchpad@hsx2coder': CapsNumTouchpadExtension,
-    'alienware-clipboard-indicator@hsx2coder': ClipboardIndicatorExtension,
     'alienware-dash-to-panel@hsx2coder': DashToPanelExtension,
-    'alienware-desktop-enable-gnome@hsx2coder': DingExtension,
-    'alienware-just-perfection-desktop@hsx2coder': JustPerfectionExtension,
     'alienware-monitor@hsx2coder': SystemMonitorExtension,
-    'alienware-notification-configurator@hsx2coder': NotificationConfiguratorExtension,
-    'alienware-topbar-clone@hsx2coder': TopbarCloneExtension,
-    'alienware-command-menu2@hsx2coder': CommandMenu2Extension,
-    'alienware-appindicatorsupport@hsx2coder': AppIndicatorExtension,
+    'alienware-topbar-widgets@hsx2coder': TopbarWidgetsExtension,
+    'alienware-indicators@hsx2coder': IndicatorsExtension,
+    'alienware-desktop-enable-gnome@hsx2coder': DingExtension,
     'alienware-advanced-alt-tab@hsx2coder': AdvancedAltTabExtension,
+    'alienware-notification-configurator@hsx2coder': NotificationConfiguratorExtension,
+    'alienware-workspace-control@hsx2coder': WorkspaceControlExtension,
+    'alienware-gnome-customizer-manager@hsx2coder': GnomeCustomizerManagerExtension,
+    'alienware-topbar-panel-controls@hsx2coder': TopbarPanelControlsExtension,
 };
 
 export default class AlienwareSuiteExtension extends Extension {

@@ -1,0 +1,8 @@
+{
+    "description": "Workspace behavior controls — switcher, popup, wrap-around, overlay key, startup behavior, and more",
+    "name": "Workspace Control",
+    "settings-schema": "org.gnome.shell.extensions.workspace-control",
+    "shell-version": ["45", "46", "47", "48", "49", "50"],
+    "uuid": "alienware-workspace-control@hsx2coder",
+    "version": 1
+}

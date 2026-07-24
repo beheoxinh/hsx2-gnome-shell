@@ -1,0 +1,8 @@
+{
+    "description": "Topbar & Panel controls — visibility, layout, clock/calendar, indicators, search, activities",
+    "name": "Topbar Panel Controls",
+    "settings-schema": "org.gnome.shell.extensions.topbar-panel-controls",
+    "shell-version": ["45", "46", "47", "48", "49", "50"],
+    "uuid": "alienware-topbar-panel-controls@hsx2coder",
+    "version": 1
+}

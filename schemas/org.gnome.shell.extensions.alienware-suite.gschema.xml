@@ -2,64 +2,48 @@
 <schemalist>
   <schema id="org.gnome.shell.extensions.alienware-suite"
           path="/org/gnome/shell/extensions/alienware-suite/">
-    <key name="enable-capsnum-touchpad" type="b">
-      <default>true</default>
-      <summary>Enable Caps/Num &amp; Touchpad module</summary>
-    </key>
     <key name="enable-dash-to-panel" type="b">
       <default>true</default>
       <summary>Enable Dash to Panel module</summary>
-    </key>
-    <key name="enable-desktop-icons" type="b">
-      <default>true</default>
-      <summary>Enable Desktop Icons NG module</summary>
     </key>
     <key name="enable-system-monitor" type="b">
       <default>true</default>
       <summary>Enable System Monitor module</summary>
     </key>
-    <key name="enable-clipboard-indicator" type="b">
+    <key name="enable-topbar-widgets" type="b">
       <default>true</default>
-      <summary>Enable Clipboard Indicator module</summary>
+      <summary>Enable Topbar Widgets module</summary>
+      <description>Clipboard indicator, command menus, and topbar clone.</description>
     </key>
-    <key name="enable-notification-configurator" type="b">
+    <key name="enable-indicators" type="b">
       <default>true</default>
-      <summary>Enable Notification Configurator module</summary>
+      <summary>Enable Indicators module</summary>
+      <description>AppIndicator tray icons, Caps/Num lock, and Touchpad toggle.</description>
     </key>
-    <key name="enable-just-perfection" type="b">
+    <key name="enable-desktop-icons" type="b">
       <default>true</default>
-      <summary>Enable Just Perfection module</summary>
-    </key>
-    <key name="enable-topbar-clone" type="b">
-      <default>true</default>
-      <summary>Enable Topbar Clone module</summary>
-      <description>Clone the native GNOME top bar onto secondary monitors.</description>
-    </key>
-    <key name="topbar-clone-show-clock" type="b">
-      <default>true</default>
-      <summary>Show the clock on the cloned top bar</summary>
-      <description>Show the Date/Clock menu in the center of the cloned top bar.</description>
-    </key>
-    <key name="topbar-clone-show-tray" type="b">
-      <default>true</default>
-      <summary>Show the system tray on the cloned top bar</summary>
-      <description>Show the Quick Settings / system tray on the right of the cloned top bar.</description>
-    </key>
-    <key name="enable-command-menu2" type="b">
-      <default>true</default>
-      <summary>Enable Command Menu 2 module</summary>
-      <description>Custom dropdown menus in the top panel.</description>
-    </key>
-    <key name="enable-appindicator" type="b">
-      <default>true</default>
-      <summary>Enable AppIndicator Support module</summary>
-      <description>AppIndicator, KStatusNotifierItem and legacy tray icons support.</description>
+      <summary>Enable Desktop Icons NG module</summary>
     </key>
     <key name="enable-advanced-alt-tab" type="b">
       <default>true</default>
       <summary>Enable AATWS module</summary>
       <description>Advanced Alt-Tab Window Switcher — highly customizable Alt+Tab replacement.</description>
     </key>
-
+    <key name="enable-notification-configurator" type="b">
+      <default>true</default>
+      <summary>Enable Notification Configurator module</summary>
+    </key>
+    <key name="enable-workspace-control" type="b">
+      <default>true</default>
+      <summary>Enable Workspace Control module</summary>
+    </key>
+    <key name="enable-gnome-customizer-manager" type="b">
+      <default>true</default>
+      <summary>Enable Gnome Customizer Manager module</summary>
+    </key>
+      <key name="enable-topbar-panel-controls" type="b">
+      <default>true</default>
+      <summary>Enable Topbar Panel Controls module</summary>
+    </key>
   </schema>
 </schemalist>

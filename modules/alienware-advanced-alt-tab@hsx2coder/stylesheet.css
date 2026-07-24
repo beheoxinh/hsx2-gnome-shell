@@ -208,6 +208,16 @@
   background-color: rgba(210, 210, 210, 1.0);
 }
 
+.switcher-list .item-box:selected,
+.switcher-list .item-box-custom:selected {
+  border: 1px solid rgba(53, 132, 228, 0.6) !important;
+  box-shadow: none !important;
+}
+
+.cycler-highlight {
+  border: 1px solid rgba(53, 132, 228, 0.6) !important;
+}
+
 .focused-dark {
   background-color: rgba(70, 70, 70, 0.5);
 }

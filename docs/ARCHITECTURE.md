@@ -12,7 +12,7 @@ GNOME Shell Extension ecosystem cho phép cài đặt extension riêng lẻ, m�
 
 ### 1.2 Giải pháp
 
-**Alienware Suite** là một GNOME Shell Extension đóng vai trò container (suite). Thay vì cài 11 extension riêng lẻ, người dùng chỉ cài một extension duy nhất. Suite này:
+**Alienware Suite** là một GNOME Shell Extension đóng vai trò container (suite). Thay vì cài 8 extension riêng lẻ, người dùng chỉ cài một extension duy nhất. Suite này:
 
 1. Định nghĩa một module registry (`modules.js`) chứa danh sách tất cả sub-modules
 2. Cung cấp cơ chế enable/disable từng module qua suite-level GSettings
@@ -176,23 +176,20 @@ User clicks Configure
 
 Mỗi module giữ schema ID gốc (từ standalone extension gốc) để tương thích dconf data:
 
-| Module | Schema ID | Schema File | Path | Keys |
-|--------|-----------|-------------|------|------|
-| AATWS | `org.gnome.shell.extensions.advanced-alt-tab-window-switcher` | advanced-alt-tab-window-switcher.gschema.xml | `/org/gnome/shell/extensions/advanced-alt-tab-window-switcher/` | 108 |
-| AppIndicator | `org.gnome.shell.extensions.indicators-appindicator` | indicators-appindicator.gschema.xml | `/org/gnome/shell/extensions/indicators-appindicator/` | 10 |
-| CapsNum Indicator | `org.gnome.shell.extensions.capsnum-indicator` | capsnum-indicator.gschema.xml | `/org/gnome/shell/extensions/capsnum-indicator/` | 4 |
-| CapsNum Touchpad | `org.gnome.shell.extensions.capsnum-touchpad` | capsnum-touchpad.gschema.xml | `/org/gnome/shell/extensions/capsnum-touchpad/` | 6 |
-| Clipboard Indicator | `org.gnome.shell.extensions.clipboard-indicator` | clipboard-indicator.gschema.xml | `/org/gnome/shell/extensions/clipboard-indicator/` | 44 |
-| Command Menu | `org.gnome.shell.extensions.commandmenu2` | commandmenu2.gschema.xml | `/org/gnome/shell/extensions/commandmenu2/` | 2 |
+| Module | Schema ID | Schema File(s) | Path | Keys |
+|--------|-----------|---------------|------|------|
 | Dash to Panel | `org.gnome.shell.extensions.dash-to-panel` | dash-to-panel.gschema.xml | `/org/gnome/shell/extensions/dash-to-panel/` | 250 |
 | Dash-to-Panel Media | `org.gnome.shell.extensions.advanced-media-controller` | (media/schemas/) | `/org/gnome/shell/extensions/advanced-media-controller/` | ~30 |
+| System Monitor | `org.gnome.shell.extensions.system-monitor-next-applet` | system-monitor-next-applet.gschema.xml | (sub-schema) | 130 |
+| **Topbar Widgets** | *wrapper* | clipboard-indicator(44), commandmenu2(2), panel-clone(2) | paths giữ nguyên gốc | 48 |
+| **Indicators** | *wrapper* | indicators-appindicator(10), capsnum-touchpad(6) | paths giữ nguyên gốc | 16 |
 | Desktop Icons | `org.gnome.shell.extensions.ding` | ding.gschema.xml | `/org/gnome/shell/extensions/ding/` | 22 |
-| Just Perfection | `org.gnome.shell.extensions.just-perfection` | just-perfection.gschema.xml | `/org/gnome/shell/extensions/just-perfection/` | 73 |
-| System Monitor | `org.gnome.shell.extensions.system-monitor` | system-monitor.gschema.xml | `/org/gnome/shell/extensions/system-monitor/` | 115 |
-| System Monitor (next) | `org.gnome.shell.extensions.system-monitor-next-applet` | system-monitor-next-applet.gschema.xml | — | sub-schema |
-| Notification Config | `org.gnome.shell.extensions.notification-configurator` | notification-configurator.gschema.xml | `/org/gnome/shell/extensions/notification-configurator/` | 13 |
-| Touchpad | `org.gnome.shell.extensions.touchpad_gpawru` | touchpad_gpawru.gschema.xml | `/org/gnome/shell/extensions/touchpad_gpawru/` | 6 |
-| **Topbar Clone** | *(dùng suite schema)* | — | — | — |
+| AATWS | `org.gnome.shell.extensions.advanced-alt-tab-window-switcher` | advanced-alt-tab-window-switcher.gschema.xml | `/org/gnome/shell/extensions/advanced-alt-tab-window-switcher/` | 111 |
+| Just Perfection | `org.gnome.shell.extensions.just-perfection` | just-perfection.gschema.xml | `/org/gnome/shell/extensions/just-perfection/` | 0 — all keys distributed |
+| Notification Config | `org.gnome.shell.extensions.notification-configurator` | notification-configurator.gschema.xml | `/org/gnome/shell/extensions/notification-configurator/` | 14 |
+| **Workspace Control** | `org.gnome.shell.extensions.workspace-control` | workspace-control.gschema.xml | `/org/gnome/shell/extensions/workspace-control/` | 14 |
+| **Gnome Customizer Mgr** | `org.gnome.shell.extensions.gnome-customizer-manager` | gnome-customizer-manager.gschema.xml | `/org/gnome/shell/extensions/gnome-customizer-manager/` | 24 |
+| **Topbar Panel Ctrls** | `org.gnome.shell.extensions.topbar-panel-controls` | topbar-panel-controls.gschema.xml | `/org/gnome/shell/extensions/topbar-panel-controls/` | 26 |
 
 ### 5.3 Hardcoded schema lookups (cần chú ý)
 
@@ -245,11 +242,14 @@ Các module còn lại dùng `this.getSettings()` (không argument), tự độn
 
 ---
 
-## 9. Module NOT in Suite (legacy)
+## 9. Module NOT in Suite (legacy/unwired)
 
 Các module sau có sẵn trong thư mục `modules/` NHƯNG không được đăng ký trong suite `modules.js`, `extension.js` (CLASS_REGISTRY) và `prefs.js` (PREFS_REGISTRY):
 
-1. **alienware-capsnum-indicator@hsx2coder** — Caps/Num Lock indicator (đã được thay thế bởi capsnum-touchpad)
-2. **alienware-touchpad@hsx2coder** — Touchpad switcher standalone (đã được thay thế bởi capsnum-touchpad)
+1. **alienware-appindicatorsupport@hsx2coder** — AppIndicator Support (đã được gộp vào alienware-indicators)
+2. **alienware-capsnum-touchpad@hsx2coder** — CapsNum+Touchpad standalone (đã được gộp vào alienware-indicators)
+3. **alienware-clipboard-indicator@hsx2coder** — Clipboard indicator standalone (đã được gộp vào alienware-topbar-widgets)
+4. **alienware-command-menu2@hsx2coder** — Command Menu standalone (đã được gộp vào alienware-topbar-widgets)
+5. **alienware-topbar-clone@hsx2coder** — Topbar Clone standalone (đã được gộp vào alienware-topbar-widgets)
 
-Chúng giữ nguyên UUID và schema cho mục đích backward compatibility.
+Chúng giữ nguyên UUID và schema trên filesystem cho mục đích rollback an toàn.

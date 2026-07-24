@@ -1422,5 +1422,24 @@
       <default>65</default>
       <summary>Installed extension version</summary>
     </key>
+  
+    <!-- JP dash integration -->
+    <key type="b" name="jp-dash-override">
+      <default>false</default>
+      <summary>Override Dash visibility from JP</summary>
+    </key>
+    <key type="i" name="jp-dash-icon-size">
+      <default>0</default>
+      <range min="0" max="64"/>
+      <summary>Dash icon size override (0=use DTP setting)</summary>
+    </key>
+    <key type="b" name="jp-dash-separator">
+      <default>true</default>
+      <summary>Show Dash separator</summary>
+    </key>
+    <key type="b" name="jp-dash-app-running">
+      <default>true</default>
+      <summary>Show Dash running dot</summary>
+    </key>
   </schema>
 </schemalist>

@@ -4288,7 +4288,7 @@ export default class DashToPanelPreferences extends ExtensionPreferences {
     )
 
     // use default width or window
-    window.set_default_size(0, 740)
+    window.set_default_size(720, 740)
 
     window._settings.set_boolean('prefs-opened', true)
     closeRequestId = window.connect('close-request', () => {

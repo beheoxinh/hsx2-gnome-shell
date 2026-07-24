@@ -167,6 +167,10 @@ export default class DashToPanelExtension extends Extension {
         )
       }
     } else completeEnable()
+
+    // === JP borrowed keys handler ===
+    this._jpHandler = new _JpHandler(SETTINGS);
+    this._jpHandler.start();
   }
 
   disable() {
@@ -198,6 +202,9 @@ export default class DashToPanelExtension extends Extension {
       this._mediaController = null
     }
     Main.sessionMode.hasOverview = this._realHasOverview
+
+    this._jpHandler?.stop()
+    this._jpHandler = null
   }
 
   _loadMcSettings() {
@@ -270,5 +277,84 @@ export default class DashToPanelExtension extends Extension {
     ;['br4', 'br8', 'br12', 'br16', 'br20'].forEach((c) =>
       Main.layoutManager.uiGroup.remove_style_class_name(c),
     )
+  }
+}
+
+/**
+ * JP borrowed keys handler — reads jp-dash-* keys and calls API methods.
+ */
+class _JpHandler {
+  #s = null
+  #api = null
+
+  constructor(s) { this.#s = s }
+
+  start() {
+    try {
+      const gcm = Extension.lookupByUUID('alienware-gnome-customizer-manager@hsx2coder')
+      if (gcm?._api) {
+        this.#api = gcm._api
+        console.log('[DTP-JP] API found, connecting JP dash keys')
+        this.#s.connectObject(
+          'changed::jp-dash-override',    () => this.#applyDash(false),
+          'changed::jp-dash-icon-size',    () => this.#applyDashIconSize(false),
+          'changed::jp-dash-separator',    () => this.#applyDashSep(false),
+          'changed::jp-dash-app-running',  () => this.#applyDashAppRun(false),
+          this
+        )
+        this.#applyAll()
+      } else {
+        console.warn('[DTP-JP] GCM API not available')
+      }
+    } catch (e) {
+      logError(e, '[DTP-JP] init failed')
+    }
+  }
+
+  stop() {
+    try { this.#s.disconnectObject(this) } catch(e) {}
+    this.#api = null
+  }
+
+  #a() { return this.#api }
+
+  #applyAll() {
+    this.#applyDash(false)
+    this.#applyDashIconSize(false)
+    this.#applyDashSep(false)
+    this.#applyDashAppRun(false)
+  }
+
+  #applyDash(f) {
+    const a = this.#a(); if (!a) return
+    if (f || this.#s.get_boolean('jp-dash-override'))
+      a.dashShow()
+    else
+      a.dashHide()
+  }
+
+  #applyDashIconSize(f) {
+    const a = this.#a(); if (!a) return
+    const size = this.#s.get_int('jp-dash-icon-size')
+    if (f || size === 0)
+      a.dashIconSizeSetDefault()
+    else
+      a.dashIconSizeSet(size)
+  }
+
+  #applyDashSep(f) {
+    const a = this.#a(); if (!a) return
+    if (f || this.#s.get_boolean('jp-dash-separator'))
+      a.dashSeparatorShow()
+    else
+      a.dashSeparatorHide()
+  }
+
+  #applyDashAppRun(f) {
+    const a = this.#a(); if (!a) return
+    if (f || this.#s.get_boolean('jp-dash-app-running'))
+      a.dashAppRunningDotShow()
+    else
+      a.dashAppRunningDotHide()
   }
 }

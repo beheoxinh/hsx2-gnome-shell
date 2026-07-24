@@ -1,0 +1,8 @@
+{
+    "description": "General GNOME Shell customization — animation, window, OSD, quick settings, theme, search, screenshot",
+    "name": "Gnome Customizer Manager",
+    "settings-schema": "org.gnome.shell.extensions.gnome-customizer-manager",
+    "shell-version": ["45", "46", "47", "48", "49", "50"],
+    "uuid": "alienware-gnome-customizer-manager@hsx2coder",
+    "version": 1
+}

@@ -22,7 +22,7 @@ export default class ClipboardIndicatorPreferences extends ExtensionPreferences 
             { title: _('Shortcuts'),     iconName: 'input-keyboard-symbolic',          groups: [settingsUI.shortcuts] },
         ];
 
-        window.set_default_size(700, 650);
+        window.set_default_size(720, 650);
 
         for (const { title, iconName, groups } of tabs) {
             const page = new Adw.PreferencesPage({ title, icon_name: iconName });

@@ -1,80 +1,122 @@
 import Adw from 'gi://Adw';
 import Gio from 'gi://Gio';
 import Gtk from 'gi://Gtk';
-import { ExtensionPreferences } from 'resource:///org/gnome/Shell/Extensions/js/extensions/prefs.js';
+import Gdk from 'gi://Gdk';
+import GObject from 'gi://GObject';
+import {ExtensionPreferences} from 'resource:///org/gnome/Shell/Extensions/js/extensions/prefs.js';
 
 export default class CapsNumTouchpadPreferences extends ExtensionPreferences {
     fillPreferencesWindow(window) {
-        const settings = this.getSettings();
+        const s = new Settings(this.getSettings());
+        window.set_default_size(720, 500);
 
-        const page = new Adw.PreferencesPage();
-        window.add(page);
+        const tabs = [
+            {title: 'Indicator',  iconName: 'input-keyboard-symbolic',  groups: [s.indicator]},
+            {title: 'Touchpad',   iconName: 'input-mouse-symbolic',     groups: [s.touchpad]},
+        ];
+        for (const {title, iconName, groups} of tabs) {
+            const page = new Adw.PreferencesPage({title, icon_name: iconName});
+            groups.forEach(g => page.add(g));
+            window.add(page);
+        }
+    }
+}
 
-        // ── Indicator Behavior group ──
-        const indicatorGroup = new Adw.PreferencesGroup({
-            title: 'Indicator Behavior',
-            description: 'Configure how the Caps Lock and Num Lock indicators are displayed.',
+class Settings {
+    constructor(schema) {
+        this.schema = schema;
+
+        // ── Indicator ──
+        this.showCapsLock = new Adw.SwitchRow({
+            title: 'Show Caps Lock Indicator',
+            subtitle: 'Display the Caps Lock indicator in the top panel.',
         });
-        page.add(indicatorGroup);
-
-        const createSwitchRow = (title, subtitle, key) => {
-            const row = new Adw.ActionRow({ title, subtitle });
-            const toggle = new Gtk.Switch({
-                active: settings.get_boolean(key),
-                valign: Gtk.Align.CENTER,
-            });
-            settings.bind(key, toggle, 'active', Gio.SettingsBindFlags.DEFAULT);
-            row.add_suffix(toggle);
-            row.activatable_widget = toggle;
-            return row;
-        };
-
-        indicatorGroup.add(createSwitchRow('Show Caps Lock', 'Display the Caps Lock indicator in the top panel.', 'show-caps-lock'));
-        indicatorGroup.add(createSwitchRow('Show Num Lock', 'Display the Num Lock indicator in the top panel.', 'show-num-lock'));
-        indicatorGroup.add(createSwitchRow('Hide when inactive', 'Hide the indicator completely when the lock is turned off.', 'hide-when-off'));
-
-        // ── Touchpad group ──
-        const touchpadGroup = new Adw.PreferencesGroup({
-            title: 'Touchpad Switcher',
-            description: 'Configure Touchpad Switcher behavior.',
+        this.showNumLock = new Adw.SwitchRow({
+            title: 'Show Num Lock Indicator',
+            subtitle: 'Display the Num Lock indicator in the top panel.',
         });
-        page.add(touchpadGroup);
-
-        const showIndicator = new Adw.SwitchRow({
-            title: 'Show indicator',
-            subtitle: 'Whether to show the touchpad panel indicator',
+        this.hideWhenOff = new Adw.SwitchRow({
+            title: 'Hide When Inactive',
+            subtitle: 'Hide the indicator completely when the lock is off instead of dimming it.',
         });
-        touchpadGroup.add(showIndicator);
-        settings.bind('show-indicator', showIndicator, 'active', Gio.SettingsBindFlags.DEFAULT);
-
-        const showNotifications = new Adw.SwitchRow({
-            title: 'Show notifications',
-            subtitle: 'Show OSD notification when toggling touchpad, Caps Lock or Num Lock',
+        this.showNotifications = new Adw.SwitchRow({
+            title: 'Show Notifications',
+            subtitle: 'Display OSD notification when toggling touchpad, Caps Lock or Num Lock.',
         });
-        touchpadGroup.add(showNotifications);
-        settings.bind('show-notifications', showNotifications, 'active', Gio.SettingsBindFlags.DEFAULT);
+        this.indicator = new Adw.PreferencesGroup({title: 'Lock Indicators', description: 'Show or hide Caps Lock and Num Lock indicators in the panel.'});
 
-        const shortcutEntry = new Adw.EntryRow({
-            title: 'Shortcut (e.g. <Super>Insert, XF86TouchpadToggle)',
+        // ── Touchpad ──
+        this.showTouchpadIndicator = new Adw.SwitchRow({
+            title: 'Show Touchpad Indicator',
+            subtitle: 'Show the touchpad panel indicator.',
         });
+        this.touchpad = new Adw.PreferencesGroup({title: 'Touchpad', description: 'Touchpad indicator and shortcut settings.'});
 
-        let currentShortcuts = settings.get_strv('toggle-shortcut');
-        shortcutEntry.text = currentShortcuts.join(', ');
-
-        shortcutEntry.connect('notify::text', () => {
-            const arr = shortcutEntry.text.split(',').map(s => s.trim()).filter(s => s.length > 0);
-            settings.set_strv('toggle-shortcut', arr);
+        // Shortcut row
+        this.shortcutRow = new Adw.ActionRow({
+            title: 'Toggle Shortcut',
+            subtitle: 'Keyboard shortcut to toggle the touchpad on/off.',
         });
-
-        settings.connect('changed::toggle-shortcut', () => {
-            const newArr = settings.get_strv('toggle-shortcut');
-            const newText = newArr.join(', ');
-            if (shortcutEntry.text !== newText)
-                shortcutEntry.text = newText;
+        this.shortcutBtn = new Gtk.Button({
+            label: this.#formatShortcut(schema.get_strv('toggle-shortcut')),
+            valign: Gtk.Align.CENTER,
         });
+        this.shortcutBtn.connect('clicked', () => this.#startShortcutCapture());
+        this.shortcutRow.add_suffix(this.shortcutBtn);
+        this.shortcutRow.activatable_widget = this.shortcutBtn;
+        this.touchpad.add(this.shortcutRow);
 
-        touchpadGroup.add(shortcutEntry);
+        // ── Assemble ──
+        for (const w of [
+            this.showCapsLock, this.showNumLock, this.hideWhenOff, this.showNotifications,
+        ]) this.indicator.add(w);
 
-        return Promise.resolve();
+        this.touchpad.add(this.showTouchpadIndicator);
+
+        // ── Bind ──
+        this.schema.bind('show-caps-lock', this.showCapsLock, 'active', Gio.SettingsBindFlags.DEFAULT);
+        this.schema.bind('show-num-lock', this.showNumLock, 'active', Gio.SettingsBindFlags.DEFAULT);
+        this.schema.bind('hide-when-off', this.hideWhenOff, 'active', Gio.SettingsBindFlags.DEFAULT);
+        this.schema.bind('show-notifications', this.showNotifications, 'active', Gio.SettingsBindFlags.DEFAULT);
+        this.schema.bind('show-indicator', this.showTouchpadIndicator, 'active', Gio.SettingsBindFlags.DEFAULT);
+    }
+
+    #formatShortcut(strv) {
+        if (!strv || strv.length === 0) return 'Disabled';
+        return strv.join(', ');
+    }
+
+    #startShortcutCapture() {
+        const origLabel = this.shortcutBtn.label;
+        this.shortcutBtn.label = 'Enter shortcut…';
+        this.shortcutBtn.sensitive = false;
+
+        const controller = new Gtk.EventControllerKey();
+        this.shortcutBtn.add_controller(controller);
+
+        const connId = controller.connect('key-pressed', (_ec, keyval, _keycode, mask) => {
+            mask &= Gtk.accelerator_get_default_mod_mask();
+
+            if (mask === 0 && keyval === Gdk.KEY_Escape) {
+                this.shortcutBtn.label = origLabel;
+                controller.disconnect(connId);
+                this.shortcutBtn.sensitive = true;
+                return Gdk.EVENT_STOP;
+            }
+            if (mask === 0 && keyval === Gdk.KEY_BackSpace) {
+                this.schema.set_strv('toggle-shortcut', []);
+                this.shortcutBtn.label = 'Disabled';
+                controller.disconnect(connId);
+                this.shortcutBtn.sensitive = true;
+                return Gdk.EVENT_STOP;
+            }
+
+            const shortcut = Gtk.accelerator_name_with_keycode(null, keyval, _keycode, mask);
+            this.schema.set_strv('toggle-shortcut', [shortcut]);
+            this.shortcutBtn.label = shortcut;
+            controller.disconnect(connId);
+            this.shortcutBtn.sensitive = true;
+            return Gdk.EVENT_STOP;
+        });
     }
 }

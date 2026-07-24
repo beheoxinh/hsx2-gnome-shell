@@ -54,6 +54,7 @@ export default class NotificationConfiguratorPreferences extends ExtensionPrefer
         this.settings = this.getSettings();
         migrateRegexSchema(this.settings);
         this.loadData();
+        window.set_default_size(720, 650);
         const globalPage = new Adw.PreferencesPage({
             title: _("Global"),
             icon_name: "preferences-system-symbolic",

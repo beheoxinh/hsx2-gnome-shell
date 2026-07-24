@@ -111,7 +111,7 @@ export default class AATWS extends ExtensionPreferences {
 
         OptionsFactory.AdwPrefs.getFilledWindow(window, this._getPageList());
         window.set_search_enabled(true);
-        window.set_default_size(840, 800);
+        window.set_default_size(720, 800);
         window.connect('close-request', () => {
             this.opt.destroy();
             this.opt = null;
