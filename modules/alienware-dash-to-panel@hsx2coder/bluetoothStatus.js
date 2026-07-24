@@ -290,7 +290,16 @@ export const BluetoothStatus = GObject.registerClass(
           BLUEZ_SERVICE, DBUS_PROP_IFACE, 'PropertiesChanged',
           objPath, null, Gio.DBusSignalFlags.NONE,
           (conn, sender, path, iface, signal, params) => {
-            this._onDevicePropertiesChanged(path, params)
+            // CRITICAL: GJS signal_subscribe callbacks are invoked from C —
+            // any exception escaping this callback terminates gnome-shell
+            // with an uncatchable error. JS try/catch inside the called
+            // method is insufficient because the throw crosses C/JS boundary.
+            // The entire callback body MUST be wrapped here.
+            try {
+              this._onDevicePropertiesChanged(path, params)
+            } catch (e) {
+              logError(e, `${TAG} _watchDeviceProperties callback for ${objPath}`)
+            }
           },
         )
         this._deviceSignals.set(objPath, subId)
