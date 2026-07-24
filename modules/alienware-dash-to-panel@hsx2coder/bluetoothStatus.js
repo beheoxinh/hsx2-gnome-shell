@@ -115,6 +115,7 @@ export const BluetoothStatus = GObject.registerClass(
       this._omProxy = null
       this._signalIds = []
       this._deviceSignals = new Map()
+      this._idleId = 0
 
       // Panel indicator
       this._panelBox = new St.BoxLayout({
@@ -136,7 +137,16 @@ export const BluetoothStatus = GObject.registerClass(
 
       this.add_child(this._panelBox)
       this._buildMenu()
-      this._connectToBlueZ()
+
+      // Defer BlueZ connection to idle so init returns immediately.
+      // Without deferral a synchronous D-Bus call with no timeout (-1)
+      // blocks the main loop and triggers the gnome-shell watchdog
+      // (SIGABRT ~15s) if BlueZ isn't ready at login.
+      this._idleId = GLib.idle_add(GLib.PRIORITY_DEFAULT_IDLE, () => {
+        this._idleId = 0
+        this._connectToBlueZ()
+        return GLib.SOURCE_REMOVE
+      })
     }
 
     _buildMenu() {
@@ -173,7 +183,7 @@ export const BluetoothStatus = GObject.registerClass(
 
         let result = this._omProxy.call_sync(
           'GetManagedObjects', null,
-          Gio.DBusCallFlags.NONE, -1, null,
+          Gio.DBusCallFlags.NONE, 5000, null,
         )
         this._parseManagedObjects(result)
 
@@ -392,13 +402,17 @@ export const BluetoothStatus = GObject.registerClass(
           Gio.BusType.SYSTEM, Gio.DBusProxyFlags.NO_AUTO_START, null,
           BLUEZ_SERVICE, objPath, DEVICE_IFACE, null,
         )
-        proxy.call_sync(method, null, Gio.DBusCallFlags.NONE, -1, null)
+        proxy.call_sync(method, null, Gio.DBusCallFlags.NONE, 5000, null)
       } catch (e) {
         logError(e, '[BT] Toggle connection')
       }
     }
 
     destroy() {
+      if (this._idleId) {
+        GLib.source_remove(this._idleId)
+        this._idleId = 0
+      }
       for (let entry of this._signalIds) {
         if (entry.proxy && entry.id) entry.proxy.disconnectSignal(entry.id)
       }
