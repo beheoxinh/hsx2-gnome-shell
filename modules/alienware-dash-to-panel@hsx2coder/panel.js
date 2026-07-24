@@ -141,9 +141,9 @@ export const Panel = GObject.registerClass(
           name: 'panelLeft',
         })
 
-        // Bluetooth Status indicator
+        // Bluetooth Status indicator — add to panel directly, not _leftBox (invisible)
         this._btStatus = new BluetoothStatus()
-        this._leftBox.add_child(this._btStatus)
+        this.panel.add_child(this._btStatus)
 
         this._centerBox = this.panel._centerBox = Utils.createBoxLayout({
           name: 'panelCenter',
@@ -189,9 +189,9 @@ export const Panel = GObject.registerClass(
 
         panelBoxes.forEach((p) => (this[p] = Main.panel[p]))
 
-        // Bluetooth Status indicator for main panel
+        // Bluetooth Status indicator — add straight to panel, not _leftBox (invisible)
         this._btStatus = new BluetoothStatus()
-        this._leftBox.add_child(this._btStatus)
+        this.panel.add_child(this._btStatus)
 
         ;['activities', systemMenuInfo.name, 'dateMenu'].forEach((b) => {
           let container = this.statusArea[b].container

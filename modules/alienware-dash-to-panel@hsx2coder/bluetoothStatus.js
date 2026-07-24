@@ -46,32 +46,7 @@ export const BluetoothStatus = GObject.registerClass(
         this._label = new St.Label({ text: 'BT' })
         this._myBox.add_child(this._label)
 
-        // Debug: verify we're in the panel tree
-        let parent = this.get_parent()
-        let me = Main.panel ? 'hasPanel' : 'noPanel'
-        console.log(`${TAG} init: parent=${!!parent} ${me} myBox ok label ok`)
-        if (parent) {
-          console.log(`${TAG} parent type=${parent.constructor.name} children=${parent.get_children().length}`)
-          let idx = parent.get_children().indexOf(this)
-          console.log(`${TAG} myIndex=${idx}`)
-        }
-        // Check leftBox directly
-        if (Main.panel) {
-          let lb = Main.panel._leftBox || Main.panel._leftBox
-          // In dash-to-panel, _leftBox might be on the panel or elsewhere
-          console.log(`${TAG} Main.panel._leftBox=${!!Main.panel._leftBox} children=${Main.panel._leftBox ? Main.panel._leftBox.get_children().length : -1}`)
-        }
-
-        // Check parent visibility and show if needed
-        let walk = this.get_parent()
-        while (walk) {
-          if (!walk.visible) {
-            console.log(`${TAG} showing invisible parent: ${walk.constructor.name}`)
-            walk.show()
-          }
-          walk = walk.get_parent()
-        }
-
+        console.log(`${TAG} init done`)
         this._buildMenu()
 
         this.menu.connect('open-state-changed', (menu, isOpen) => {
@@ -310,3 +285,4 @@ export const BluetoothStatus = GObject.registerClass(
     }
   },
 )
+renamed '/tmp/hermes-snap-9f27559b87f1.sh.tmp.1413160' -> '/tmp/hermes-snap-9f27559b87f1.sh'
