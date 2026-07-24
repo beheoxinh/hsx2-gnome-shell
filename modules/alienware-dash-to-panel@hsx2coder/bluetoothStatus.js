@@ -129,7 +129,7 @@ export const BluetoothStatus = GObject.registerClass(
         this._panelBox.add_child(this._btIcon)
 
         this._statusLabel = new St.Label({
-          text: '',
+          text: '\u200B',  // ZWS — non-empty to prevent NaN allocation
           y_align: Clutter.ActorAlign.CENTER,
           style_class: 'bt-status-label',
         })
@@ -284,7 +284,7 @@ export const BluetoothStatus = GObject.registerClass(
             : 'bluetooth-active-symbolic'
           this._panelBox.style = ''
         } else {
-          this._statusLabel.text = ''
+          this._statusLabel.text = '\u200B'
           this._btIcon.icon_name = 'bluetooth-active-symbolic'
           this._panelBox.style = 'opacity: 0.5'
         }
