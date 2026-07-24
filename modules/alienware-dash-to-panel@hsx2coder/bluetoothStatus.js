@@ -285,4 +285,3 @@ export const BluetoothStatus = GObject.registerClass(
     }
   },
 )
-renamed '/tmp/hermes-snap-9f27559b87f1.sh.tmp.1413160' -> '/tmp/hermes-snap-9f27559b87f1.sh'
