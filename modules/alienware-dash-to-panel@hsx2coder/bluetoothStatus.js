@@ -235,9 +235,9 @@ export const BluetoothStatus = GObject.registerClass(
       this._deviceSignals.set(objPath, subId)
     }
 
-    _onInterfacesAdded(proxy, sender, [objPath, rawInterfaces]) {
+    _onInterfacesAdded(proxy, senderName, signalName, params) {
       try {
-        let interfaces = rawInterfaces.deep_unpack()
+        let [objPath, interfaces] = params.deep_unpack()
         if (interfaces[DEVICE_IFACE]) {
           let dev = interfaces[DEVICE_IFACE]
           if (interfaces[BATTERY_IFACE] && interfaces[BATTERY_IFACE].Percentage != null) {
@@ -254,9 +254,9 @@ export const BluetoothStatus = GObject.registerClass(
       }
     }
 
-    _onInterfacesRemoved(proxy, sender, [objPath, rawInterfaces]) {
+    _onInterfacesRemoved(proxy, senderName, signalName, params) {
       try {
-        let ifaces = rawInterfaces.deep_unpack()
+        let [objPath, ifaces] = params.deep_unpack()
         if (!ifaces.includes(DEVICE_IFACE)) return
         if (this._deviceSignals.has(objPath)) {
           Gio.DBus.system.signal_unsubscribe(this._deviceSignals.get(objPath))
