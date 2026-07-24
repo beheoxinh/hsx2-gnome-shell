@@ -118,24 +118,20 @@ export const BluetoothStatus = GObject.registerClass(
       this._connected = false
 
       try {
-        this._panelBox = new St.BoxLayout({
-          style_class: 'panel-status-menu-box bt-status-panel',
-        })
-
         this._btIcon = new St.Icon({
           icon_name: 'bluetooth-active-symbolic',
           style_class: 'system-status-icon',
+          icon_size: 16,
+          y_align: Clutter.ActorAlign.CENTER,
         })
-        this._panelBox.add_child(this._btIcon)
+        this.add_child(this._btIcon)
 
         this._statusLabel = new St.Label({
-          text: '\u200B',  // ZWS — non-empty to prevent NaN allocation
-          y_align: Clutter.ActorAlign.CENTER,
+          text: '\u00A0\u00A0',  // NBSPs — non-collapsible, ensures width > 0
           style_class: 'bt-status-label',
         })
-        this._panelBox.add_child(this._statusLabel)
+        this.add_child(this._statusLabel)
 
-        this.add_child(this._panelBox)
         this._buildMenu()
         console.log(`${TAG} panel built`)
 
@@ -282,11 +278,9 @@ export const BluetoothStatus = GObject.registerClass(
           this._btIcon.icon_name = primary.battery != null
             ? batteryIcon(primary.battery)
             : 'bluetooth-active-symbolic'
-          this._panelBox.style = ''
         } else {
-          this._statusLabel.text = '\u200B'
+          this._statusLabel.text = '\u00A0\u00A0'
           this._btIcon.icon_name = 'bluetooth-active-symbolic'
-          this._panelBox.style = 'opacity: 0.5'
         }
       } catch (e) {
         logError(e, `${TAG} indicator update failed`)
