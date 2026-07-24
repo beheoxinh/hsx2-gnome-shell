@@ -59,18 +59,18 @@ const DEVICE_TYPE_LABELS = {
 
 function getDeviceIcon(deviceProps) {
   // Prefer explicit Icon property
-  if (deviceProps.Icon && DEVICE_ICONS[deviceProps.Icon.value]) {
-    return DEVICE_ICONS[deviceProps.Icon.value]
+  if (deviceProps.Icon && DEVICE_ICONS[deviceProps.Icon]) {
+    return DEVICE_ICONS[deviceProps.Icon]
   }
   // Fallback to class-based detection
   if (deviceProps.Class) {
-    let major = (deviceProps.Class.value >> 8) & 0x1f
+    let major = (deviceProps.Class >> 8) & 0x1f
     switch (major) {
       case CLASS_MAJOR_AUDIO:
         return 'audio-headphones-symbolic'
       case CLASS_MAJOR_PERIPHERAL:
         // Check minor class for mouse vs keyboard
-        let minor = (deviceProps.Class.value >> 2) & 0x3f
+        let minor = (deviceProps.Class >> 2) & 0x3f
         if (minor === 0x20 || minor === 0x21) return 'input-keyboard-symbolic'
         if (minor === 0x10 || minor === 0x11 || minor === 0x12)
           return 'input-mouse-symbolic'
@@ -87,11 +87,11 @@ function getDeviceIcon(deviceProps) {
 }
 
 function getDeviceTypeLabel(deviceProps) {
-  if (deviceProps.Icon && DEVICE_TYPE_LABELS[deviceProps.Icon.value]) {
-    return DEVICE_TYPE_LABELS[deviceProps.Icon.value]
+  if (deviceProps.Icon && DEVICE_TYPE_LABELS[deviceProps.Icon]) {
+    return DEVICE_TYPE_LABELS[deviceProps.Icon]
   }
   if (deviceProps.Class) {
-    let major = (deviceProps.Class.value >> 8) & 0x1f
+    let major = (deviceProps.Class >> 8) & 0x1f
     switch (major) {
       case CLASS_MAJOR_AUDIO:
         return 'Audio'
@@ -114,13 +114,17 @@ function formatBattery(percentage) {
 }
 
 function getBatteryIcon(percentage) {
-  if (percentage == null) return 'battery-full-symbolic'
-  if (percentage <= 10) return 'battery-empty-symbolic'
-  if (percentage <= 20) return 'battery-caution-symbolic'
-  if (percentage <= 40) return 'battery-low-symbolic'
-  if (percentage <= 60) return 'battery-good-symbolic'
-  if (percentage <= 80) return 'battery-good-symbolic'
-  return 'battery-full-symbolic'
+  if (percentage == null) return 'battery-level-100-symbolic'
+  if (percentage <= 10) return 'battery-level-10-symbolic'
+  if (percentage <= 20) return 'battery-level-20-symbolic'
+  if (percentage <= 30) return 'battery-level-30-symbolic'
+  if (percentage <= 40) return 'battery-level-40-symbolic'
+  if (percentage <= 50) return 'battery-level-50-symbolic'
+  if (percentage <= 60) return 'battery-level-60-symbolic'
+  if (percentage <= 70) return 'battery-level-70-symbolic'
+  if (percentage <= 80) return 'battery-level-80-symbolic'
+  if (percentage <= 90) return 'battery-level-90-symbolic'
+  return 'battery-level-100-symbolic'
 }
 
 export const BluetoothStatus = GObject.registerClass(
@@ -129,7 +133,6 @@ export const BluetoothStatus = GObject.registerClass(
       super._init(0.0, 'Bluetooth Status')
 
       this._devices = new Map() // objectPath -> { name, icon, connected, battery, props }
-      this._proxy = null
       this._omProxy = null
       this._signalIds = []
       this._deviceSignals = new Map()
@@ -215,26 +218,20 @@ export const BluetoothStatus = GObject.registerClass(
         this._parseManagedObjects(result)
 
         // Watch for interface additions/removals
-        this._signalIds.push(
-          this._omProxy.connectSignal(
+        this._signalIds.push({
+          id: this._omProxy.connectSignal(
             'InterfacesAdded',
             this._onInterfacesAdded.bind(this),
           ),
-        )
-        this._signalIds.push(
-          this._omProxy.connectSignal(
+          proxy: this._omProxy,
+        })
+        this._signalIds.push({
+          id: this._omProxy.connectSignal(
             'InterfacesRemoved',
             this._onInterfacesRemoved.bind(this),
           ),
-        )
-
-        // Watch for property changes on all devices
-        this._signalIds.push(
-          this._omProxy.connectSignal(
-            'PropertiesChanged',
-            this._onPropertiesChanged.bind(this),
-          ),
-        )
+          proxy: this._omProxy,
+        })
 
         this._updateUI()
       } catch (e) {
@@ -259,22 +256,16 @@ export const BluetoothStatus = GObject.registerClass(
     }
 
     _addDevice(objPath, deviceProps) {
-      let name =
-        (deviceProps.Name && deviceProps.Name.value) ||
-        (deviceProps.Alias && deviceProps.Alias.value) ||
-        'Unknown'
-      let connected =
-        deviceProps.Connected && deviceProps.Connected.value === true
-      let paired = deviceProps.Paired && deviceProps.Paired.value === true
+      let name = deviceProps.Name || deviceProps.Alias || 'Unknown'
+      let connected = deviceProps.Connected === true
+      let paired = deviceProps.Paired === true
       let icon = getDeviceIcon(deviceProps)
       let typeLabel = getDeviceTypeLabel(deviceProps)
       let battery = null
 
-      // Check battery
-      // Battery may come from a separate interface in the managed objects
-      // or from the device's Battery1 interface
-      if (deviceProps.Percentage) {
-        battery = deviceProps.Percentage.value
+      // Battery may come from a separate interface merged into deviceProps
+      if (deviceProps.Percentage != null) {
+        battery = deviceProps.Percentage
       }
 
       this._devices.set(objPath, {
@@ -308,7 +299,8 @@ export const BluetoothStatus = GObject.registerClass(
       this._deviceSignals.set(objPath, subId)
     }
 
-    _onInterfacesAdded(proxy, sender, [objPath, interfaces]) {
+    _onInterfacesAdded(proxy, sender, [objPath, rawInterfaces]) {
+      let interfaces = rawInterfaces.deep_unpack()
       if (interfaces[DEVICE_IFACE]) {
         // Merge Battery1 if also present
         let deviceProps = { ...interfaces[DEVICE_IFACE] }
@@ -325,9 +317,9 @@ export const BluetoothStatus = GObject.registerClass(
       }
     }
 
-    _onInterfacesRemoved(proxy, sender, [objPath, interfaces]) {
-      let ifaceNames = interfaces.deep_unpack ? interfaces.deep_unpack() : interfaces
-      if (ifaceNames.includes && ifaceNames.includes(DEVICE_IFACE)) {
+    _onInterfacesRemoved(proxy, sender, [objPath, rawInterfaces]) {
+      let ifaceNames = rawInterfaces.deep_unpack()
+      if (ifaceNames.includes(DEVICE_IFACE)) {
         // Clean up device signals
         if (this._deviceSignals.has(objPath)) {
           Gio.DBus.system.signal_unsubscribe(this._deviceSignals.get(objPath))
@@ -338,34 +330,26 @@ export const BluetoothStatus = GObject.registerClass(
       }
     }
 
-    _onPropertiesChanged(proxy, sender, [objPath, changedProps, invalidated]) {
-      // This is the ObjectManager-level PropertiesChanged
-      // Individual device property changes come through per-device subscriptions
-    }
-
     _onDevicePropertiesChanged(objPath, params) {
       let [ifaceName, changedProps] = params.deep_unpack()
       let device = this._devices.get(objPath)
       if (!device) return
 
       if (ifaceName === DEVICE_IFACE) {
-        if (changedProps.Connected) {
-          device.connected = changedProps.Connected.value
+        if (changedProps.Connected != null) {
+          device.connected = changedProps.Connected
         }
         if (changedProps.Name) {
-          device.name = changedProps.Name.value
+          device.name = changedProps.Name
         }
         if (changedProps.Alias) {
-          device.name = changedProps.Alias.value
+          device.name = changedProps.Alias
         }
       }
 
       if (ifaceName === BATTERY_IFACE) {
         if (changedProps.Percentage != null) {
-          device.battery =
-            changedProps.Percentage != null
-              ? changedProps.Percentage.value
-              : null
+          device.battery = changedProps.Percentage
         }
       }
 
@@ -375,8 +359,8 @@ export const BluetoothStatus = GObject.registerClass(
     _updateDeviceBattery(objPath, batteryProps) {
       let device = this._devices.get(objPath)
       if (!device) return
-      if (batteryProps.Percentage) {
-        device.battery = batteryProps.Percentage.value
+      if (batteryProps.Percentage != null) {
+        device.battery = batteryProps.Percentage
       }
     }
 
@@ -557,7 +541,14 @@ export const BluetoothStatus = GObject.registerClass(
     }
 
     destroy() {
-      // Clean up D-Bus subscriptions
+      // Clean up ObjectManager proxy signals
+      for (let entry of this._signalIds) {
+        if (entry.proxy && entry.id)
+          entry.proxy.disconnectSignal(entry.id)
+      }
+      this._signalIds = []
+
+      // Clean up per-device D-Bus subscriptions
       for (let [, subId] of this._deviceSignals) {
         Gio.DBus.system.signal_unsubscribe(subId)
       }
