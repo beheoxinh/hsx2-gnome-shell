@@ -126,6 +126,8 @@ export const BluetoothStatus = GObject.registerClass(
       this._idleId = 0
       this._connected = false
       this._updateQueued = false
+      this._updateIdleId = 0
+      this._pendingMenuRebuild = false
 
       try {
         this._panelBox = new St.BoxLayout({
@@ -147,6 +149,17 @@ export const BluetoothStatus = GObject.registerClass(
 
         this.add_child(this._panelBox)
         this._buildMenu()
+
+        // Defer pending menu rebuild when the user opens the menu
+        // (rebuild during menu-open causes Clutter C-level assertion abort)
+        this.menu.connect('open-state-changed', (menu, isOpen) => {
+          if (isOpen && this._pendingMenuRebuild) {
+            this._pendingMenuRebuild = false
+            try { this._rebuildDeviceSection() } catch (e) {
+              logError(e, `${TAG} deferred menu rebuild failed`)
+            }
+          }
+        })
       } catch (e) {
         logError(e, `${TAG} Failed to build panel UI`)
       }
@@ -385,14 +398,23 @@ export const BluetoothStatus = GObject.registerClass(
       // which is a C-level assertion — JS try/catch cannot catch it.
       if (this._updateQueued) return
       this._updateQueued = true
+      // Cancel any previously scheduled idle rebuild (safety for rapid
+      // connect/disconnect during destroy)
       try {
-        GLib.idle_add(GLib.PRIORITY_DEFAULT_IDLE, () => {
+        if (this._updateIdleId) {
+          GLib.source_remove(this._updateIdleId)
+          this._updateIdleId = 0
+        }
+      } catch (e) {
+        logError(e, `${TAG} Failed to cancel stale idle source`)
+      }
+      try {
+        this._updateIdleId = GLib.idle_add(GLib.PRIORITY_DEFAULT_IDLE, () => {
+          this._updateIdleId = 0
           this._updateQueued = false
-          try {
-            this._doUpdateUI()
-          } catch (e) {
-            logError(e, `${TAG} _doUpdateUI failed`)
-          }
+          // Guard: if extension was destroyed while idle, skip
+          if (!this._deviceSection) return GLib.SOURCE_REMOVE
+          try { this._doUpdateUI() } catch (e) { logError(e, `${TAG} _doUpdateUI failed`) }
           return GLib.SOURCE_REMOVE
         })
       } catch (e) {
@@ -410,28 +432,54 @@ export const BluetoothStatus = GObject.registerClass(
         if (device.connected) connected.push(device)
       }
 
-      // Panel label
-      if (connected.length > 0) {
-        let primary = connected.sort((a, b) =>
-          (a.icon.includes('audio') ? 0 : 1) - (b.icon.includes('audio') ? 0 : 1)
-        )[0]
-        this._statusLabel.text = connected.length > 1
-          ? `${primary.name} +${connected.length - 1}`
-          : primary.name
-        this._btIcon.icon_name = primary.battery != null
-          ? batteryIcon(primary.battery)
-          : 'bluetooth-active-symbolic'
-        this._panelBox.style = ''
-      } else {
-        this._statusLabel.text = ''
-        this._btIcon.icon_name = 'bluetooth-active-symbolic'
-        this._panelBox.style = 'opacity: 0.5'
+      // Panel label — always update (property sets never crash)
+      try {
+        if (connected.length > 0) {
+          let primary = connected.sort((a, b) =>
+            (a.icon.includes('audio') ? 0 : 1) - (b.icon.includes('audio') ? 0 : 1)
+          )[0]
+          this._statusLabel.text = connected.length > 1
+            ? `${primary.name} +${connected.length - 1}`
+            : primary.name
+          this._btIcon.icon_name = primary.battery != null
+            ? batteryIcon(primary.battery)
+            : 'bluetooth-active-symbolic'
+          this._panelBox.style = ''
+        } else {
+          this._statusLabel.text = ''
+          this._btIcon.icon_name = 'bluetooth-active-symbolic'
+          this._panelBox.style = 'opacity: 0.5'
+        }
+      } catch (e) {
+        logError(e, `${TAG} panel indicator update failed`)
       }
 
-      // Popup menu — full rebuild. removeAll() unparent everything first,
-      // then we add fresh widgets. Single-threaded via debounce ensures
-      // no concurrent removeAll/add_child race.
+      // Popup menu rebuild — ONLY when menu is closed.
+      // CRITICAL: Clutter C-level assertion abort from addMenuItem on a section
+      // whose actors are still in the allocation tree (menu open) bypasses JS
+      // try/catch and kills gnome-shell. Defer rebuild to menu-open.
+      try {
+        if (this.menu && this.menu.isOpen) {
+          this._pendingMenuRebuild = true
+          return
+        }
+
+        this._rebuildDeviceSection(allPaired)
+      } catch (e) {
+        logError(e, `${TAG} menu rebuild failed`)
+      }
+    }
+
+    _rebuildDeviceSection(allPaired) {
       this._deviceSection.removeAll()
+      this._pendingMenuRebuild = false
+
+      if (!allPaired) {
+        allPaired = []
+        for (let [, device] of this._devices) {
+          if (device.paired) allPaired.push(device)
+        }
+      }
 
       if (allPaired.length === 0) {
         this._emptyItem = new PopupMenu.PopupMenuItem('No paired devices', {
@@ -455,20 +503,35 @@ export const BluetoothStatus = GObject.registerClass(
         let devIcon = new St.Icon({ icon_name: device.icon, style_class: 'popup-menu-icon' })
         box.add_child(devIcon)
 
-        let textBox = new St.BoxLayout({ vertical: true, x_expand: true, x_align: Clutter.ActorAlign.START })
+        let textBox = new St.BoxLayout({
+          vertical: true, x_expand: true,
+          x_align: Clutter.ActorAlign.START,
+        })
         textBox.add_child(new St.Label({ text: device.name }))
-        textBox.add_child(new St.Label({ text: device.typeLabel, style_class: 'bt-detail' }))
+        textBox.add_child(new St.Label({
+          text: device.typeLabel,
+          style_class: 'bt-detail',
+        }))
         box.add_child(textBox)
 
-        let rightBox = new St.BoxLayout({ vertical: true, x_align: Clutter.ActorAlign.END })
+        let rightBox = new St.BoxLayout({
+          vertical: true,
+          x_align: Clutter.ActorAlign.END,
+        })
         rightBox.add_child(new St.Label({
           text: device.connected ? 'Connected' : 'Paired',
         }))
 
         if (device.battery != null) {
           let battBox = new St.BoxLayout({ x_align: Clutter.ActorAlign.END })
-          battBox.add_child(new St.Icon({ icon_name: batteryIcon(device.battery), style_class: 'popup-menu-icon' }))
-          battBox.add_child(new St.Label({ text: `${device.battery}%`, y_align: Clutter.ActorAlign.CENTER }))
+          battBox.add_child(new St.Icon({
+            icon_name: batteryIcon(device.battery),
+            style_class: 'popup-menu-icon',
+          }))
+          battBox.add_child(new St.Label({
+            text: `${device.battery}%`,
+            y_align: Clutter.ActorAlign.CENTER,
+          }))
           rightBox.add_child(battBox)
         }
 
@@ -508,6 +571,8 @@ export const BluetoothStatus = GObject.registerClass(
           this._idleId = 0
         }
         this._updateQueued = false
+        this._updateIdleId = 0
+        this._pendingMenuRebuild = false
         for (let entry of this._signalIds) {
           try {
             if (entry.proxy && entry.id) entry.proxy.disconnectSignal(entry.id)
