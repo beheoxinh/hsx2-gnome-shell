@@ -8,10 +8,11 @@
  *   - After deep_unpack(), leaf values are still GVariant — use .value
  *   - Per-device PropertiesChanged subscriptions for Battery1 updates
  *
- * CRASH SAFETY: Every method that touches D-Bus or widgets is wrapped
- * in try/catch so a Bluetooth hiccup never kills gnome-shell.
- * _updateUI is debounced to prevent Clutter add_child assertion failures
- * from concurrent signal handlers.
+ * CRASH AVOIDANCE: Never creates or destroys menu widgets from D-Bus
+ * signal handlers or idle callbacks. Menu items are rebuilt only when
+ * the user opens the menu (open-state-changed with isOpen=true).
+ * This eliminates all Clutter C-level assertion abort risks from
+ * add_child/removeAll during signal dispatch.
  */
 
 import Clutter from 'gi://Clutter'
@@ -123,11 +124,8 @@ export const BluetoothStatus = GObject.registerClass(
       this._omProxy = null
       this._signalIds = []
       this._deviceSignals = new Map()
-      this._idleId = 0
       this._connected = false
-      this._updateQueued = false
-      this._updateIdleId = 0
-      this._pendingMenuRebuild = false
+      this._initIdleId = 0
 
       try {
         this._panelBox = new St.BoxLayout({
@@ -150,13 +148,15 @@ export const BluetoothStatus = GObject.registerClass(
         this.add_child(this._panelBox)
         this._buildMenu()
 
-        // Defer pending menu rebuild when the user opens the menu
-        // (rebuild during menu-open causes Clutter C-level assertion abort)
+        // CRITICAL: Menu items are rebuilt ONLY when the user opens the menu.
+        // D-Bus signals must never create/destroy menu widgets because
+        // Clutter C-level assertion aborts cannot be caught by JS try/catch.
+        // This ensures all widget manipulation happens with the menu in a
+        // settled state (just before the user sees it).
         this.menu.connect('open-state-changed', (menu, isOpen) => {
-          if (isOpen && this._pendingMenuRebuild) {
-            this._pendingMenuRebuild = false
+          if (isOpen) {
             try { this._rebuildDeviceSection() } catch (e) {
-              logError(e, `${TAG} deferred menu rebuild failed`)
+              logError(e, `${TAG} menu rebuild failed`)
             }
           }
         })
@@ -165,11 +165,9 @@ export const BluetoothStatus = GObject.registerClass(
       }
 
       try {
-        this._idleId = GLib.idle_add(GLib.PRIORITY_DEFAULT_IDLE, () => {
-          this._idleId = 0
-          try {
-            this._connectToBlueZ()
-          } catch (e) {
+        this._initIdleId = GLib.idle_add(GLib.PRIORITY_DEFAULT_IDLE, () => {
+          this._initIdleId = 0
+          try { this._connectToBlueZ() } catch (e) {
             logError(e, `${TAG} BlueZ idle connect failed`)
           }
           return GLib.SOURCE_REMOVE
@@ -190,10 +188,10 @@ export const BluetoothStatus = GObject.registerClass(
         this._deviceSection = new PopupMenu.PopupMenuSection()
         this.menu.addMenuItem(this._deviceSection)
 
-        this._emptyItem = new PopupMenu.PopupMenuItem('No paired devices', {
-          reactive: false,
-        })
-        this._deviceSection.addMenuItem(this._emptyItem)
+        // Placeholder — replaced on first menu-open
+        this._deviceSection.addMenuItem(new PopupMenu.PopupMenuItem(
+          'Loading...', { reactive: false },
+        ))
 
         this.menu.addMenuItem(new PopupMenu.PopupSeparatorMenuItem())
 
@@ -220,7 +218,7 @@ export const BluetoothStatus = GObject.registerClass(
           BLUEZ_SERVICE, BLUEZ_ROOT, DBUS_OM_IFACE, null,
         )
       } catch (e) {
-        logError(e, `${TAG} DBusProxy.new_for_bus_sync failed — BlueZ not available?`)
+        logError(e, `${TAG} DBusProxy.new_for_bus_sync failed`)
         return
       }
 
@@ -251,7 +249,8 @@ export const BluetoothStatus = GObject.registerClass(
         logError(e, `${TAG} connectSignal failed`)
       }
 
-      this._updateUI()
+      // Initial panel indicator update (NO menu widget manipulation)
+      this._updatePanelIndicator()
     }
 
     _parseManagedObjects(result) {
@@ -303,15 +302,11 @@ export const BluetoothStatus = GObject.registerClass(
           BLUEZ_SERVICE, DBUS_PROP_IFACE, 'PropertiesChanged',
           objPath, null, Gio.DBusSignalFlags.NONE,
           (conn, sender, path, iface, signal, params) => {
-            // CRITICAL: GJS signal_subscribe callbacks are invoked from C —
-            // any exception escaping this callback terminates gnome-shell
-            // with an uncatchable error. JS try/catch inside the called
-            // method is insufficient because the throw crosses C/JS boundary.
-            // The entire callback body MUST be wrapped here.
+            // C-level callback — any exception here kills gnome-shell
             try {
               this._onDevicePropertiesChanged(path, params)
             } catch (e) {
-              logError(e, `${TAG} _watchDeviceProperties callback for ${objPath}`)
+              logError(e, `${TAG} signal callback for ${objPath}`)
             }
           },
         )
@@ -333,7 +328,7 @@ export const BluetoothStatus = GObject.registerClass(
         } else if (interfaces[BATTERY_IFACE]) {
           this._updateDeviceBattery(objPath, interfaces[BATTERY_IFACE])
         }
-        this._updateUI()
+        this._updatePanelIndicator()
       } catch (e) {
         logError(e, `${TAG} InterfacesAdded handler`)
       }
@@ -348,7 +343,7 @@ export const BluetoothStatus = GObject.registerClass(
           this._deviceSignals.delete(objPath)
         }
         this._devices.delete(objPath)
-        this._updateUI()
+        this._updatePanelIndicator()
       } catch (e) {
         logError(e, `${TAG} InterfacesRemoved handler`)
       }
@@ -371,7 +366,7 @@ export const BluetoothStatus = GObject.registerClass(
         if (ifaceName === BATTERY_IFACE && changedProps.Percentage != null)
           device.battery = gvBattery(changedProps.Percentage)
 
-        this._updateUI()
+        this._updatePanelIndicator()
       } catch (e) {
         logError(e, `${TAG} PropertiesChanged handler`)
       }
@@ -388,52 +383,15 @@ export const BluetoothStatus = GObject.registerClass(
       }
     }
 
-    /* ---- UI (debounced) ---- */
+    /* ---- Panel indicator only (NEVER touches menu widgets) ---- */
 
-    _updateUI() {
-      // Coalesce rapid signal bursts (InterfacesAdded + PropertiesChanged
-      // fire together on connect) into a single Clutter-safe rebuild.
-      // Without debounce, concurrent removeAll/add_child calls trigger
-      // clutter_actor_add_child: assertion 'child->priv->parent == NULL'
-      // which is a C-level assertion — JS try/catch cannot catch it.
-      if (this._updateQueued) return
-      this._updateQueued = true
-      // Cancel any previously scheduled idle rebuild (safety for rapid
-      // connect/disconnect during destroy)
+    _updatePanelIndicator() {
       try {
-        if (this._updateIdleId) {
-          GLib.source_remove(this._updateIdleId)
-          this._updateIdleId = 0
+        let connected = []
+        for (let [, device] of this._devices) {
+          if (device.connected) connected.push(device)
         }
-      } catch (e) {
-        logError(e, `${TAG} Failed to cancel stale idle source`)
-      }
-      try {
-        this._updateIdleId = GLib.idle_add(GLib.PRIORITY_DEFAULT_IDLE, () => {
-          this._updateIdleId = 0
-          this._updateQueued = false
-          // Guard: if extension was destroyed while idle, skip
-          if (!this._deviceSection) return GLib.SOURCE_REMOVE
-          try { this._doUpdateUI() } catch (e) { logError(e, `${TAG} _doUpdateUI failed`) }
-          return GLib.SOURCE_REMOVE
-        })
-      } catch (e) {
-        this._updateQueued = false
-        logError(e, `${TAG} Failed to schedule _updateUI`)
-      }
-    }
 
-    _doUpdateUI() {
-      let connected = []
-      let allPaired = []
-
-      for (let [, device] of this._devices) {
-        if (device.paired) allPaired.push(device)
-        if (device.connected) connected.push(device)
-      }
-
-      // Panel label — always update (property sets never crash)
-      try {
         if (connected.length > 0) {
           let primary = connected.sort((a, b) =>
             (a.icon.includes('audio') ? 0 : 1) - (b.icon.includes('audio') ? 0 : 1)
@@ -453,39 +411,22 @@ export const BluetoothStatus = GObject.registerClass(
       } catch (e) {
         logError(e, `${TAG} panel indicator update failed`)
       }
-
-      // Popup menu rebuild — ONLY when menu is closed.
-      // CRITICAL: Clutter C-level assertion abort from addMenuItem on a section
-      // whose actors are still in the allocation tree (menu open) bypasses JS
-      // try/catch and kills gnome-shell. Defer rebuild to menu-open.
-      try {
-        if (this.menu && this.menu.isOpen) {
-          this._pendingMenuRebuild = true
-          return
-        }
-
-        this._rebuildDeviceSection(allPaired)
-      } catch (e) {
-        logError(e, `${TAG} menu rebuild failed`)
-      }
     }
 
-    _rebuildDeviceSection(allPaired) {
-      this._deviceSection.removeAll()
-      this._pendingMenuRebuild = false
+    /* ---- Menu rebuild (ONLY on menu-open via open-state-changed) ---- */
 
-      if (!allPaired) {
-        allPaired = []
-        for (let [, device] of this._devices) {
-          if (device.paired) allPaired.push(device)
-        }
+    _rebuildDeviceSection() {
+      this._deviceSection.removeAll()
+
+      let allPaired = []
+      for (let [, device] of this._devices) {
+        if (device.paired) allPaired.push(device)
       }
 
       if (allPaired.length === 0) {
-        this._emptyItem = new PopupMenu.PopupMenuItem('No paired devices', {
-          reactive: false,
-        })
-        this._deviceSection.addMenuItem(this._emptyItem)
+        this._deviceSection.addMenuItem(new PopupMenu.PopupMenuItem(
+          'No paired devices', { reactive: false },
+        ))
         return
       }
 
@@ -566,13 +507,10 @@ export const BluetoothStatus = GObject.registerClass(
 
     destroy() {
       try {
-        if (this._idleId) {
-          GLib.source_remove(this._idleId)
-          this._idleId = 0
+        if (this._initIdleId) {
+          GLib.source_remove(this._initIdleId)
+          this._initIdleId = 0
         }
-        this._updateQueued = false
-        this._updateIdleId = 0
-        this._pendingMenuRebuild = false
         for (let entry of this._signalIds) {
           try {
             if (entry.proxy && entry.id) entry.proxy.disconnectSignal(entry.id)
