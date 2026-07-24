@@ -3,16 +3,12 @@
  * Displays connected Bluetooth devices with battery percentage
  * in the panel leftBox area.
  *
- * Uses BlueZ D-Bus (system bus):
- *   - GetManagedObjects returns {path -> {iface -> {prop: <GVariant>}}}
- *   - After deep_unpack(), leaf values are still GVariant — use .value
- *   - Per-device PropertiesChanged subscriptions for Battery1 updates
+ * Uses polling (5s) via BlueZ GetManagedObjects to list devices and
+ * update battery levels. No D-Bus signal subscriptions — avoids all
+ * C→JS boundary crash vectors and Clutter assertion races from
+ * signal-triggered widget manipulation.
  *
- * CRASH AVOIDANCE: Never creates or destroys menu widgets from D-Bus
- * signal handlers or idle callbacks. Menu items are rebuilt only when
- * the user opens the menu (open-state-changed with isOpen=true).
- * This eliminates all Clutter C-level assertion abort risks from
- * add_child/removeAll during signal dispatch.
+ * Menu items are rebuilt on demand when the user opens the menu.
  */
 
 import Clutter from 'gi://Clutter'
@@ -30,43 +26,17 @@ const TAG = '[BT]'
 const BLUEZ_SERVICE = 'org.bluez'
 const BLUEZ_ROOT = '/'
 const DBUS_OM_IFACE = 'org.freedesktop.DBus.ObjectManager'
-const DBUS_PROP_IFACE = 'org.freedesktop.DBus.Properties'
 const DEVICE_IFACE = 'org.bluez.Device1'
 const BATTERY_IFACE = 'org.bluez.Battery1'
 const CALL_TIMEOUT = 5000
-
-const DEVICE_ICONS = {
-  'audio-headset': 'audio-headphones-symbolic',
-  'audio-headphones': 'audio-headphones-symbolic',
-  'audio-speakers': 'audio-speakers-symbolic',
-  'audio-card': 'audio-speakers-symbolic',
-  'input-mouse': 'input-mouse-symbolic',
-  'input-keyboard': 'input-keyboard-symbolic',
-  'input-gaming': 'input-gaming-symbolic',
-  'phone': 'phone-symbolic',
-  'computer': 'computer-symbolic',
-  'video-display': 'video-display-symbolic',
-}
-
-const DEVICE_TYPE_LABELS = {
-  'audio-headset': 'Headset',
-  'audio-headphones': 'Headphones',
-  'audio-speakers': 'Speaker',
-  'audio-card': 'Audio',
-  'input-mouse': 'Mouse',
-  'input-keyboard': 'Keyboard',
-  'input-gaming': 'Gaming',
-  'phone': 'Phone',
-  'computer': 'Computer',
-  'video-display': 'Display',
-}
+const POLL_INTERVAL_SEC = 5
 
 function gv(str) { return str && str.value !== undefined ? str.value : str }
 function gvInt(n) { return n && n.value !== undefined ? n.value : n }
 
 function getDeviceIcon(props) {
   let icon = gv(props.Icon)
-  if (icon && DEVICE_ICONS[icon]) return DEVICE_ICONS[icon]
+  if (icon && icon in ICONS) return ICONS[icon]
   let cls = gvInt(props.Class)
   if (cls != null) {
     let major = (cls >> 8) & 0x1f
@@ -85,7 +55,7 @@ function getDeviceIcon(props) {
 
 function getDeviceTypeLabel(props) {
   let icon = gv(props.Icon)
-  if (icon && DEVICE_TYPE_LABELS[icon]) return DEVICE_TYPE_LABELS[icon]
+  if (icon && icon in TYPE_LABELS) return TYPE_LABELS[icon]
   let cls = gvInt(props.Class)
   if (cls != null) {
     let major = (cls >> 8) & 0x1f
@@ -97,8 +67,30 @@ function getDeviceTypeLabel(props) {
   return 'Device'
 }
 
-function gvBattery(pct) {
-  return pct != null ? (pct.value !== undefined ? pct.value : pct) : null
+const ICONS = {
+  'audio-headset': 'audio-headphones-symbolic',
+  'audio-headphones': 'audio-headphones-symbolic',
+  'audio-speakers': 'audio-speakers-symbolic',
+  'audio-card': 'audio-speakers-symbolic',
+  'input-mouse': 'input-mouse-symbolic',
+  'input-keyboard': 'input-keyboard-symbolic',
+  'input-gaming': 'input-gaming-symbolic',
+  'phone': 'phone-symbolic',
+  'computer': 'computer-symbolic',
+  'video-display': 'video-display-symbolic',
+}
+
+const TYPE_LABELS = {
+  'audio-headset': 'Headset',
+  'audio-headphones': 'Headphones',
+  'audio-speakers': 'Speaker',
+  'audio-card': 'Audio',
+  'input-mouse': 'Mouse',
+  'input-keyboard': 'Keyboard',
+  'input-gaming': 'Gaming',
+  'phone': 'Phone',
+  'computer': 'Computer',
+  'video-display': 'Display',
 }
 
 function batteryIcon(pct) {
@@ -120,12 +112,10 @@ export const BluetoothStatus = GObject.registerClass(
     _init() {
       super._init(0.0, 'Bluetooth Status')
 
-      this._devices = new Map()
+      this._devices = []
       this._omProxy = null
-      this._signalIds = []
-      this._deviceSignals = new Map()
+      this._timerId = 0
       this._connected = false
-      this._initIdleId = 0
 
       try {
         this._panelBox = new St.BoxLayout({
@@ -148,51 +138,42 @@ export const BluetoothStatus = GObject.registerClass(
         this.add_child(this._panelBox)
         this._buildMenu()
 
-        // CRITICAL: Menu items are rebuilt ONLY when the user opens the menu.
-        // D-Bus signals must never create/destroy menu widgets because
-        // Clutter C-level assertion aborts cannot be caught by JS try/catch.
-        // This ensures all widget manipulation happens with the menu in a
-        // settled state (just before the user sees it).
+        // Rebuild menu items on open (using latest device data)
         this.menu.connect('open-state-changed', (menu, isOpen) => {
           if (isOpen) {
-            try { this._rebuildDeviceSection() } catch (e) {
+            try { this._rebuildMenuItems() } catch (e) {
               logError(e, `${TAG} menu rebuild failed`)
             }
           }
         })
       } catch (e) {
-        logError(e, `${TAG} Failed to build panel UI`)
+        logError(e, `${TAG} init failed`)
       }
 
+      // Connect on idle, then start polling
       try {
-        this._initIdleId = GLib.idle_add(GLib.PRIORITY_DEFAULT_IDLE, () => {
-          this._initIdleId = 0
-          try { this._connectToBlueZ() } catch (e) {
-            logError(e, `${TAG} BlueZ idle connect failed`)
+        GLib.idle_add(GLib.PRIORITY_DEFAULT_IDLE, () => {
+          try { this._connectAndPoll() } catch (e) {
+            logError(e, `${TAG} init poll failed`)
           }
           return GLib.SOURCE_REMOVE
         })
       } catch (e) {
-        logError(e, `${TAG} Failed to schedule idle connect`)
+        logError(e, `${TAG} idle init failed`)
       }
     }
 
     _buildMenu() {
       try {
-        this._headerItem = new PopupMenu.PopupMenuItem('Bluetooth Status', {
+        this.menu.addMenuItem(new PopupMenu.PopupMenuItem('Bluetooth Status', {
           reactive: false,
-        })
-        this.menu.addMenuItem(this._headerItem)
+        }))
         this.menu.addMenuItem(new PopupMenu.PopupSeparatorMenuItem())
-
         this._deviceSection = new PopupMenu.PopupMenuSection()
         this.menu.addMenuItem(this._deviceSection)
-
-        // Placeholder — replaced on first menu-open
         this._deviceSection.addMenuItem(new PopupMenu.PopupMenuItem(
           'Loading...', { reactive: false },
         ))
-
         this.menu.addMenuItem(new PopupMenu.PopupSeparatorMenuItem())
 
         let settingsItem = new PopupMenu.PopupMenuItem('Bluetooth Settings')
@@ -200,204 +181,97 @@ export const BluetoothStatus = GObject.registerClass(
           try {
             GLib.spawn_command_line_async('gnome-control-center bluetooth')
           } catch (e) {
-            logError(e, `${TAG} Failed to spawn BT settings`)
+            logError(e, `${TAG} BT settings`)
           }
         })
         this.menu.addMenuItem(settingsItem)
       } catch (e) {
-        logError(e, `${TAG} Failed to build menu`)
+        logError(e, `${TAG} buildMenu failed`)
       }
     }
 
-    _connectToBlueZ() {
-      if (this._connected) return
+    /* ---- Polling ---- */
+
+    _connectAndPoll() {
       try {
         this._omProxy = Gio.DBusProxy.new_for_bus_sync(
-          Gio.BusType.SYSTEM,
-          Gio.DBusProxyFlags.NONE, null,
+          Gio.BusType.SYSTEM, Gio.DBusProxyFlags.NONE, null,
           BLUEZ_SERVICE, BLUEZ_ROOT, DBUS_OM_IFACE, null,
         )
+        this._connected = true
+        this._poll()
+        this._timerId = GLib.timeout_add_seconds(
+          GLib.PRIORITY_DEFAULT, POLL_INTERVAL_SEC, () => {
+            try { this._poll() } catch (e) {
+              logError(e, `${TAG} poll tick failed`)
+            }
+            return GLib.SOURCE_CONTINUE
+          },
+        )
       } catch (e) {
-        logError(e, `${TAG} DBusProxy.new_for_bus_sync failed`)
-        return
+        logError(e, `${TAG} connectAndPoll failed`)
       }
+    }
 
+    _poll() {
+      let result
       try {
-        let result = this._omProxy.call_sync(
+        result = this._omProxy.call_sync(
           'GetManagedObjects', null,
           Gio.DBusCallFlags.NONE, CALL_TIMEOUT, null,
         )
-        this._parseManagedObjects(result)
       } catch (e) {
-        logError(e, `${TAG} GetManagedObjects failed`)
+        // BlueZ not responding — keep last known state
         return
       }
+      if (!result) return
 
+      let objects
       try {
-        this._signalIds.push({
-          id: this._omProxy.connectSignal(
-            'InterfacesAdded', this._onInterfacesAdded.bind(this)),
-          proxy: this._omProxy,
-        })
-        this._signalIds.push({
-          id: this._omProxy.connectSignal(
-            'InterfacesRemoved', this._onInterfacesRemoved.bind(this)),
-          proxy: this._omProxy,
-        })
-        this._connected = true
+        [objects] = result.deep_unpack()
       } catch (e) {
-        logError(e, `${TAG} connectSignal failed`)
+        logError(e, `${TAG} deep_unpack failed`)
+        return
       }
+      if (!objects || typeof objects !== 'object') return
 
-      // Initial panel indicator update (NO menu widget manipulation)
-      this._updatePanelIndicator()
-    }
-
-    _parseManagedObjects(result) {
-      try {
-        if (!result) return
-        let [objects] = result.deep_unpack()
-        if (!objects || typeof objects !== 'object') return
-        for (let [objPath, interfaces] of Object.entries(objects)) {
-          try {
-            if (!interfaces[DEVICE_IFACE]) continue
-            let dev = interfaces[DEVICE_IFACE]
-            if (interfaces[BATTERY_IFACE] && interfaces[BATTERY_IFACE].Percentage != null) {
-              dev.Percentage = interfaces[BATTERY_IFACE].Percentage
-            }
-            this._addDevice(objPath, dev)
-          } catch (e) {
-            logError(e, `${TAG} Failed to parse device ${objPath}`)
-          }
-        }
-      } catch (e) {
-        logError(e, `${TAG} _parseManagedObjects failed`)
-      }
-    }
-
-    _addDevice(objPath, props) {
-      try {
-        let name = gv(props.Name) || gv(props.Alias) || 'Unknown'
-        let connected = gv(props.Connected) === true
-        let paired = gv(props.Paired) === true
-        let battery = null
-        if (props.Percentage != null) battery = gvBattery(props.Percentage)
-
-        this._devices.set(objPath, {
-          name, connected, paired,
-          icon: getDeviceIcon(props),
-          typeLabel: getDeviceTypeLabel(props),
-          battery,
-        })
-
-        this._watchDeviceProperties(objPath)
-      } catch (e) {
-        logError(e, `${TAG} _addDevice failed for ${objPath}`)
-      }
-    }
-
-    _watchDeviceProperties(objPath) {
-      try {
-        let subId = Gio.DBus.system.signal_subscribe(
-          BLUEZ_SERVICE, DBUS_PROP_IFACE, 'PropertiesChanged',
-          objPath, null, Gio.DBusSignalFlags.NONE,
-          (conn, sender, path, iface, signal, params) => {
-            // C-level callback — any exception here kills gnome-shell
-            try {
-              this._onDevicePropertiesChanged(path, params)
-            } catch (e) {
-              logError(e, `${TAG} signal callback for ${objPath}`)
-            }
-          },
-        )
-        this._deviceSignals.set(objPath, subId)
-      } catch (e) {
-        logError(e, `${TAG} signal_subscribe failed for ${objPath}`)
-      }
-    }
-
-    _onInterfacesAdded(proxy, senderName, signalName, params) {
-      try {
-        let [objPath, interfaces] = params.deep_unpack()
-        if (interfaces[DEVICE_IFACE]) {
+      let devices = []
+      for (let [objPath, interfaces] of Object.entries(objects)) {
+        try {
           let dev = interfaces[DEVICE_IFACE]
-          if (interfaces[BATTERY_IFACE] && interfaces[BATTERY_IFACE].Percentage != null) {
-            dev.Percentage = interfaces[BATTERY_IFACE].Percentage
+          if (!dev) continue
+          if (gv(dev.Connected) !== true) continue
+          let props = {
+            name: gv(dev.Name) || gv(dev.Alias) || 'Unknown',
+            icon: getDeviceIcon(dev),
+            typeLabel: getDeviceTypeLabel(dev),
+            battery: null,
+            objPath,
           }
-          this._addDevice(objPath, dev)
-        } else if (interfaces[BATTERY_IFACE]) {
-          this._updateDeviceBattery(objPath, interfaces[BATTERY_IFACE])
+          if (interfaces[BATTERY_IFACE] && interfaces[BATTERY_IFACE].Percentage != null) {
+            let pct = interfaces[BATTERY_IFACE].Percentage
+            props.battery = pct && pct.value !== undefined ? pct.value : pct
+          }
+          devices.push(props)
+        } catch (e) {
+          logError(e, `${TAG} parse device ${objPath}`)
         }
-        this._updatePanelIndicator()
-      } catch (e) {
-        logError(e, `${TAG} InterfacesAdded handler`)
       }
+
+      this._devices = devices
+      this._updateIndicator()
     }
 
-    _onInterfacesRemoved(proxy, senderName, signalName, params) {
+    /* ---- Panel indicator ---- */
+
+    _updateIndicator() {
       try {
-        let [objPath, ifaces] = params.deep_unpack()
-        if (!ifaces.includes(DEVICE_IFACE)) return
-        if (this._deviceSignals.has(objPath)) {
-          Gio.DBus.system.signal_unsubscribe(this._deviceSignals.get(objPath))
-          this._deviceSignals.delete(objPath)
-        }
-        this._devices.delete(objPath)
-        this._updatePanelIndicator()
-      } catch (e) {
-        logError(e, `${TAG} InterfacesRemoved handler`)
-      }
-    }
-
-    _onDevicePropertiesChanged(objPath, params) {
-      try {
-        let [ifaceName, changedProps] = params.deep_unpack()
-        let device = this._devices.get(objPath)
-        if (!device) return
-
-        if (ifaceName === DEVICE_IFACE) {
-          if (changedProps.Connected != null)
-            device.connected = gv(changedProps.Connected)
-          if (changedProps.Name)
-            device.name = gv(changedProps.Name)
-          if (changedProps.Alias)
-            device.name = gv(changedProps.Alias)
-        }
-        if (ifaceName === BATTERY_IFACE && changedProps.Percentage != null)
-          device.battery = gvBattery(changedProps.Percentage)
-
-        this._updatePanelIndicator()
-      } catch (e) {
-        logError(e, `${TAG} PropertiesChanged handler`)
-      }
-    }
-
-    _updateDeviceBattery(objPath, batteryProps) {
-      try {
-        let device = this._devices.get(objPath)
-        if (!device) return
-        if (batteryProps.Percentage != null)
-          device.battery = gvBattery(batteryProps.Percentage)
-      } catch (e) {
-        logError(e, `${TAG} _updateDeviceBattery failed for ${objPath}`)
-      }
-    }
-
-    /* ---- Panel indicator only (NEVER touches menu widgets) ---- */
-
-    _updatePanelIndicator() {
-      try {
-        let connected = []
-        for (let [, device] of this._devices) {
-          if (device.connected) connected.push(device)
-        }
-
-        if (connected.length > 0) {
-          let primary = connected.sort((a, b) =>
+        if (this._devices.length > 0) {
+          let primary = this._devices.sort((a, b) =>
             (a.icon.includes('audio') ? 0 : 1) - (b.icon.includes('audio') ? 0 : 1)
           )[0]
-          this._statusLabel.text = connected.length > 1
-            ? `${primary.name} +${connected.length - 1}`
+          this._statusLabel.text = this._devices.length > 1
+            ? `${primary.name} +${this._devices.length - 1}`
             : primary.name
           this._btIcon.icon_name = primary.battery != null
             ? batteryIcon(primary.battery)
@@ -409,32 +283,25 @@ export const BluetoothStatus = GObject.registerClass(
           this._panelBox.style = 'opacity: 0.5'
         }
       } catch (e) {
-        logError(e, `${TAG} panel indicator update failed`)
+        logError(e, `${TAG} indicator update failed`)
       }
     }
 
-    /* ---- Menu rebuild (ONLY on menu-open via open-state-changed) ---- */
+    /* ---- Menu items (on open) ---- */
 
-    _rebuildDeviceSection() {
+    _rebuildMenuItems() {
       this._deviceSection.removeAll()
 
-      let allPaired = []
-      for (let [, device] of this._devices) {
-        if (device.paired) allPaired.push(device)
-      }
-
-      if (allPaired.length === 0) {
+      if (this._devices.length === 0) {
         this._deviceSection.addMenuItem(new PopupMenu.PopupMenuItem(
-          'No paired devices', { reactive: false },
+          'No connected devices', { reactive: false },
         ))
         return
       }
 
-      let sorted = [...allPaired].sort((a, b) => {
-        if (a.connected && !b.connected) return -1
-        if (!a.connected && b.connected) return 1
-        return a.name.localeCompare(b.name)
-      })
+      let sorted = [...this._devices].sort((a, b) =>
+        a.name.localeCompare(b.name),
+      )
 
       for (let device of sorted) {
         let item = new PopupMenu.PopupMenuItem('', { reactive: true })
@@ -449,19 +316,11 @@ export const BluetoothStatus = GObject.registerClass(
           x_align: Clutter.ActorAlign.START,
         })
         textBox.add_child(new St.Label({ text: device.name }))
-        textBox.add_child(new St.Label({
-          text: device.typeLabel,
-          style_class: 'bt-detail',
-        }))
+        textBox.add_child(new St.Label({ text: device.typeLabel, style_class: 'bt-detail' }))
         box.add_child(textBox)
 
-        let rightBox = new St.BoxLayout({
-          vertical: true,
-          x_align: Clutter.ActorAlign.END,
-        })
-        rightBox.add_child(new St.Label({
-          text: device.connected ? 'Connected' : 'Paired',
-        }))
+        let rightBox = new St.BoxLayout({ vertical: true, x_align: Clutter.ActorAlign.END })
+        rightBox.add_child(new St.Label({ text: 'Connected' }))
 
         if (device.battery != null) {
           let battBox = new St.BoxLayout({ x_align: Clutter.ActorAlign.END })
@@ -487,55 +346,34 @@ export const BluetoothStatus = GObject.registerClass(
     /* ---- Actions ---- */
 
     _toggleConnection(device) {
-      let objPath = null
-      for (let [path, dev] of this._devices) {
-        if (dev === device) { objPath = path; break }
-      }
-      if (!objPath) return
-
       try {
-        let method = device.connected ? 'Disconnect' : 'Connect'
+        let method = 'Disconnect'
         let proxy = new Gio.DBusProxy.new_for_bus_sync(
           Gio.BusType.SYSTEM, Gio.DBusProxyFlags.NO_AUTO_START, null,
-          BLUEZ_SERVICE, objPath, DEVICE_IFACE, null,
+          BLUEZ_SERVICE, device.objPath, DEVICE_IFACE, null,
         )
         proxy.call_sync(method, null, Gio.DBusCallFlags.NONE, CALL_TIMEOUT, null)
       } catch (e) {
-        logError(e, `${TAG} Toggle connection failed`)
+        logError(e, `${TAG} disconnect failed`)
       }
     }
 
     destroy() {
       try {
-        if (this._initIdleId) {
-          GLib.source_remove(this._initIdleId)
-          this._initIdleId = 0
+        if (this._timerId) {
+          GLib.source_remove(this._timerId)
+          this._timerId = 0
         }
-        for (let entry of this._signalIds) {
-          try {
-            if (entry.proxy && entry.id) entry.proxy.disconnectSignal(entry.id)
-          } catch (e) {
-            logError(e, `${TAG} disconnectSignal failed`)
-          }
-        }
-        this._signalIds = []
-        for (let [, subId] of this._deviceSignals) {
-          try {
-            Gio.DBus.system.signal_unsubscribe(subId)
-          } catch (e) {
-            logError(e, `${TAG} signal_unsubscribe failed`)
-          }
-        }
-        this._deviceSignals.clear()
-        this._devices.clear()
+        this._omProxy = null
+        this._devices = []
         this._connected = false
       } catch (e) {
-        logError(e, `${TAG} destroy cleanup failed`)
+        logError(e, `${TAG} destroy failed`)
       }
       try {
         super.destroy()
       } catch (e) {
-        logError(e, `${TAG} super.destroy() failed`)
+        logError(e, `${TAG} super.destroy failed`)
       }
     }
   },
