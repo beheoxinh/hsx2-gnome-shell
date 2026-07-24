@@ -116,6 +116,7 @@ export const BluetoothStatus = GObject.registerClass(
       this._omProxy = null
       this._timerId = 0
       this._connected = false
+      this._pollCount = 0
 
       try {
         this._btIcon = new St.Icon({
@@ -262,6 +263,9 @@ export const BluetoothStatus = GObject.registerClass(
 
       this._devices = devices
       this._updateIndicator()
+      // Visibility check every 3 polls (every ~15s)
+      if (this._pollCount % 3 === 0) this._checkVisibility()
+      this._pollCount++
     }
 
     /* ---- Panel indicator ---- */
@@ -272,18 +276,54 @@ export const BluetoothStatus = GObject.registerClass(
           let primary = this._devices.sort((a, b) =>
             (a.icon.includes('audio') ? 0 : 1) - (b.icon.includes('audio') ? 0 : 1)
           )[0]
-          this._statusLabel.text = this._devices.length > 1
+          let labelText = this._devices.length > 1
             ? `${primary.name} +${this._devices.length - 1}`
             : primary.name
+          this._statusLabel.text = labelText
           this._btIcon.icon_name = primary.battery != null
             ? batteryIcon(primary.battery)
             : 'bluetooth-active-symbolic'
+          console.log(`${TAG} indicator: label="${labelText}" icon=${this._btIcon.icon_name}`)
         } else {
           this._statusLabel.text = '\u00A0\u00A0'
           this._btIcon.icon_name = 'bluetooth-active-symbolic'
+          console.log(`${TAG} indicator: no devices, NBSP label`)
         }
       } catch (e) {
         logError(e, `${TAG} indicator update failed`)
+      }
+    }
+
+    /* ---- Visibility check (debug) ---- */
+
+    _checkVisibility() {
+      try {
+        let parent = this.get_parent()
+        let grandparent = parent ? parent.get_parent() : null
+        let [wMin, wNat] = this.get_preferred_width(-1)
+        let [hMin, hNat] = this.get_preferred_height(-1)
+        let allocW = this.get_width()
+        let allocH = this.get_height()
+        let mapped = this.mapped
+        let visible = this.visible
+        console.log(`${TAG} VIS: parent=${!!parent} gp=${!!grandparent}` +
+          ` mapped=${mapped} visible=${visible}` +
+          ` prefW=${wNat} prefH=${hNat}` +
+          ` alloc=(${allocW},${allocH})` +
+          ` children=${this.get_children().length}` +
+          ` labelW=${this._statusLabel ? this._statusLabel.get_width() : -1}` +
+          ` iconW=${this._btIcon ? this._btIcon.get_width() : -1}` +
+          (parent ? ` parentChildren=${parent.get_children().length}` : '')
+        )
+        // Also check leftBox visibility
+        let leftBox = global && Main && Main.panel ? Main.panel._leftBox : null
+        if (leftBox) {
+          console.log(`${TAG} leftBox: visible=${leftBox.visible} mapped=${leftBox.mapped}` +
+            ` width=${leftBox.get_width()} height=${leftBox.get_height()}` +
+            ` children=${leftBox.get_children().length}`)
+        }
+      } catch (e) {
+        logError(e, `${TAG} visibility check failed`)
       }
     }
 
