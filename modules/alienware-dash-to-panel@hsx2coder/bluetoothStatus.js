@@ -2,6 +2,11 @@
  * Bluetooth Status indicator for Dash-to-Panel
  * Displays connected Bluetooth devices with battery percentage
  * in the panel leftBox area.
+ *
+ * Uses BlueZ D-Bus (system bus):
+ *   - GetManagedObjects returns {path -> {iface -> {prop: <GVariant>}}}
+ *   - After deep_unpack(), leaf values are still GVariant — use .value
+ *   - Per-device PropertiesChanged subscriptions for Battery1 updates
  */
 
 import Clutter from 'gi://Clutter'
@@ -15,22 +20,12 @@ import * as PanelMenu from 'resource:///org/gnome/shell/ui/panelMenu.js'
 import * as PopupMenu from 'resource:///org/gnome/shell/ui/popupMenu.js'
 
 const BLUEZ_SERVICE = 'org.bluez'
-const BLUEZ_OBJECT_PATH = '/org/bluez'
+const BLUEZ_ROOT = '/'
 const DBUS_OM_IFACE = 'org.freedesktop.DBus.ObjectManager'
 const DBUS_PROP_IFACE = 'org.freedesktop.DBus.Properties'
 const DEVICE_IFACE = 'org.bluez.Device1'
 const BATTERY_IFACE = 'org.bluez.Battery1'
 
-// BlueZ device class categories (major class bits 8-12)
-const CLASS_MAJOR_MISC = 0
-const CLASS_MAJOR_COMPUTER = 1
-const CLASS_MAJOR_PHONE = 2
-const CLASS_MAJOR_AUDIO = 4
-const CLASS_MAJOR_PERIPHERAL = 5
-const CLASS_MAJOR_IMAGING = 6
-const CLASS_MAJOR_WEARABLE = 7
-
-// Device icon mapping by BlueZ Icon property
 const DEVICE_ICONS = {
   'audio-headset': 'audio-headphones-symbolic',
   'audio-headphones': 'audio-headphones-symbolic',
@@ -57,73 +52,57 @@ const DEVICE_TYPE_LABELS = {
   'video-display': 'Display',
 }
 
-function getDeviceIcon(deviceProps) {
-  // Prefer explicit Icon property
-  if (deviceProps.Icon && DEVICE_ICONS[deviceProps.Icon]) {
-    return DEVICE_ICONS[deviceProps.Icon]
-  }
-  // Fallback to class-based detection
-  if (deviceProps.Class) {
-    let major = (deviceProps.Class >> 8) & 0x1f
-    switch (major) {
-      case CLASS_MAJOR_AUDIO:
-        return 'audio-headphones-symbolic'
-      case CLASS_MAJOR_PERIPHERAL:
-        // Check minor class for mouse vs keyboard
-        let minor = (deviceProps.Class >> 2) & 0x3f
-        if (minor === 0x20 || minor === 0x21) return 'input-keyboard-symbolic'
-        if (minor === 0x10 || minor === 0x11 || minor === 0x12)
-          return 'input-mouse-symbolic'
-        return 'input-keyboard-symbolic'
-      case CLASS_MAJOR_PHONE:
-        return 'phone-symbolic'
-      case CLASS_MAJOR_COMPUTER:
-        return 'computer-symbolic'
-      default:
-        return 'bluetooth-active-symbolic'
+function gv(str) { return str && str.value !== undefined ? str.value : str }
+function gvInt(n) { return n && n.value !== undefined ? n.value : n }
+
+function getDeviceIcon(props) {
+  let icon = gv(props.Icon)
+  if (icon && DEVICE_ICONS[icon]) return DEVICE_ICONS[icon]
+  let cls = gvInt(props.Class)
+  if (cls != null) {
+    let major = (cls >> 8) & 0x1f
+    if (major === 4) return 'audio-headphones-symbolic'
+    if (major === 5) {
+      let minor = (cls >> 2) & 0x3f
+      if (minor >= 0x20 && minor <= 0x21) return 'input-keyboard-symbolic'
+      if (minor >= 0x10 && minor <= 0x12) return 'input-mouse-symbolic'
+      return 'input-keyboard-symbolic'
     }
+    if (major === 2) return 'phone-symbolic'
+    if (major === 1) return 'computer-symbolic'
   }
   return 'bluetooth-active-symbolic'
 }
 
-function getDeviceTypeLabel(deviceProps) {
-  if (deviceProps.Icon && DEVICE_TYPE_LABELS[deviceProps.Icon]) {
-    return DEVICE_TYPE_LABELS[deviceProps.Icon]
-  }
-  if (deviceProps.Class) {
-    let major = (deviceProps.Class >> 8) & 0x1f
-    switch (major) {
-      case CLASS_MAJOR_AUDIO:
-        return 'Audio'
-      case CLASS_MAJOR_PERIPHERAL:
-        return 'Peripheral'
-      case CLASS_MAJOR_PHONE:
-        return 'Phone'
-      case CLASS_MAJOR_COMPUTER:
-        return 'Computer'
-      default:
-        return 'Device'
-    }
+function getDeviceTypeLabel(props) {
+  let icon = gv(props.Icon)
+  if (icon && DEVICE_TYPE_LABELS[icon]) return DEVICE_TYPE_LABELS[icon]
+  let cls = gvInt(props.Class)
+  if (cls != null) {
+    let major = (cls >> 8) & 0x1f
+    if (major === 4) return 'Audio'
+    if (major === 5) return 'Peripheral'
+    if (major === 2) return 'Phone'
+    if (major === 1) return 'Computer'
   }
   return 'Device'
 }
 
-function formatBattery(percentage) {
-  if (percentage == null || percentage === undefined) return ''
-  return `${percentage}%`
+function gvBattery(pct) {
+  return pct != null ? (pct.value !== undefined ? pct.value : pct) : null
 }
 
-function getBatteryIcon(percentage) {
-  if (percentage == null) return 'battery-level-100-symbolic'
-  if (percentage <= 10) return 'battery-level-10-symbolic'
-  if (percentage <= 20) return 'battery-level-20-symbolic'
-  if (percentage <= 30) return 'battery-level-30-symbolic'
-  if (percentage <= 40) return 'battery-level-40-symbolic'
-  if (percentage <= 50) return 'battery-level-50-symbolic'
-  if (percentage <= 60) return 'battery-level-60-symbolic'
-  if (percentage <= 70) return 'battery-level-70-symbolic'
-  if (percentage <= 80) return 'battery-level-80-symbolic'
-  if (percentage <= 90) return 'battery-level-90-symbolic'
+function batteryIcon(pct) {
+  if (pct == null) return 'battery-level-100-symbolic'
+  if (pct <= 10) return 'battery-level-10-symbolic'
+  if (pct <= 20) return 'battery-level-20-symbolic'
+  if (pct <= 30) return 'battery-level-30-symbolic'
+  if (pct <= 40) return 'battery-level-40-symbolic'
+  if (pct <= 50) return 'battery-level-50-symbolic'
+  if (pct <= 60) return 'battery-level-60-symbolic'
+  if (pct <= 70) return 'battery-level-70-symbolic'
+  if (pct <= 80) return 'battery-level-80-symbolic'
+  if (pct <= 90) return 'battery-level-90-symbolic'
   return 'battery-level-100-symbolic'
 }
 
@@ -132,7 +111,7 @@ export const BluetoothStatus = GObject.registerClass(
     _init() {
       super._init(0.0, 'Bluetooth Status')
 
-      this._devices = new Map() // objectPath -> { name, icon, connected, battery, props }
+      this._devices = new Map()
       this._omProxy = null
       this._signalIds = []
       this._deviceSignals = new Map()
@@ -156,29 +135,20 @@ export const BluetoothStatus = GObject.registerClass(
       this._panelBox.add_child(this._statusLabel)
 
       this.add_child(this._panelBox)
-
-      // Build popup menu
       this._buildMenu()
-
-      // Connect to BlueZ
       this._connectToBlueZ()
     }
 
     _buildMenu() {
-      // Header
       this._headerItem = new PopupMenu.PopupMenuItem('Bluetooth Status', {
         reactive: false,
-        style_class: 'bt-menu-header',
       })
       this.menu.addMenuItem(this._headerItem)
-
       this.menu.addMenuItem(new PopupMenu.PopupSeparatorMenuItem())
 
-      // Device list container
       this._deviceSection = new PopupMenu.PopupMenuSection()
       this.menu.addMenuItem(this._deviceSection)
 
-      // No devices placeholder
       this._emptyItem = new PopupMenu.PopupMenuItem('No paired devices', {
         reactive: false,
       })
@@ -186,7 +156,6 @@ export const BluetoothStatus = GObject.registerClass(
 
       this.menu.addMenuItem(new PopupMenu.PopupSeparatorMenuItem())
 
-      // Bluetooth settings
       let settingsItem = new PopupMenu.PopupMenuItem('Bluetooth Settings')
       settingsItem.connect('activate', () => {
         GLib.spawn_command_line_async('gnome-control-center bluetooth')
@@ -196,102 +165,69 @@ export const BluetoothStatus = GObject.registerClass(
 
     _connectToBlueZ() {
       try {
-        // Create ObjectManager proxy to track all BlueZ objects
         this._omProxy = Gio.DBusProxy.new_for_bus_sync(
           Gio.BusType.SYSTEM,
-          Gio.DBusProxyFlags.NONE,
-          null,
-          BLUEZ_SERVICE,
-          BLUEZ_OBJECT_PATH,
-          DBUS_OM_IFACE,
-          null,
+          Gio.DBusProxyFlags.NONE, null,
+          BLUEZ_SERVICE, BLUEZ_ROOT, DBUS_OM_IFACE, null,
         )
 
-        // Initial device enumeration
-        let result = this._omProxy.call(
-          'GetManagedObjects',
-          null,
-          Gio.DBusCallFlags.NONE,
-          -1,
-          null,
+        let result = this._omProxy.call_sync(
+          'GetManagedObjects', null,
+          Gio.DBusCallFlags.NONE, -1, null,
         )
         this._parseManagedObjects(result)
 
-        // Watch for interface additions/removals
         this._signalIds.push({
           id: this._omProxy.connectSignal(
-            'InterfacesAdded',
-            this._onInterfacesAdded.bind(this),
-          ),
+            'InterfacesAdded', this._onInterfacesAdded.bind(this)),
           proxy: this._omProxy,
         })
         this._signalIds.push({
           id: this._omProxy.connectSignal(
-            'InterfacesRemoved',
-            this._onInterfacesRemoved.bind(this),
-          ),
+            'InterfacesRemoved', this._onInterfacesRemoved.bind(this)),
           proxy: this._omProxy,
         })
 
         this._updateUI()
       } catch (e) {
-        logError(e, '[BluetoothStatus] Failed to connect to BlueZ')
+        logError(e, '[BT] Failed to connect to BlueZ')
       }
     }
 
     _parseManagedObjects(result) {
       if (!result) return
-
       let [objects] = result.deep_unpack()
       for (let [objPath, interfaces] of Object.entries(objects)) {
-        if (interfaces[DEVICE_IFACE]) {
-          // Merge Battery1 properties into device props for _addDevice
-          let deviceProps = { ...interfaces[DEVICE_IFACE] }
-          if (interfaces[BATTERY_IFACE]) {
-            deviceProps.Percentage = interfaces[BATTERY_IFACE].Percentage
-          }
-          this._addDevice(objPath, deviceProps)
+        if (!interfaces[DEVICE_IFACE]) continue
+        let dev = interfaces[DEVICE_IFACE]
+        if (interfaces[BATTERY_IFACE] && interfaces[BATTERY_IFACE].Percentage != null) {
+          dev.Percentage = interfaces[BATTERY_IFACE].Percentage
         }
+        this._addDevice(objPath, dev)
       }
     }
 
-    _addDevice(objPath, deviceProps) {
-      let name = deviceProps.Name || deviceProps.Alias || 'Unknown'
-      let connected = deviceProps.Connected === true
-      let paired = deviceProps.Paired === true
-      let icon = getDeviceIcon(deviceProps)
-      let typeLabel = getDeviceTypeLabel(deviceProps)
+    _addDevice(objPath, props) {
+      let name = gv(props.Name) || gv(props.Alias) || 'Unknown'
+      let connected = gv(props.Connected) === true
+      let paired = gv(props.Paired) === true
       let battery = null
-
-      // Battery may come from a separate interface merged into deviceProps
-      if (deviceProps.Percentage != null) {
-        battery = deviceProps.Percentage
-      }
+      if (props.Percentage != null) battery = gvBattery(props.Percentage)
 
       this._devices.set(objPath, {
-        name,
-        connected,
-        paired,
-        icon,
-        typeLabel,
+        name, connected, paired,
+        icon: getDeviceIcon(props),
+        typeLabel: getDeviceTypeLabel(props),
         battery,
-        props: deviceProps,
       })
 
-      // Watch for property changes on this specific device
       this._watchDeviceProperties(objPath)
     }
 
     _watchDeviceProperties(objPath) {
-      // We already handle properties via the ObjectManager PropertiesChanged signal
-      // But we also subscribe per-device for Battery1 changes
       let subId = Gio.DBus.system.signal_subscribe(
-        BLUEZ_SERVICE,
-        DBUS_PROP_IFACE,
-        'PropertiesChanged',
-        objPath,
-        null,
-        Gio.DBusSignalFlags.NONE,
+        BLUEZ_SERVICE, DBUS_PROP_IFACE, 'PropertiesChanged',
+        objPath, null, Gio.DBusSignalFlags.NONE,
         (conn, sender, path, iface, signal, params) => {
           this._onDevicePropertiesChanged(path, params)
         },
@@ -300,72 +236,72 @@ export const BluetoothStatus = GObject.registerClass(
     }
 
     _onInterfacesAdded(proxy, sender, [objPath, rawInterfaces]) {
-      let interfaces = rawInterfaces.deep_unpack()
-      if (interfaces[DEVICE_IFACE]) {
-        // Merge Battery1 if also present
-        let deviceProps = { ...interfaces[DEVICE_IFACE] }
-        if (interfaces[BATTERY_IFACE] && interfaces[BATTERY_IFACE].Percentage) {
-          deviceProps.Percentage = interfaces[BATTERY_IFACE].Percentage
+      try {
+        let interfaces = rawInterfaces.deep_unpack()
+        if (interfaces[DEVICE_IFACE]) {
+          let dev = interfaces[DEVICE_IFACE]
+          if (interfaces[BATTERY_IFACE] && interfaces[BATTERY_IFACE].Percentage != null) {
+            dev.Percentage = interfaces[BATTERY_IFACE].Percentage
+          }
+          this._addDevice(objPath, dev)
+          this._updateUI()
+        } else if (interfaces[BATTERY_IFACE]) {
+          this._updateDeviceBattery(objPath, interfaces[BATTERY_IFACE])
+          this._updateUI()
         }
-        this._addDevice(objPath, deviceProps)
-        this._updateUI()
-      }
-      // Battery may appear as a separate interface
-      if (interfaces[BATTERY_IFACE]) {
-        this._updateDeviceBattery(objPath, interfaces[BATTERY_IFACE])
-        this._updateUI()
+      } catch (e) {
+        logError(e, '[BT] InterfacesAdded handler')
       }
     }
 
     _onInterfacesRemoved(proxy, sender, [objPath, rawInterfaces]) {
-      let ifaceNames = rawInterfaces.deep_unpack()
-      if (ifaceNames.includes(DEVICE_IFACE)) {
-        // Clean up device signals
+      try {
+        let ifaces = rawInterfaces.deep_unpack()
+        if (!ifaces.includes(DEVICE_IFACE)) return
         if (this._deviceSignals.has(objPath)) {
           Gio.DBus.system.signal_unsubscribe(this._deviceSignals.get(objPath))
           this._deviceSignals.delete(objPath)
         }
         this._devices.delete(objPath)
         this._updateUI()
+      } catch (e) {
+        logError(e, '[BT] InterfacesRemoved handler')
       }
     }
 
     _onDevicePropertiesChanged(objPath, params) {
-      let [ifaceName, changedProps] = params.deep_unpack()
-      let device = this._devices.get(objPath)
-      if (!device) return
+      try {
+        let [ifaceName, changedProps] = params.deep_unpack()
+        let device = this._devices.get(objPath)
+        if (!device) return
 
-      if (ifaceName === DEVICE_IFACE) {
-        if (changedProps.Connected != null) {
-          device.connected = changedProps.Connected
+        if (ifaceName === DEVICE_IFACE) {
+          if (changedProps.Connected != null)
+            device.connected = gv(changedProps.Connected)
+          if (changedProps.Name)
+            device.name = gv(changedProps.Name)
+          if (changedProps.Alias)
+            device.name = gv(changedProps.Alias)
         }
-        if (changedProps.Name) {
-          device.name = changedProps.Name
-        }
-        if (changedProps.Alias) {
-          device.name = changedProps.Alias
-        }
+        if (ifaceName === BATTERY_IFACE && changedProps.Percentage != null)
+          device.battery = gvBattery(changedProps.Percentage)
+
+        this._updateUI()
+      } catch (e) {
+        logError(e, '[BT] PropertiesChanged handler')
       }
-
-      if (ifaceName === BATTERY_IFACE) {
-        if (changedProps.Percentage != null) {
-          device.battery = changedProps.Percentage
-        }
-      }
-
-      this._updateUI()
     }
 
     _updateDeviceBattery(objPath, batteryProps) {
       let device = this._devices.get(objPath)
       if (!device) return
-      if (batteryProps.Percentage != null) {
-        device.battery = batteryProps.Percentage
-      }
+      if (batteryProps.Percentage != null)
+        device.battery = gvBattery(batteryProps.Percentage)
     }
 
+    /* ---- UI ---- */
+
     _updateUI() {
-      // Find all connected devices
       let connected = []
       let allPaired = []
 
@@ -374,27 +310,17 @@ export const BluetoothStatus = GObject.registerClass(
         if (device.connected) connected.push(device)
       }
 
-      // Sort connected: audio first, then peripherals
-      connected.sort((a, b) => {
-        let aAudio = a.icon.includes('audio') ? 0 : 1
-        let bAudio = b.icon.includes('audio') ? 0 : 1
-        return aAudio - bAudio
-      })
-
-      // Update panel indicator
+      // Panel label
       if (connected.length > 0) {
-        // Show first connected device (primary)
-        let primary = connected[0]
-        let battStr = formatBattery(primary.battery)
-        this._statusLabel.text =
-          connected.length > 1
-            ? `${primary.name} +${connected.length - 1}`
-            : primary.name
-        if (battStr) {
-          this._btIcon.icon_name = getBatteryIcon(primary.battery)
-        } else {
-          this._btIcon.icon_name = 'bluetooth-active-symbolic'
-        }
+        let primary = connected.sort((a, b) =>
+          (a.icon.includes('audio') ? 0 : 1) - (b.icon.includes('audio') ? 0 : 1)
+        )[0]
+        this._statusLabel.text = connected.length > 1
+          ? `${primary.name} +${connected.length - 1}`
+          : primary.name
+        this._btIcon.icon_name = primary.battery != null
+          ? batteryIcon(primary.battery)
+          : 'bluetooth-active-symbolic'
         this._panelBox.style = ''
       } else {
         this._statusLabel.text = ''
@@ -402,158 +328,84 @@ export const BluetoothStatus = GObject.registerClass(
         this._panelBox.style = 'opacity: 0.5'
       }
 
-      // Rebuild device section in popup menu
+      // Popup menu
       this._deviceSection.removeAll()
-
       if (allPaired.length === 0) {
         this._emptyItem = new PopupMenu.PopupMenuItem('No paired devices', {
           reactive: false,
         })
         this._deviceSection.addMenuItem(this._emptyItem)
-      } else {
-        // Connected first, then disconnected
-        let sorted = [...allPaired].sort((a, b) => {
-          if (a.connected && !b.connected) return -1
-          if (!a.connected && b.connected) return 1
-          return a.name.localeCompare(b.name)
-        })
+        return
+      }
 
-        for (let device of sorted) {
-          let item = new PopupMenu.PopupMenuItem('', { reactive: true })
+      let sorted = [...allPaired].sort((a, b) => {
+        if (a.connected && !b.connected) return -1
+        if (!a.connected && b.connected) return 1
+        return a.name.localeCompare(b.name)
+      })
 
-          // Build custom actor for the menu item
-          let box = new St.BoxLayout({
-            style_class: 'bt-menu-device-box',
-            x_expand: true,
-          })
+      for (let device of sorted) {
+        let item = new PopupMenu.PopupMenuItem('', { reactive: true })
 
-          // Device icon
-          let devIcon = new St.Icon({
-            icon_name: device.icon,
-            style_class: 'popup-menu-icon',
-          })
-          box.add_child(devIcon)
+        let box = new St.BoxLayout({ style_class: 'bt-menu-device-box', x_expand: true })
 
-          // Device name + type
-          let textBox = new St.BoxLayout({
-            vertical: true,
-            x_expand: true,
-            x_align: Clutter.ActorAlign.START,
-          })
+        let devIcon = new St.Icon({ icon_name: device.icon, style_class: 'popup-menu-icon' })
+        box.add_child(devIcon)
 
-          let nameLabel = new St.Label({
-            text: device.name,
-            style_class: 'bt-device-name',
-          })
-          textBox.add_child(nameLabel)
+        let textBox = new St.BoxLayout({ vertical: true, x_expand: true, x_align: Clutter.ActorAlign.START })
+        textBox.add_child(new St.Label({ text: device.name }))
+        textBox.add_child(new St.Label({ text: device.typeLabel, style_class: 'bt-detail' }))
+        box.add_child(textBox)
 
-          let detailLabel = new St.Label({
-            text: device.typeLabel,
-            style_class: 'bt-device-detail',
-          })
-          textBox.add_child(detailLabel)
+        let rightBox = new St.BoxLayout({ vertical: true, x_align: Clutter.ActorAlign.END })
+        rightBox.add_child(new St.Label({
+          text: device.connected ? 'Connected' : 'Paired',
+        }))
 
-          box.add_child(textBox)
-
-          // Status + battery on the right
-          let rightBox = new St.BoxLayout({
-            vertical: true,
-            x_align: Clutter.ActorAlign.END,
-          })
-
-          if (device.connected) {
-            let statusLabel = new St.Label({
-              text: 'Connected',
-              style_class: 'bt-status-connected',
-            })
-            rightBox.add_child(statusLabel)
-          } else {
-            let statusLabel = new St.Label({
-              text: 'Paired',
-              style_class: 'bt-status-paired',
-            })
-            rightBox.add_child(statusLabel)
-          }
-
-          if (device.battery != null) {
-            let battIcon = new St.Icon({
-              icon_name: getBatteryIcon(device.battery),
-              style_class: 'popup-menu-icon',
-            })
-            let battLabel = new St.Label({
-              text: `${device.battery}%`,
-              style_class: 'bt-battery-label',
-              y_align: Clutter.ActorAlign.CENTER,
-            })
-            let battBox = new St.BoxLayout({
-              x_align: Clutter.ActorAlign.END,
-            })
-            battBox.add_child(battIcon)
-            battBox.add_child(battLabel)
-            rightBox.add_child(battBox)
-          }
-
-          box.add_child(rightBox)
-
-          item.add_child(box)
-
-          // Click to connect/disconnect
-          item.connect('activate', () => {
-            this._toggleConnection(device)
-          })
-
-          this._deviceSection.addMenuItem(item)
+        if (device.battery != null) {
+          let battBox = new St.BoxLayout({ x_align: Clutter.ActorAlign.END })
+          battBox.add_child(new St.Icon({ icon_name: batteryIcon(device.battery), style_class: 'popup-menu-icon' }))
+          battBox.add_child(new St.Label({ text: `${device.battery}%`, y_align: Clutter.ActorAlign.CENTER }))
+          rightBox.add_child(battBox)
         }
+
+        box.add_child(rightBox)
+        item.add_child(box)
+
+        item.connect('activate', () => this._toggleConnection(device))
+        this._deviceSection.addMenuItem(item)
       }
     }
 
+    /* ---- Actions ---- */
+
     _toggleConnection(device) {
-      // Find the object path for this device
       let objPath = null
       for (let [path, dev] of this._devices) {
-        if (dev === device) {
-          objPath = path
-          break
-        }
+        if (dev === device) { objPath = path; break }
       }
       if (!objPath) return
 
-      this._toggleBlueZConnection(objPath, device.connected)
-    }
-
-    _toggleBlueZConnection(objPath, wasConnected) {
       try {
-        let method = wasConnected ? 'Disconnect' : 'Connect'
-        Gio.DBus.system.call_sync(
-          BLUEZ_SERVICE,
-          objPath,
-          DEVICE_IFACE,
-          method,
-          null,
-          null,
-          Gio.DBusCallFlags.NONE,
-          -1,
-          null,
+        let method = device.connected ? 'Disconnect' : 'Connect'
+        let proxy = new Gio.DBusProxy.new_for_bus_sync(
+          Gio.BusType.SYSTEM, Gio.DBusProxyFlags.NO_AUTO_START, null,
+          BLUEZ_SERVICE, objPath, DEVICE_IFACE, null,
         )
+        proxy.call_sync(method, null, Gio.DBusCallFlags.NONE, -1, null)
       } catch (e) {
-        logError(e, `[BluetoothStatus] Failed to ${wasConnected ? 'disconnect' : 'connect'} device`)
+        logError(e, '[BT] Toggle connection')
       }
     }
 
     destroy() {
-      // Clean up ObjectManager proxy signals
       for (let entry of this._signalIds) {
-        if (entry.proxy && entry.id)
-          entry.proxy.disconnectSignal(entry.id)
+        if (entry.proxy && entry.id) entry.proxy.disconnectSignal(entry.id)
       }
       this._signalIds = []
-
-      // Clean up per-device D-Bus subscriptions
-      for (let [, subId] of this._deviceSignals) {
+      for (let [, subId] of this._deviceSignals)
         Gio.DBus.system.signal_unsubscribe(subId)
-      }
       this._deviceSignals.clear()
-
       this._devices.clear()
       super.destroy()
     }
