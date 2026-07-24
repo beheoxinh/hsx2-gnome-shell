@@ -58,7 +58,7 @@
         <child>
           <object class="AdwActionRow">
             <property name="subtitle" translatable="yes">(0 = theme default)</property>
-            <property name="title" translatable="yes">LeftBox Font Size</property>
+            <property name="title" translatable="yes">Bluetooth Status Font Size</property>
             <child>
               <object class="GtkScale" id="leftbox_size_scale">
                 <property name="adjustment">leftbox_size_adjustment</property>
@@ -111,7 +111,7 @@
         <child>
           <object class="AdwActionRow">
             <property name="subtitle" translatable="yes">(-1 = theme default)</property>
-            <property name="title" translatable="yes">LeftBox Padding</property>
+            <property name="title" translatable="yes">Bluetooth Status Padding</property>
             <child>
               <object class="GtkScale" id="leftbox_padding_scale">
                 <property name="adjustment">leftbox_padding_adjustment</property>

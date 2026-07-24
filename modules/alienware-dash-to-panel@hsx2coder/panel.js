@@ -52,6 +52,7 @@ import Pango from 'gi://Pango'
 import * as PopupMenu from 'resource:///org/gnome/shell/ui/popupMenu.js'
 import * as DateMenu from 'resource:///org/gnome/shell/ui/dateMenu.js'
 import * as Volume from 'resource:///org/gnome/shell/ui/status/volume.js'
+import { BluetoothStatus } from './bluetoothStatus.js'
 
 import * as Intellihide from './intellihide.js'
 import * as Transparency from './transparency.js'
@@ -139,6 +140,11 @@ export const Panel = GObject.registerClass(
         this._leftBox = this.panel._leftBox = Utils.createBoxLayout({
           name: 'panelLeft',
         })
+
+        // Bluetooth Status indicator
+        this._btStatus = new BluetoothStatus()
+        this._leftBox.add_child(this._btStatus)
+
         this._centerBox = this.panel._centerBox = Utils.createBoxLayout({
           name: 'panelCenter',
         })
@@ -182,6 +188,11 @@ export const Panel = GObject.registerClass(
         }
 
         panelBoxes.forEach((p) => (this[p] = Main.panel[p]))
+
+        // Bluetooth Status indicator for main panel
+        this._btStatus = new BluetoothStatus()
+        this._leftBox.add_child(this._btStatus)
+
         ;['activities', systemMenuInfo.name, 'dateMenu'].forEach((b) => {
           let container = this.statusArea[b].container
           let parent = container.get_parent()
@@ -416,6 +427,11 @@ export const Panel = GObject.registerClass(
 
     disable() {
       this.panelStyle.disable()
+
+      if (this._btStatus) {
+        this._btStatus.destroy()
+        this._btStatus = null
+      }
 
       this._timeoutsHandler.destroy()
       this._signalsHandler.destroy()
