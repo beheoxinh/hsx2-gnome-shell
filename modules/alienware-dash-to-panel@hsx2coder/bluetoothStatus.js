@@ -119,22 +119,15 @@ export const BluetoothStatus = GObject.registerClass(
       this._pollCount = 0
 
       try {
-        this._btIcon = new St.Icon({
-          icon_name: 'bluetooth-active-symbolic',
-          style_class: 'system-status-icon',
-          icon_size: 16,
-          y_align: Clutter.ActorAlign.CENTER,
-        })
-        this.add_child(this._btIcon)
-
         this._statusLabel = new St.Label({
           text: '\u00A0\u00A0',  // NBSPs — non-collapsible, ensures width > 0
           style_class: 'bt-status-label',
         })
-        this.add_child(this._statusLabel)
+        this._box.add_child(this._statusLabel)
 
         this._buildMenu()
         console.log(`${TAG} panel built`)
+        console.log(`${TAG} _box children=${this._box.get_children().length}`)
 
         // Rebuild menu items on open (using latest device data)
         this.menu.connect('open-state-changed', (menu, isOpen) => {
@@ -280,13 +273,9 @@ export const BluetoothStatus = GObject.registerClass(
             ? `${primary.name} +${this._devices.length - 1}`
             : primary.name
           this._statusLabel.text = labelText
-          this._btIcon.icon_name = primary.battery != null
-            ? batteryIcon(primary.battery)
-            : 'bluetooth-active-symbolic'
-          console.log(`${TAG} indicator: label="${labelText}" icon=${this._btIcon.icon_name}`)
+          console.log(`${TAG} indicator: label="${labelText}"`)
         } else {
           this._statusLabel.text = '\u00A0\u00A0'
-          this._btIcon.icon_name = 'bluetooth-active-symbolic'
           console.log(`${TAG} indicator: no devices, NBSP label`)
         }
       } catch (e) {
@@ -312,7 +301,6 @@ export const BluetoothStatus = GObject.registerClass(
           ` alloc=(${allocW},${allocH})` +
           ` children=${this.get_children().length}` +
           ` labelW=${this._statusLabel ? this._statusLabel.get_width() : -1}` +
-          ` iconW=${this._btIcon ? this._btIcon.get_width() : -1}` +
           (parent ? ` parentChildren=${parent.get_children().length}` : '')
         )
         // Also check leftBox visibility
