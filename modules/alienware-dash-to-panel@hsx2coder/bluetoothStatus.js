@@ -46,7 +46,21 @@ export const BluetoothStatus = GObject.registerClass(
         this._label = new St.Label({ text: 'BT' })
         this._myBox.add_child(this._label)
 
-        console.log(`${TAG} init done, myBox children=${this._myBox.get_children().length}`)
+        // Debug: verify we're in the panel tree
+        let parent = this.get_parent()
+        let me = Main.panel ? 'hasPanel' : 'noPanel'
+        console.log(`${TAG} init: parent=${!!parent} ${me} myBox ok label ok`)
+        if (parent) {
+          console.log(`${TAG} parent type=${parent.constructor.name} children=${parent.get_children().length}`)
+          let idx = parent.get_children().indexOf(this)
+          console.log(`${TAG} myIndex=${idx}`)
+        }
+        // Check leftBox directly
+        if (Main.panel) {
+          let lb = Main.panel._leftBox || Main.panel._leftBox
+          // In dash-to-panel, _leftBox might be on the panel or elsewhere
+          console.log(`${TAG} Main.panel._leftBox=${!!Main.panel._leftBox} children=${Main.panel._leftBox ? Main.panel._leftBox.get_children().length : -1}`)
+        }
 
         this._buildMenu()
 
@@ -118,8 +132,38 @@ export const BluetoothStatus = GObject.registerClass(
             return GLib.SOURCE_CONTINUE
           },
         )
+        // Debug timers: log widget state at 1s, 3s, 10s
+        this._debugTimer1 = GLib.timeout_add(GLib.PRIORITY_DEFAULT, 1000, () => {
+          this._debugWidget('t=1s')
+          return GLib.SOURCE_REMOVE
+        })
+        this._debugTimer3 = GLib.timeout_add(GLib.PRIORITY_DEFAULT, 3000, () => {
+          this._debugWidget('t=3s')
+          return GLib.SOURCE_REMOVE
+        })
+        this._debugTimer10 = GLib.timeout_add(GLib.PRIORITY_DEFAULT, 10000, () => {
+          this._debugWidget('t=10s')
+          return GLib.SOURCE_REMOVE
+        })
       } catch (e) {
         logError(e, `${TAG} connect failed`)
+      }
+    }
+
+    _debugWidget(label) {
+      try {
+        let parent = this.get_parent()
+        let [wMin, wNat] = this.get_preferred_width(-1)
+        let [hMin, hNat] = this.get_preferred_height(-1)
+        let aw = this.get_width()
+        let ah = this.get_height()
+        let mapped = this.mapped
+        let vis = this.visible
+        let pv = parent ? (parent.visible + '/' + parent.mapped) : '-'
+        console.log(`${TAG} ${label}: parent=${!!parent} vis=${vis} mapped=${mapped} pref=(${wNat},${hNat}) alloc=(${aw},${ah}) parentV=${pv} labelW=${this._label.get_width()} labelH=${this._label.get_height()}`
+        )
+      } catch (e) {
+        logError(e, `${TAG} debugWidget ${label}`)
       }
     }
 
@@ -227,6 +271,9 @@ export const BluetoothStatus = GObject.registerClass(
           GLib.source_remove(this._timerId)
           this._timerId = 0
         }
+        ;['_debugTimer1','_debugTimer3','_debugTimer10'].forEach(t => {
+          if (this[t]) { GLib.source_remove(this[t]); this[t] = 0 }
+        })
         this._omProxy = null
         this._devices = []
         this._connected = false
