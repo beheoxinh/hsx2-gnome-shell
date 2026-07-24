@@ -62,6 +62,16 @@ export const BluetoothStatus = GObject.registerClass(
           console.log(`${TAG} Main.panel._leftBox=${!!Main.panel._leftBox} children=${Main.panel._leftBox ? Main.panel._leftBox.get_children().length : -1}`)
         }
 
+        // Check parent visibility and show if needed
+        let walk = this.get_parent()
+        while (walk) {
+          if (!walk.visible) {
+            console.log(`${TAG} showing invisible parent: ${walk.constructor.name}`)
+            walk.show()
+          }
+          walk = walk.get_parent()
+        }
+
         this._buildMenu()
 
         this.menu.connect('open-state-changed', (menu, isOpen) => {
@@ -162,6 +172,18 @@ export const BluetoothStatus = GObject.registerClass(
         let pv = parent ? (parent.visible + '/' + parent.mapped) : '-'
         console.log(`${TAG} ${label}: parent=${!!parent} vis=${vis} mapped=${mapped} pref=(${wNat},${hNat}) alloc=(${aw},${ah}) parentV=${pv} labelW=${this._label.get_width()} labelH=${this._label.get_height()}`
         )
+        // **** ROOT CAUSE FIX ***
+        // parent (_leftBox) has visible=false. Force it visible.
+        if (parent && !parent.visible) {
+          console.log(`${TAG} *** parent invisible — showing it`)
+          parent.show()
+          // Also check if grandparent panel needs visibility
+          let gp = parent.get_parent()
+          if (gp && !gp.visible) {
+            console.log(`${TAG} *** grandparent invisible — showing it`)
+            gp.show()
+          }
+        }
       } catch (e) {
         logError(e, `${TAG} debugWidget ${label}`)
       }
