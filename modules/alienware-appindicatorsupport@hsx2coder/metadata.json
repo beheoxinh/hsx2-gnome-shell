@@ -1,8 +1,0 @@
-{
-  "description": "AppIndicator, KStatusNotifierItem and legacy tray icons support.",
-  "name": "AppIndicator Support",
-  "settings-schema": "org.gnome.shell.extensions.indicators-appindicator",
-  "shell-version": ["45", "46", "47", "48", "49", "50", "51", "52", "53", "54"],
-  "uuid": "alienware-appindicatorsupport@hsx2coder",
-  "version": 1
-}

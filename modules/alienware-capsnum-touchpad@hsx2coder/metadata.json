@@ -1,8 +1,0 @@
-{
-  "description": "Combined Caps/Num Lock indicator and Touchpad Switcher.",
-  "name": "Caps/Num and Touchpad",
-  "settings-schema": "org.gnome.shell.extensions.capsnum-touchpad",
-  "shell-version": ["45", "46", "47", "48", "49", "50", "51", "52", "53"],
-  "uuid": "alienware-capsnum-touchpad@hsx2coder",
-  "version": 1
-}
