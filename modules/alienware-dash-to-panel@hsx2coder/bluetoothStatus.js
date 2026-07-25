@@ -186,13 +186,15 @@ export const BluetoothStatus = GObject.registerClass(
       }
       const panel = global.dashToPanel.panels[0]
       if (!panel) return
-      const box = panel._rightBox
+      // Prefer _leftBox (LEFT_BOX element, labeled "Bluetooth Status" in settings)
+      // Fall back to _rightBox
+      const box = panel._leftBox || panel._rightBox
       if (!box) return
       const parent = this.get_parent()
       if (parent === box) return
       if (parent) parent.remove_child(this)
       box.add_child(this)
-      console.log(`${TAG} attached to DTP _rightBox`)
+      console.log(`${TAG} attached to DTP ${panel._leftBox ? '_leftBox' : '_rightBox'}`)
     }
 
     _poll() {

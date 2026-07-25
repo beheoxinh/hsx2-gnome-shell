@@ -141,13 +141,14 @@ export const Panel = GObject.registerClass(
           name: 'panelLeft',
         })
 
+        // Bluetooth Status indicator — add to _leftBox, which DTP positions
+        // as the LEFT_BOX element (labeled "Bluetooth Status" in settings)
+        this._btStatus = new BluetoothStatus()
+        this._leftBox.add_child(this._btStatus)
+
         this._rightBox = this.panel._rightBox = Utils.createBoxLayout({
           name: 'panelRight',
         })
-
-        // Bluetooth Status indicator — add to _rightBox, same pattern as MediaIndicator
-        this._btStatus = new BluetoothStatus()
-        this._rightBox.add_child(this._btStatus)
 
         this._centerBox = this.panel._centerBox = Utils.createBoxLayout({
           name: 'panelCenter',
