@@ -141,15 +141,16 @@ export const Panel = GObject.registerClass(
           name: 'panelLeft',
         })
 
+        this._rightBox = this.panel._rightBox = Utils.createBoxLayout({
+          name: 'panelRight',
+        })
+
         // Bluetooth Status indicator — add to _rightBox, same pattern as MediaIndicator
         this._btStatus = new BluetoothStatus()
         this._rightBox.add_child(this._btStatus)
 
         this._centerBox = this.panel._centerBox = Utils.createBoxLayout({
           name: 'panelCenter',
-        })
-        this._rightBox = this.panel._rightBox = Utils.createBoxLayout({
-          name: 'panelRight',
         })
 
         this.menuManager = this.panel.menuManager =
