@@ -25,10 +25,10 @@ const POLL_INTERVAL_SEC = 5
 
 function gv(v) {
   if (v === null || v === undefined) return v
-  // GVariant — use .unpack() to get JS native
-  if (typeof v.unpack === 'function') return v.unpack()
+  // GVariant leaf values (from deep_unpack) — .value is the JS getter
+  if (typeof v.value !== 'undefined') return v.value
   if (typeof v.deep_unpack === 'function') return v.deep_unpack()
-  return v.value !== undefined ? v.value : v
+  return v
 }
 
 export const BluetoothStatus = GObject.registerClass(
@@ -71,6 +71,10 @@ export const BluetoothStatus = GObject.registerClass(
         GLib.idle_add(GLib.PRIORITY_DEFAULT_IDLE, () => {
           try { this._connectAndPoll() } catch (e) {
             logError(e, `${TAG} init poll failed`)
+          }
+          // Attach to DTP panel _rightBox, same pattern as MediaIndicator
+          try { this._attachToDTP() } catch (e) {
+            logError(e, `${TAG} attach failed`)
           }
           return GLib.SOURCE_REMOVE
         })
@@ -168,6 +172,27 @@ export const BluetoothStatus = GObject.registerClass(
       } catch (e) {
         logError(e, `${TAG} debugWidget ${label}`)
       }
+    }
+
+    _attachToDTP() {
+      // Same pattern as MediaController._addToDTP()
+      if (!global.dashToPanel || !global.dashToPanel.panels || global.dashToPanel.panels.length === 0) {
+        // Panels not ready yet — listen for signal
+        let id = global.dashToPanel.connect('panels-created', () => {
+          global.dashToPanel.disconnect(id)
+          this._attachToDTP()
+        })
+        return
+      }
+      const panel = global.dashToPanel.panels[0]
+      if (!panel) return
+      const box = panel._rightBox
+      if (!box) return
+      const parent = this.get_parent()
+      if (parent === box) return
+      if (parent) parent.remove_child(this)
+      box.add_child(this)
+      console.log(`${TAG} attached to DTP _rightBox`)
     }
 
     _poll() {
