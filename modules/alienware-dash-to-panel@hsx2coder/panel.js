@@ -190,9 +190,15 @@ export const Panel = GObject.registerClass(
 
         panelBoxes.forEach((p) => (this[p] = Main.panel[p]))
 
-        // Bluetooth Status indicator — add to _rightBox, same pattern as MediaIndicator
+        // Bluetooth Status indicator — add to _rightBox (same pattern as MediaIndicator),
+        // or fallback to panel directly if _rightBox doesn't exist
         this._btStatus = new BluetoothStatus()
-        this._rightBox.add_child(this._btStatus)
+        if (this._rightBox) {
+          this._rightBox.add_child(this._btStatus)
+        } else {
+          console.log('[BT] _rightBox not available, adding to panel directly')
+          this.panel.add_child(this._btStatus)
+        }
 
         ;['activities', systemMenuInfo.name, 'dateMenu'].forEach((b) => {
           let container = this.statusArea[b].container
