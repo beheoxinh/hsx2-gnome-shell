@@ -23,7 +23,13 @@ const BATTERY_IFACE = 'org.bluez.Battery1'
 const CALL_TIMEOUT = 5000
 const POLL_INTERVAL_SEC = 5
 
-function gv(str) { return str && str.value !== undefined ? str.value : str }
+function gv(v) {
+  if (v === null || v === undefined) return v
+  // GVariant — use .unpack() to get JS native
+  if (typeof v.unpack === 'function') return v.unpack()
+  if (typeof v.deep_unpack === 'function') return v.deep_unpack()
+  return v.value !== undefined ? v.value : v
+}
 
 export const BluetoothStatus = GObject.registerClass(
   class BluetoothStatus extends PanelMenu.Button {
@@ -179,13 +185,21 @@ export const BluetoothStatus = GObject.registerClass(
 
       let objects
       try {
-        [objects] = result.deep_unpack()
+        let unpacked = result.deep_unpack()
+        // deep_unpack can return a single object or an array wrapping one
+        objects = (unpacked && unpacked[0] && typeof unpacked[0] === 'object')
+          ? unpacked[0]
+          : unpacked
       } catch (e) {
         logError(e, `${TAG} deep_unpack failed`)
         return
       }
-      if (!objects || typeof objects !== 'object') return
+      if (!objects || typeof objects !== 'object') {
+        console.log(`${TAG} poll: objects=${typeof objects} keys=${objects ? Object.keys(objects).length : 0}`)
+        return
+      }
 
+      console.log(`${TAG} poll: found ${Object.keys(objects).length} object paths`)
       let devices = []
       for (let [objPath, interfaces] of Object.entries(objects)) {
         try {
@@ -193,9 +207,9 @@ export const BluetoothStatus = GObject.registerClass(
           if (!dev) continue
           if (gv(dev.Connected) !== true) continue
           let battery = null
-          if (interfaces[BATTERY_IFACE] && interfaces[BATTERY_IFACE].Percentage != null) {
-            let pct = interfaces[BATTERY_IFACE].Percentage
-            battery = pct && pct.value !== undefined ? pct.value : pct
+          if (interfaces[BATTERY_IFACE]) {
+            let pct = gv(interfaces[BATTERY_IFACE].Percentage)
+            if (pct != null) battery = pct
           }
           devices.push({
             name: gv(dev.Name) || gv(dev.Alias) || 'Unknown',
