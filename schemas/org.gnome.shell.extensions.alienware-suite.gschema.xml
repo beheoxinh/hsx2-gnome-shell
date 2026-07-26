@@ -41,9 +41,14 @@
       <default>true</default>
       <summary>Enable Gnome Customizer Manager module</summary>
     </key>
-      <key name="enable-topbar-panel-controls" type="b">
+    <key name="enable-topbar-panel-controls" type="b">
       <default>true</default>
       <summary>Enable Topbar Panel Controls module</summary>
+    </key>
+    <key name="bt-panel-width" type="i">
+      <default>150</default>
+      <summary>Bluetooth Status panel widget width</summary>
+      <description>Width of the Bluetooth Status indicator text area on the panel, in pixels.</description>
     </key>
   </schema>
 </schemalist>
