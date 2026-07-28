@@ -4,7 +4,6 @@ import GObject from 'gi://GObject'
 import Soup from 'gi://Soup'
 import St from 'gi://St'
 
-import * as PanelMenu from 'resource:///org/gnome/shell/ui/panelMenu.js'
 import * as PopupMenu from 'resource:///org/gnome/shell/ui/popupMenu.js'
 import * as Main from 'resource:///org/gnome/shell/ui/main.js'
 const TAG = '[WX]'
@@ -59,7 +58,6 @@ export const WeatherStatus = GObject.registerClass(
     _init() {
       super._init({ reactive: true, track_hover: true })
       this.add_style_class_name('panel-button')
-      this.add_style_class_name('panel-button')
 
       this._weather = null
       this._lat = null
@@ -99,7 +97,7 @@ export const WeatherStatus = GObject.registerClass(
         this._execQuery()
 
         GLib.idle_add(GLib.PRIORITY_DEFAULT_IDLE, () => {
-          this.menu = new PopupMenu.PopupMenu(this, 0.0, St.Side.TOP)
+          this.menu = new PopupMenu.PopupMenu(this, 0.0, St.Side.BOTTOM)
           try { Main.uiGroup.add_child(this.menu.actor); this.menu.actor.hide() } catch (e) {}
           this._localMgr = new PopupMenu.PopupMenuManager(this)
           this._localMgr.addMenu(this.menu)
@@ -349,6 +347,20 @@ export const WeatherStatus = GObject.registerClass(
       return item
     }
 
+    _getPanelArrowSide() {
+      try {
+        const p = global.dashToPanel?.panels?.[0]
+        if (p?.getPosition) {
+          const pos = p.getPosition()
+          if (pos === St.Side.TOP) return St.Side.BOTTOM
+          if (pos === St.Side.BOTTOM) return St.Side.TOP
+          if (pos === St.Side.LEFT) return St.Side.RIGHT
+          if (pos === St.Side.RIGHT) return St.Side.LEFT
+        }
+      } catch (_e) {}
+      return St.Side.BOTTOM
+    }
+
     _attachToDTP() {
       if (this.get_parent()) return
       if (!global.dashToPanel || !global.dashToPanel.panels || global.dashToPanel.panels.length === 0) {
@@ -368,6 +380,13 @@ export const WeatherStatus = GObject.registerClass(
       if (parent && parent === box) return
       if (parent) parent.remove_child(this)
       box.add_child(this)
+      // Update menu arrow side to match panel position
+      const arrowSide = this._getPanelArrowSide()
+      if (this.menu?.actor?._delegate) {
+        const bp = this.menu.actor
+        if (typeof bp.updateArrowSide === 'function')
+          bp.updateArrowSide(arrowSide)
+      }
     }
 
     destroy() {
