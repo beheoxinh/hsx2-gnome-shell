@@ -293,27 +293,18 @@ export const WeatherStatus = GObject.registerClass(
       let fNow = this._weather.feels != null
         ? ` (${this._weather.feels}\u00B0)`
         : ''
-      this._forecastSection.addMenuItem(this._mkRow(
-        'Now',
-        this._weather.emoji,
-        `${this._weather.temp}\u00B0${fNow}`,
-        this._weather.desc,
-        true,
-      ))
-      this._forecastSection.addMenuItem(
-        new PopupMenu.PopupSeparatorMenuItem(),
-      )
 
-      // 3 hours before, 6 hours after
+      // 3 hours before, 6 hours after \u2014 include current hour as "Now" inline
       let rangeStart = currentHour - 3
       let rangeEnd = currentHour + 6
       for (let h of p) {
         let hr = parseInt(h.time.split(':')[0], 10)
-        if (hr === currentHour) continue
         if (hr < rangeStart || hr > rangeEnd) continue
-        let fH = h.feels != null ? ` (feels ${h.feels}\u00B0)` : ''
+        let isNow = hr === currentHour
+        let label = isNow ? 'Now' : h.time
+        let fH = isNow ? fNow : (h.feels != null ? ` (feels ${h.feels}\u00B0)` : '')
         this._forecastSection.addMenuItem(
-          this._mkRow(h.time, h.emoji, `${h.temp}\u00B0${fH}`, h.desc, false),
+          this._mkRow(label, h.emoji, `${h.temp}\u00B0${fH}`, h.desc, isNow),
         )
       }
     }
@@ -323,7 +314,7 @@ export const WeatherStatus = GObject.registerClass(
       let row = new St.BoxLayout({ x_expand: true })
 
       let timeStyle = isNow
-        ? 'padding-right: 8px; font-weight: bold; min-width: 36px;'
+        ? 'padding-right: 8px; font-weight: bold; font-size: 1.2em; min-width: 36px;'
         : 'padding-right: 8px; min-width: 36px;'
       let timeLabel = new St.Label({ text: time, style: timeStyle })
       row.add_child(timeLabel)
