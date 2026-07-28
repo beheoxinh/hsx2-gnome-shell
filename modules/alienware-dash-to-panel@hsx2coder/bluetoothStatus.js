@@ -1,20 +1,14 @@
-/*
- * Bluetooth Status indicator for Dash-to-Panel
- * Uses polling (5s) via BlueZ GetManagedObjects.
- * Shows all connected devices with scrolling roller animation.
- * Configurable width via alienware-suite bt-panel-width setting.
- */
-
-import Clutter from 'gi://Clutter'
 import Gio from 'gi://Gio'
 import GLib from 'gi://GLib'
 import GObject from 'gi://GObject'
 import Pango from 'gi://Pango'
 import St from 'gi://St'
 
-import * as Main from 'resource:///org/gnome/shell/ui/main.js'
 import * as PanelMenu from 'resource:///org/gnome/shell/ui/panelMenu.js'
 import * as PopupMenu from 'resource:///org/gnome/shell/ui/popupMenu.js'
+import * as Main from 'resource:///org/gnome/shell/ui/main.js'
+
+import { SETTINGS } from './extension.js'
 
 const TAG = '[BT]'
 const BLUEZ_SERVICE = 'org.bluez'
@@ -23,9 +17,36 @@ const DBUS_OM_IFACE = 'org.freedesktop.DBus.ObjectManager'
 const DEVICE_IFACE = 'org.bluez.Device1'
 const BATTERY_IFACE = 'org.bluez.Battery1'
 const CALL_TIMEOUT = 5000
-const POLL_INTERVAL_SEC = 5
-const ROLLER_INTERVAL_MS = 3000
-const ROLLER_ANIMATION_MS = 400
+const POLL_INTERVAL_SEC = 3
+const PANEL_WIDTH = 200
+
+function _deviceIcon(dev) {
+  let icon = gv(dev.Icon) || ''
+  let cls = gv(dev.Class) || 0
+  let major = (cls >> 8) & 0x1f
+
+  if (icon.includes('headset') || icon.includes('headphone') || icon.includes('audio-headset'))
+    return '\uD83C\uDFA7'
+  if (icon.includes('audio') || icon.includes('speaker') || major === 4)
+    return '\uD83D\uDD0A'
+  if (icon.includes('input-keyboard') || icon.includes('keyboard'))
+    return '\u2328\uFE0F'
+  if (icon.includes('input-mouse') || icon.includes('mouse'))
+    return '\uD83D\uDDB1\uFE0F'
+  if (major === 5) {
+    let minor = (cls >> 2) & 0x3f
+    if (minor === 1 || minor === 2) return '\uD83C\uDFAE'
+    return '\u2328\uFE0F'
+  }
+  return '\uD83D\uDCF6'
+}
+
+function _batteryColor(pct) {
+  if (pct >= 70) return '#4caf50'
+  if (pct >= 40) return '#ff9800'
+  if (pct >= 20) return '#ff5722'
+  return '#f44336'
+}
 
 function gv(v) {
   if (v === null || v === undefined) return v
@@ -35,65 +56,92 @@ function gv(v) {
 }
 
 export const BluetoothStatus = GObject.registerClass(
-  class BluetoothStatus extends PanelMenu.Button {
+  class BluetoothStatus extends St.Button {
+    vfunc_button_press_event(event) {
+      if (this.menu) {
+        if (this.menu.isOpen) this.menu.close()
+        else this.menu.open()
+      }
+      return true
+    }
+
     _init() {
-      super._init(0.0, 'Bluetooth Status')
+      super._init({ reactive: true, track_hover: true })
+      this.add_style_class_name('panel-button')
+      this.add_style_class_name('panel-button')
 
       this._devices = []
       this._omProxy = null
       this._timerId = 0
-      this._connected = false
       this._rollerIndex = 0
       this._rollerTimerId = 0
       this._animId = 0
-      this._lineHeight = 20
-
-      // Read configurable panel width from alienware-suite settings
-      this._panelWidth = 150
-      try {
-        let s = Gio.Settings.new('org.gnome.shell.extensions.alienware-suite')
-        this._panelWidth = s.get_int('bt-panel-width') || 150
-        s.run_dispose()
-      } catch (_e) {
-        // Use default
-      }
+      this._currentDevice = null
+      this._signals = []
 
       try {
         this._myBox = new St.BoxLayout({
           style_class: 'panel-status-menu-box',
+          y_expand: true,
         })
         this.add_child(this._myBox)
 
-        // ScrollView clips content to its allocation — perfect for roller
-        this._scrollView = new St.ScrollView({
-          hscrollbar_policy: St.PolicyType.NEVER,
-          vscrollbar_policy: St.PolicyType.NEVER,
-          style: `width: ${this._panelWidth}px;`,
+        this._btIndicator = new St.BoxLayout({
+          y_expand: true,
         })
-        this._scrollView.y_fill = true
-        this._scrollView.y_expand = true
-        this._myBox.add_child(this._scrollView)
+        this._myBox.add_child(this._btIndicator)
 
-        // Vertical box of device labels
-        this._rollerBox = new St.BoxLayout({
-          vertical: true,
+        this._btIconLabel = new St.Icon({
+          icon_name: 'bluetooth-active-symbolic',
+          style_class: 'system-status-icon',
+          icon_size: 16,
+        })
+        this._btIndicator.add_child(this._btIconLabel)
+
+        this._btCountLabel = new St.Label({ text: '' })
+        this._btIndicator.add_child(this._btCountLabel)
+
+        this._row = new St.BoxLayout({
           x_expand: true,
+          y_expand: true,
+          style: `width: ${PANEL_WIDTH}px;`,
         })
-        this._scrollView.add_child(this._rollerBox)
+        this._myBox.add_child(this._row)
 
-        this._showStaticLabel('BT\u00A0')
+        this._iconLabel = new St.Label({ text: '\uD83D\uDCF6' })
+        this._row.add_child(this._iconLabel)
 
-        this._buildMenu()
+        this._battLabel = new St.Label({ text: '' })
+        this._row.add_child(this._battLabel)
 
-        this.menu.connect('open-state-changed', (menu, isOpen) => {
-          if (isOpen) {
-            try { this._rebuildMenuItems() } catch (e) {
-              logError(e, `${TAG} menu rebuild failed`)
-            }
-          }
-        })
+        this._nameLabel = new St.Label({ text: 'BT', x_expand: true })
+        this._nameLabel.clutter_text.ellipsize = Pango.EllipsizeMode.END
+        this._row.add_child(this._nameLabel)
+
+        this._setStaticPadding()
+
       } catch (e) {
         logError(e, `${TAG} init failed`)
+      }
+
+      try {
+        GLib.idle_add(GLib.PRIORITY_DEFAULT_IDLE, () => {
+          this.menu = new PopupMenu.PopupMenu(this, 0.0, St.Side.TOP)
+          try { Main.uiGroup.add_child(this.menu.actor); this.menu.actor.hide() } catch (e) {}
+          this._localMgr = new PopupMenu.PopupMenuManager(this)
+          this._localMgr.addMenu(this.menu)
+          this._buildMenu()
+          this.menu.connect('open-state-changed', (_menu, isOpen) => {
+            if (isOpen) {
+              try { this._rebuildMenuItems() } catch (e) {
+                logError(e, `${TAG} menu rebuild failed`)
+              }
+            }
+          })
+          return GLib.SOURCE_REMOVE
+        })
+      } catch (e) {
+        logError(e, `${TAG} menu init failed`)
       }
 
       try {
@@ -111,16 +159,13 @@ export const BluetoothStatus = GObject.registerClass(
       }
     }
 
-    _showStaticLabel(text) {
-      this._rollerBox.destroy_all_children()
-      this._rollerBox.add_child(new St.Label({ text }))
-    }
-
     _buildMenu() {
       try {
-        this.menu.addMenuItem(new PopupMenu.PopupMenuItem('Bluetooth Status', {
+        let titleItem = new PopupMenu.PopupMenuItem('Connected Bluetooth Devices', {
           reactive: false,
-        }))
+        })
+        if (titleItem.label) titleItem.label.x_align = 2
+        this.menu.addMenuItem(titleItem)
         this.menu.addMenuItem(new PopupMenu.PopupSeparatorMenuItem())
         this._deviceSection = new PopupMenu.PopupMenuSection()
         this.menu.addMenuItem(this._deviceSection)
@@ -128,13 +173,13 @@ export const BluetoothStatus = GObject.registerClass(
           new PopupMenu.PopupMenuItem('Loading...', { reactive: false }),
         )
         this.menu.addMenuItem(new PopupMenu.PopupSeparatorMenuItem())
-
         let settingsItem = new PopupMenu.PopupMenuItem('Bluetooth Settings')
+        if (settingsItem.label) settingsItem.label.x_align = 2
         settingsItem.connect('activate', () => {
           try {
             GLib.spawn_command_line_async('gnome-control-center bluetooth')
           } catch (e) {
-            logError(e, `${TAG} BT settings`)
+            logError(e, `${TAG} settings`)
           }
         })
         this.menu.addMenuItem(settingsItem)
@@ -149,7 +194,6 @@ export const BluetoothStatus = GObject.registerClass(
           Gio.BusType.SYSTEM, Gio.DBusProxyFlags.NONE, null,
           BLUEZ_SERVICE, BLUEZ_ROOT, DBUS_OM_IFACE, null,
         )
-        this._connected = true
         this._poll()
         this._timerId = GLib.timeout_add_seconds(
           GLib.PRIORITY_DEFAULT, POLL_INTERVAL_SEC, () => {
@@ -165,15 +209,18 @@ export const BluetoothStatus = GObject.registerClass(
     }
 
     _attachToDTP() {
+      if (this.get_parent()) return
       if (
         !global.dashToPanel ||
         !global.dashToPanel.panels ||
         global.dashToPanel.panels.length === 0
       ) {
-        let id = global.dashToPanel.connect('panels-created', () => {
-          global.dashToPanel.disconnect(id)
-          this._attachToDTP()
-        })
+        if (global.dashToPanel) {
+          let id = global.dashToPanel.connect('panels-created', () => {
+            global.dashToPanel.disconnect(id)
+            this._attachToDTP()
+          })
+        }
         return
       }
       const panel = global.dashToPanel.panels[0]
@@ -181,7 +228,7 @@ export const BluetoothStatus = GObject.registerClass(
       const box = panel._leftBox || panel._rightBox
       if (!box) return
       const parent = this.get_parent()
-      if (parent === box) return
+      if (parent && parent === box) return
       if (parent) parent.remove_child(this)
       box.add_child(this)
     }
@@ -193,9 +240,7 @@ export const BluetoothStatus = GObject.registerClass(
           'GetManagedObjects', null,
           Gio.DBusCallFlags.NONE, CALL_TIMEOUT, null,
         )
-      } catch (_e) {
-        return
-      }
+      } catch (_e) { return }
       if (!result) return
 
       let objects
@@ -217,14 +262,13 @@ export const BluetoothStatus = GObject.registerClass(
           let dev = interfaces[DEVICE_IFACE]
           if (!dev) continue
           if (gv(dev.Connected) !== true) continue
-          let battery = null
-          if (interfaces[BATTERY_IFACE]) {
-            let pct = gv(interfaces[BATTERY_IFACE].Percentage)
-            if (pct != null) battery = pct
-          }
+          let icon = _deviceIcon(dev)
+          let batteryIface = interfaces[BATTERY_IFACE]
+          let batteryPct = batteryIface ? gv(batteryIface.Percentage) : null
           devices.push({
             name: gv(dev.Name) || gv(dev.Alias) || 'Unknown',
-            battery,
+            battery: batteryPct,
+            icon,
             objPath,
           })
         } catch (e) {
@@ -236,90 +280,84 @@ export const BluetoothStatus = GObject.registerClass(
       this._updateUI()
     }
 
-    /* ========== Roller UI ========== */
+    _getHiddenDevices() {
+      try {
+        if (!SETTINGS) return []
+        return SETTINGS.get_strv('bt-hidden-devices') || []
+      } catch (e) {
+        return []
+      }
+    }
+
+    _getVisibleDevices() {
+      let hidden = this._getHiddenDevices()
+      return this._devices.filter(d =>
+        d.battery != null && hidden.indexOf(d.objPath) === -1
+      )
+    }
+
+    _setStaticPadding() {
+      this._btCountLabel.set_style('padding: 0 4px 0 2px; font-size: 9px;')
+      this._btCountLabel.y_align = 2
+      this._battLabel.set_style('padding: 0 4px;')
+      this._battLabel.y_align = 2
+      this._iconLabel.set_style('padding: 0 4px 0 0;')
+      this._iconLabel.y_align = 2
+      this._nameLabel.set_style('padding: 0;')
+      this._nameLabel.y_align = 2
+    }
+
+    _setDisplay(d) {
+      this._currentDevice = d
+      this._btCountLabel.set_text(`${this._getVisibleDevices().length}`)
+      if (!d) {
+        this._iconLabel.set_text('')
+        this._battLabel.set_text('')
+        this._battLabel.set_style(`padding: 0 4px;`)
+        this._nameLabel.set_text('')
+        return
+      }
+      this._iconLabel.set_text(d.icon)
+      this._battLabel.set_text(`${d.battery}%`)
+      this._battLabel.set_style(`padding: 0 4px; color: ${_batteryColor(d.battery)};`)
+      this._nameLabel.set_text(d.name)
+    }
 
     _updateUI() {
       try {
-        this._stopRoller()
         this._cancelAnim()
+        this._row.translation_y = 0
 
-        this._rollerBox.destroy_all_children()
+        let visible = this._getVisibleDevices()
 
-        if (this._devices.length === 0) {
-          this._showStaticLabel('BT\u00A0')
+        if (visible.length === 0) {
+          this._stopRoller()
+          this._setDisplay(null)
           return
         }
 
-        // Apply panel width
-        this._scrollView.set_style(`width: ${this._panelWidth}px;`)
+        if (this._rollerIndex >= visible.length)
+          this._rollerIndex = 0
 
-        // Add labels for all devices
-        for (let d of this._devices) {
-          let text =
-            d.battery != null ? `${d.name}  ${d.battery}%` : d.name
-          let label = new St.Label({ text, x_expand: true })
-          label.clutter_text.ellipsize = Pango.EllipsizeMode.END
-          this._rollerBox.add_child(label)
+        this._setDisplay(visible[this._rollerIndex])
+
+        if (visible.length > 1) {
+          if (!this._rollerTimerId) this._startRoller()
+        } else {
+          this._stopRoller()
         }
-
-        // Duplicate first label at end for seamless wrap-around
-        if (this._devices.length > 1) {
-          let first = this._devices[0]
-          let firstText =
-            first.battery != null
-              ? `${first.name}  ${first.battery}%`
-              : first.name
-          let clone = new St.Label({ text: firstText, x_expand: true })
-          clone.clutter_text.ellipsize = Pango.EllipsizeMode.END
-          this._rollerBox.add_child(clone)
-        }
-
-        // Measure line height from first label
-        this._measureLineHeight()
-
-        // Reset scroll position
-        let adj = this._getAdjustment()
-        if (adj) adj.set_value(0)
-
-        this._rollerIndex = 0
-
-        // Start roller if more than 1 device
-        if (this._devices.length > 1) this._startRoller()
       } catch (e) {
         logError(e, `${TAG} update UI failed`)
       }
     }
 
-    _measureLineHeight() {
-      try {
-        let first = this._rollerBox.get_first_child()
-        if (first) {
-          let [, nat] = first.get_preferred_height(-1)
-          if (nat > 0) {
-            this._lineHeight = nat
-            return
-          }
-        }
-      } catch (_e) {
-        // fallback
-      }
-      this._lineHeight = 20
-    }
-
-    _getAdjustment() {
-      try {
-        return this._scrollView.vscroll.adjustment
-      } catch (_e) {
-        return null
-      }
-    }
-
     _startRoller() {
       this._stopRoller()
-      this._rollerTimerId = GLib.timeout_add(
-        GLib.PRIORITY_DEFAULT,
-        ROLLER_INTERVAL_MS,
-        () => {
+      let intervalSec = SETTINGS ? SETTINGS.get_int('bt-roller-interval') : 30
+      if (intervalSec < 10) intervalSec = 10
+      if (intervalSec > 300) intervalSec = 300
+      this._rollerTimerId = GLib.timeout_add_seconds(
+        GLib.PRIORITY_DEFAULT, intervalSec, () => {
           this._advanceRoller()
           return GLib.SOURCE_CONTINUE
         },
@@ -341,129 +379,84 @@ export const BluetoothStatus = GObject.registerClass(
     }
 
     _advanceRoller() {
-      let n = this._devices.length
-      if (n < 2) return
-
-      // If at ghost-duplicate position, snap back to start
-      if (this._rollerIndex >= n) {
-        this._rollerIndex = 0
-        let adj = this._getAdjustment()
-        if (adj) adj.set_value(0)
-        return
-      }
-
-      // Next device
-      this._rollerIndex++
-      let targetY = this._rollerIndex * this._lineHeight
-      this._animateScroll(targetY)
+      let visible = this._getVisibleDevices()
+      if (visible.length < 2) return
+      this._rollerIndex = (this._rollerIndex + 1) % visible.length
+      this._setDisplay(visible[this._rollerIndex])
     }
-
-    _animateScroll(targetY) {
-      let adj = this._getAdjustment()
-      if (!adj) return
-
-      this._cancelAnim()
-
-      let startVal = adj.get_value()
-      let diff = targetY - startVal
-      if (Math.abs(diff) < 1) return
-
-      let startTime = GLib.get_monotonic_time()
-      let durationUs = ROLLER_ANIMATION_MS * 1000
-
-      this._animId = GLib.timeout_add(
-        GLib.PRIORITY_DEFAULT,
-        16,
-        () => {
-          let elapsed = GLib.get_monotonic_time() - startTime
-          let frac = Math.min(elapsed / durationUs, 1)
-          // ease-out-cubic
-          let t = frac
-          let eased = 1 - (1 - t) * (1 - t) * (1 - t)
-          adj.set_value(startVal + diff * eased)
-
-          if (frac >= 1) {
-            this._animId = 0
-            return GLib.SOURCE_REMOVE
-          }
-          return GLib.SOURCE_CONTINUE
-        },
-      )
-    }
-
-    /* ========== Menu ========== */
 
     _rebuildMenuItems() {
       this._deviceSection.removeAll()
+      let visible = this._getVisibleDevices()
       if (this._devices.length === 0) {
         this._deviceSection.addMenuItem(
-          new PopupMenu.PopupMenuItem('No connected devices', {
-            reactive: false,
-          }),
+          new PopupMenu.PopupMenuItem('No connected devices', { reactive: false }),
         )
         return
       }
-      let sorted = [...this._devices].sort((a, b) =>
-        a.name.localeCompare(b.name),
-      )
-      for (let device of sorted) {
-        let item = new PopupMenu.PopupMenuItem('', { reactive: true })
-        let box = new St.BoxLayout({
-          style_class: 'bt-menu-device-box',
-          x_expand: true,
+      let hidden = this._getHiddenDevices()
+      for (let device of this._devices) {
+        let item = new PopupMenu.PopupMenuItem('', { reactive: false })
+        let box = new St.BoxLayout({ x_expand: true })
+        let isHidden = hidden.indexOf(device.objPath) !== -1
+
+        let checkBtn = new St.Button({
+          style: 'padding: 0 6px 0 0;',
+          reactive: true,
+          x_align: 0,
         })
+        let checkLabel = new St.Label({
+          text: isHidden ? '\u2610' : '\u2611',
+          style: isHidden ? 'color: #888;' : 'color: #4caf50;',
+        })
+        checkBtn.add_child(checkLabel)
+        checkBtn.connect('button-press-event', () => {
+          try {
+            let h = SETTINGS.get_strv('bt-hidden-devices') || []
+            let idx = h.indexOf(device.objPath)
+            if (idx === -1) {
+              h.push(device.objPath)
+            } else {
+              h.splice(idx, 1)
+            }
+            SETTINGS.set_strv('bt-hidden-devices', h)
+            this._rollerIndex = 0
+            this._updateUI()
+            GLib.idle_add(GLib.PRIORITY_DEFAULT_IDLE, () => {
+              try { this._rebuildMenuItems() } catch(e) {}
+              return GLib.SOURCE_REMOVE
+            })
+          } catch (e) {
+            logError(e, `${TAG} toggle hide failed`)
+          }
+          return true
+        })
+        box.add_child(checkBtn)
+
+        box.add_child(new St.Label({
+          text: `${device.icon} `,
+          style: 'padding-right: 2px;',
+        }))
         box.add_child(new St.Label({ text: device.name, x_expand: true }))
         if (device.battery != null) {
-          box.add_child(new St.Label({ text: `${device.battery}%` }))
+          box.add_child(new St.Label({
+            text: `${device.battery}%`,
+            style: `padding-left: 6px; color: ${_batteryColor(device.battery)};`,
+          }))
         }
         item.add_child(box)
-        item.connect('activate', () => this._toggleConnection(device))
         this._deviceSection.addMenuItem(item)
       }
     }
 
-    _toggleConnection(device) {
-      try {
-        let proxy = Gio.DBusProxy.new_for_bus_sync(
-          Gio.BusType.SYSTEM,
-          Gio.DBusProxyFlags.NO_AUTO_START,
-          null,
-          BLUEZ_SERVICE,
-          device.objPath,
-          DEVICE_IFACE,
-          null,
-        )
-        proxy.call_sync(
-          'Disconnect',
-          null,
-          Gio.DBusCallFlags.NONE,
-          CALL_TIMEOUT,
-          null,
-        )
-      } catch (e) {
-        logError(e, `${TAG} disconnect failed`)
-      }
-    }
-
     destroy() {
-      try {
-        this._stopRoller()
-        this._cancelAnim()
-        if (this._timerId) {
-          GLib.source_remove(this._timerId)
-          this._timerId = 0
-        }
-        this._omProxy = null
-        this._devices = []
-        this._connected = false
-      } catch (e) {
-        logError(e, `${TAG} destroy failed`)
-      }
-      try {
-        super.destroy()
-      } catch (e) {
-        logError(e, `${TAG} super.destroy failed`)
-      }
+      this._stopRoller()
+      this._cancelAnim()
+      if (this._timerId) { try { GLib.source_remove(this._timerId); this._timerId = 0 } catch (e) {} }
+      if (this._rollerTimerId) { try { GLib.source_remove(this._rollerTimerId); this._rollerTimerId = 0 } catch (e) {} }
+      if (this._animId) { try { GLib.source_remove(this._animId); this._animId = 0 } catch (e) {} }
+      if (this.menu) { try { this.menu.destroy(); this.menu = null } catch (e) {} }
+      super.destroy()
     }
   },
 )
