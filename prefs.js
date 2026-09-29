@@ -1,6 +1,5 @@
 import Adw from 'gi://Adw';
 import Gio from 'gi://Gio';
-import GObject from 'gi://GObject';
 import Gtk from 'gi://Gtk';
 
 import {ExtensionPreferences} from 'resource:///org/gnome/Shell/Extensions/js/extensions/prefs.js';
@@ -15,7 +14,7 @@ import AdvancedAltTabPrefs from './modules/alienware-advanced-alt-tab@hsx2coder/
 import NotificationConfiguratorPrefs from './modules/alienware-notification-configurator@hsx2coder/prefs.js';
 import GnomeCustomizerManagerPrefs from './modules/alienware-gnome-customizer-manager@hsx2coder/prefs.js';
 
-import {MODULES, buildSubMetadata, moduleEntryURL} from './modules.js';
+import {MODULES, buildSubMetadata} from './modules.js';
 
 const PREFS_REGISTRY = {
     'alienware-advanced-media-controller@hsx2coder': AdvancedMediaControllerPrefs,
@@ -158,7 +157,6 @@ export default class AlienwareSuitePreferences extends ExtensionPreferences {
 
         subWindow.present();
     }
-
 
     _notify(parent, message) {
         const dialog = new Adw.MessageDialog({

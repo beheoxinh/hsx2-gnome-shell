@@ -5,8 +5,6 @@
  * the dash-to-panel preferences window.
  */
 
-import Gtk from 'gi://Gtk';
-
 import {ExtensionPreferences} from 'resource:///org/gnome/Shell/Extensions/js/extensions/prefs.js';
 
 import {buildGeneralPage} from './ui/generalPage.js';

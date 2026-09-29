@@ -1,6 +1,5 @@
 import Gio from 'gi://Gio';
 import St from 'gi://St';
-import GLib from 'gi://GLib';
 import {Extension} from 'resource:///org/gnome/shell/extensions/extension.js';
 
 import AdvancedMediaControllerExtension from './modules/alienware-advanced-media-controller@hsx2coder/extension.js';
@@ -103,8 +102,6 @@ export default class AlienwareSuiteExtension extends Extension {
         }
         log(`[alienware-suite] ${files.length} stylesheet(s) registered`);
     }
-
-
 
     _reactToToggle(def) {
         const wantOn = this._suiteSettings.get_boolean(def.enableKey);

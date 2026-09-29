@@ -2,7 +2,6 @@ import GObject from 'gi://GObject';
 import Gtk from 'gi://Gtk';
 import GLib from 'gi://GLib';
 import Gio from 'gi://Gio';
-import Gdk from 'gi://Gdk'
 import Adw from 'gi://Adw';
 import { gettext } from 'resource:///org/gnome/Shell/Extensions/js/extensions/prefs.js';
 

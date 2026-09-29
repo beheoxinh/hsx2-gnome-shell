@@ -1,4 +1,3 @@
-import Gio from 'gi://Gio';
 
 export const SUITE_UUID = 'alienware-hsx2coder-gnome@hsx2coder.github.com';
 export const SUITE_SCHEMA = 'org.gnome.shell.extensions.alienware-suite';
