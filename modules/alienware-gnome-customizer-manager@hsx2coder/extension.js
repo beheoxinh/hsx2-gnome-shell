@@ -89,7 +89,7 @@ export default class GnomeCustomizerManagerExtension extends Extension {
         this.#manager = new CustomizerManager(settings, this.#api);
         this.#manager.start();
 
-        console.log('[gnome-customizer-manager] API engine active');
+        log('[gnome-customizer-manager] API engine active');
     }
 
     disable() {
@@ -119,7 +119,7 @@ class CustomizerManager {
     }
 
     start() {
-        console.log('[GCM] start(), api?', !!this.#api);
+        log('[GCM] start(), api?', !!this.#api);
         this.#registerSignals();
         this.#applyAll();
         this.#screenshotBox?.enable();

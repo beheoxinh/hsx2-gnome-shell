@@ -19,7 +19,7 @@ export class WorkspaceControl {
     }
 
     start() {
-        console.log('[workspace-control] start()');
+        log('[workspace-control] start()');
         this.#jpApi = this.#hostApi;
         this.#registerSignals();
         this.#applyAll();
@@ -105,7 +105,7 @@ export class WorkspaceControl {
     }
 
     #applyAll() {
-        console.log('[workspace-control] applyAll');
+        log('[workspace-control] applyAll');
         this.#applyWorkspace(false);
         this.#applyWorkspacePopup(false);
         this.#applyWorkspaceSwitcherSize(false);

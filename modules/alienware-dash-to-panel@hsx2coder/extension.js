@@ -257,7 +257,7 @@ class _JpHandler {
       }, shellVersion)
       this.#api.open()
       if (this.#api) {
-        console.log('[DTP-JP] API ready, connecting JP dash keys')
+        log('[DTP-JP] API ready, connecting JP dash keys')
         this.#s.connectObject(
           'changed::jp-dash-override',    () => this.#applyDash(false),
           'changed::jp-dash-icon-size',    () => this.#applyDashIconSize(false),

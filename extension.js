@@ -129,7 +129,7 @@ export default class AlienwareSuiteExtension extends Extension {
 
             instance.enable();
 
-            console.log(`[alienware-suite] enabled module ${def.uuid}`);
+            log(`[alienware-suite] enabled module ${def.uuid}`);
         } catch (e) {
             this._loaded.delete(def.uuid);
             logError(e, `[alienware-suite] failed to enable ${def.uuid}`);
@@ -146,6 +146,6 @@ export default class AlienwareSuiteExtension extends Extension {
             logError(e, `[alienware-suite] failed to disable ${def.uuid}`);
         }
         this._loaded.delete(def.uuid);
-        console.log(`[alienware-suite] disabled module ${def.uuid}`);
+        log(`[alienware-suite] disabled module ${def.uuid}`);
     }
 }
