@@ -322,8 +322,8 @@ class SizedClone extends Clutter.Clone {
     destroy() {
         const src = this.source;
         if (src) {
-            if (this._srcNotifyId) { try { src.disconnect(this._srcNotifyId); } catch (_e) {} this._srcNotifyId = 0; }
-            if (this._srcAllocId) { try { src.disconnect(this._srcAllocId); } catch (_e) {} this._srcAllocId = 0; }
+            if (this._srcNotifyId) { try { src.disconnect(this._srcNotifyId); } catch (_e) { /* already disconnected */ } this._srcNotifyId = 0; }
+            if (this._srcAllocId) { try { src.disconnect(this._srcAllocId); } catch (_e) { /* already disconnected */ } this._srcAllocId = 0; }
         }
         super.destroy();
     }
@@ -475,7 +475,7 @@ class CloneTopBar extends St.BoxLayout {
             this._hidingId = 0;
         }
         if (this._settingId && this._settings) {
-            try { this._settings.disconnect(this._settingId); } catch (_e) {}
+            try { this._settings.disconnect(this._settingId); } catch (_e) { /* already disconnected */ }
             this._settingId = 0;
         }
         if (this._menuCloseIds) {
@@ -486,14 +486,14 @@ class CloneTopBar extends St.BoxLayout {
                         ind.menu.disconnect(id);
                         ind.menu.sourceActor = ind;
                     }
-                } catch (_e) {}
+                } catch (_e) { /* already disconnected */ }
             }
             this._menuCloseIds.clear();
             this._menuCloseIds = null;
         }
         for (const a of [this._wsClone, this._centerClone, this._qsClone,
             this._wsButton, this._qsButton, this._spacerL, this._spacerR]) {
-            try { a?.destroy(); } catch (_e) {}
+            try { a?.destroy(); } catch (_e) { /* already disconnected */ }
         }
         this._wsClone = this._centerClone = this._qsClone = null;
         this._wsButton = this._qsButton = null;
@@ -536,7 +536,7 @@ class ClonePanelBox {
 
         try {
             Main.uiGroup.set_child_below_sibling(this.panelBox, Main.layoutManager.panelBox);
-        } catch (_e) {}
+        } catch (_e) { /* already disconnected */ }
 
         this._allocationChangedId = this.panelBox.connect('notify::allocation',
             this._onAllocationChanged.bind(this));
@@ -546,12 +546,12 @@ class ClonePanelBox {
         try {
             const h = Main.panel?.height;
             if (h && h > 0 && !isNaN(h)) return h;
-        } catch (_e) {}
+        } catch (_e) { /* already disconnected */ }
         try {
             if (!Main.panel) return 32;
             const [, natHeight] = Main.panel.get_preferred_height(-1);
             if (natHeight > 0 && !isNaN(natHeight)) return natHeight;
-        } catch (_e) {}
+        } catch (_e) { /* already disconnected */ }
         const boxHeight = Main.layoutManager.panelBox?.height;
         if (boxHeight && boxHeight > 0 && !isNaN(boxHeight)) return boxHeight;
         return 32;
@@ -613,8 +613,8 @@ class ClonePanelBox {
             this.panelBox.disconnect(this._allocationChangedId);
             this._allocationChangedId = 0;
         }
-        try { Main.ctrlAltTabManager.removeGroup(this.panel); } catch (_e) {}
-        try { Main.layoutManager.removeChrome(this.panelBox); } catch (_e) {}
+        try { Main.ctrlAltTabManager.removeGroup(this.panel); } catch (_e) { /* already disconnected */ }
+        try { Main.layoutManager.removeChrome(this.panelBox); } catch (_e) { /* already disconnected */ }
         this.panelBox.destroy();
         this.panelBox = null;
         this.panel = null;

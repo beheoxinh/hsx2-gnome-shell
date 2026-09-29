@@ -1,5 +1,12 @@
 # Phân tích Restructure Module — Chi tiết
 
+> **LƯU Ý (2026-09-29):** tài liệu này mô tả trạng thái **trước** đợt gộp theo chức năng.
+> Bốn module trong đây không còn tồn tại: `topbar-widgets`, `topbar-panel-controls`
+> và `workspace-control` đã gộp, còn `dash-to-panel/media/` đã tách thành
+> `alienware-advanced-media-controller`. Layout hiện hành: `AGENT.md` mục 1,
+> `docs/ARCHITECTURE.md` mục 0, `CHECKPOINT.md`.
+
+
 > Dựa trên khảo sát codebase thực tế. Số LOC = total JS lines (includes imports, blank).
 
 ---

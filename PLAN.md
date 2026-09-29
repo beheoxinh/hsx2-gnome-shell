@@ -1,5 +1,12 @@
 # PLAN — Restructure Extension Suite
 
+> **LƯU Ý (2026-09-29):** tài liệu này mô tả trạng thái **trước** đợt gộp theo chức năng.
+> Bốn module trong đây không còn tồn tại: `topbar-widgets`, `topbar-panel-controls`
+> và `workspace-control` đã gộp, còn `dash-to-panel/media/` đã tách thành
+> `alienware-advanced-media-controller`. Layout hiện hành: `AGENT.md` mục 1,
+> `docs/ARCHITECTURE.md` mục 0, `CHECKPOINT.md`.
+
+
 > File: `.hermes/plan/restructure-plan.md`
 > Trạng thái: **COMPLETED** — 8 wired modules, 2 merged (topbar-widgets, indicators), 5 legacy unwired
 > Last updated: 2026-07-15
