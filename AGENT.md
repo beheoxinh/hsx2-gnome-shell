@@ -177,10 +177,16 @@ GNOME 45 bỏ cơ chế migration per-extension, nên:
 | `check-dead-keys.sh` | key khai báo mà không ai đọc; schema stale |
 | `check-key-usage.py` | code đọc key mà không schema nào khai báo |
 | `check-prefs-keys.py` | prefs bind key của **schema khác** (ràng hơn `check-key-usage`) |
-| `check-unused-imports.py` | import còn lại sau khi di chuyển code; import tên không tồn tại là **link-time error** |
+| `check-unused-imports.py` | import còn lại sau khi di chuyển code |
+| `check-imports.py` | named import không tồn tại ở module đích — **link-time error**, module fail lúc load |
+| `check-shell-api.py` | `St`/`Clutter`/`Meta`/`Shell` class + method không tồn tại trong typelib đang cài (decompile `St-18.typelib` rồi so) |
 | `check-wiring.py` | registry lệch, import gãy, viết panel ngoài PanelHost |
 | `check-schemas.js` | mọi schema load và round-trip được |
 | `migration-dry-run.js` | map migration không gãy |
+
+Cả hai lỗi trên đều **không** bị syntax check thấy và đều làm module không
+load được — `prefs.js` import một tên đã bị xoá, và `new St.CssProvider()` trong
+khi St typelib của GNOME 50 không có class đó (GNOME sẽ disable cả extension).
 
 Các allowlist có chủ đích, sửa khi thêm ngoại lệ mới:
 `tools/schema-collision-allow.txt`, `tools/dead-keys-allow.txt`,

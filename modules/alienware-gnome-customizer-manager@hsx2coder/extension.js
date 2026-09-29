@@ -1,8 +1,9 @@
 /**
  * Gnome Customizer Manager — Extension entry point + API host.
  *
- * Self-hosts the JP API engine (API.js) and exposes it via _api
- * so that Workspace Control and Topbar Panel Controls can borrow it.
+ * Self-hosts the shell-tweak engine (API.js) for theme, workspace, overview and
+ * OSD. Workspace Control lives in subsystems/ and takes the instance directly;
+ * the panel half of the old engine moved to alienware-topbar.
  * Also applies 24 GCM settings via CustomizerManager.
  */
 
@@ -81,7 +82,8 @@ export default class GnomeCustomizerManagerExtension extends Extension {
             shellVersion
         );
 
-        // Expose API for child modules (Workspace Control, Topbar Panel Controls)
+        // Workspace Control below takes this instance directly; the panel domain
+        // moved to alienware-topbar, so nothing crosses the module boundary now
         this._api = this.#api;
         this.#api.open();
 
