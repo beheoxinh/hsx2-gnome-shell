@@ -72,8 +72,27 @@ for path in CLASSES:
         line = src[:src.index(f'this.{name}(')].count('\n') + 1
         problems.append(f'{path}:{line}: this.{name}() is not defined in this class')
 
+# consumers: the instance each module holds must expose what it calls
+CONSUMERS = [
+    ('modules/alienware-advanced-alt-tab@hsx2coder/extension.js', 'lib/api.js', r'this\.#api\.(\w+)\('),
+    ('modules/alienware-dash-to-panel@hsx2coder/extension.js', 'lib/api.js', r'this\.#api\.(\w+)\('),
+    ('modules/alienware-gnome-customizer-manager@hsx2coder/extension.js', 'lib/API.js', r'this\.#api\.(\w+)\('),
+    ('modules/alienware-gnome-customizer-manager@hsx2coder/subsystems/workspace-control.js', 'lib/API.js', r'this\.#jpApi\.(\w+)\('),
+    ('modules/alienware-topbar@hsx2coder/subsystems/panel/extension.js', 'subsystems/panel/api.js', r'\ba\.(\w+)\('),
+]
+for consumer, engine, pat in CONSUMERS:
+    engine_path = os.path.join(os.path.dirname(consumer), engine)
+    if not (os.path.isfile(consumer) and os.path.isfile(engine_path)):
+        continue
+    have = set(re.findall(
+        r'^    (?:static\s+|get\s+|set\s+|async\s+)*([A-Za-z]\w*)\s*\(',
+        open(engine_path, encoding='utf-8').read(), re.M))
+    used = set(re.findall(pat, open(consumer, encoding='utf-8').read()))
+    for name in sorted(used - have - {'open', 'close'}):
+        problems.append(f'{consumer}: calls {name}() which {engine} does not define')
+
 if problems:
-    print(f'FAIL: {len(problems)} unresolved self-call(s) in the engine classes\n')
+    print(f'FAIL: {len(problems)} unresolved engine call(s)\n')
     for p in problems:
         print(f'  {p}')
     sys.exit(1)
