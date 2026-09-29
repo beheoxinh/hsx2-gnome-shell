@@ -13,6 +13,7 @@ run() {
 }
 
 run "syntax"            ./tools/check-syntax.sh
+run "engine calls"      python3 tools/check-engine-calls.py
 run "schema collisions" ./tools/check-schema-collisions.sh
 run "dead keys"         ./tools/check-dead-keys.sh
 run "key usage"         python3 tools/check-key-usage.py
