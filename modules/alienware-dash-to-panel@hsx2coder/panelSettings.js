@@ -201,12 +201,26 @@ export function setPanelAnchor(settings, monitorIndex, value) {
 }
 
 export function getPanelElementPositions(settings, monitorIndex) {
-  return getMonitorSetting(
+  let stored = getMonitorSetting(
     settings,
     'panel-element-positions',
     monitorIndex,
-    Pos.defaults,
+    null,
   )
+  if (!stored || !Array.isArray(stored)) return Pos.defaults
+  let existing = new Set(stored.map(e => e.element))
+  let merged = [...stored]
+  for (let d of Pos.defaults) {
+    if (!existing.has(d.element)) {
+      let idx = Pos.defaults.indexOf(d)
+      let insertAt = merged.findIndex(
+        e => Pos.defaults.findIndex(d2 => d2.element === e.element) > idx,
+      )
+      if (insertAt === -1) insertAt = merged.length
+      merged.splice(insertAt, 0, { ...d })
+    }
+  }
+  return merged
 }
 
 export function setPanelElementPositions(settings, monitorIndex, value) {

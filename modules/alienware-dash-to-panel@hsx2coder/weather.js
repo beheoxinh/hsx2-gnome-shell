@@ -9,34 +9,33 @@ import * as Main from 'resource:///org/gnome/shell/ui/main.js'
 const TAG = '[WX]'
 const WX_POLL_SEC = 1800
 
-const WMO = {
-  0: { e: '\u2600\uFE0F', d: 'Clear' },
-  1: { e: '\uD83C\uDF24\uFE0F', d: 'Mainly Clear' },
-  2: { e: '\u26C5', d: 'Partly Cloudy' },
-  3: { e: '\u2601\uFE0F', d: 'Overcast' },
-  45: { e: '\uD83C\uDF2B\uFE0F', d: 'Foggy' },
-  48: { e: '\uD83C\uDF2B\uFE0F', d: 'Deposit Fog' },
-  51: { e: '\uD83C\uDF26\uFE0F', d: 'Light Drizzle' },
-  53: { e: '\uD83C\uDF26\uFE0F', d: 'Moderate Drizzle' },
-  55: { e: '\uD83C\uDF26\uFE0F', d: 'Dense Drizzle' },
-  61: { e: '\uD83C\uDF27\uFE0F', d: 'Slight Rain' },
-  63: { e: '\uD83C\uDF27\uFE0F', d: 'Moderate Rain' },
-  65: { e: '\uD83C\uDF27\uFE0F', d: 'Heavy Rain' },
-  71: { e: '\u2744\uFE0F', d: 'Slight Snow' },
-  73: { e: '\u2744\uFE0F', d: 'Moderate Snow' },
-  75: { e: '\u2744\uFE0F', d: 'Heavy Snow' },
-  80: { e: '\uD83C\uDF26\uFE0F', d: 'Light Showers' },
-  81: { e: '\uD83C\uDF26\uFE0F', d: 'Moderate Showers' },
-  82: { e: '\uD83C\uDF26\uFE0F', d: 'Violent Showers' },
-  85: { e: '\uD83C\uDF28\uFE0F', d: 'Snow Showers' },
-  86: { e: '\uD83C\uDF28\uFE0F', d: 'Snow Showers' },
-  95: { e: '\u26C8\uFE0F', d: 'Thunderstorm' },
-  96: { e: '\u26C8\uFE0F', d: 'Thunderstorm' },
-  99: { e: '\u26C8\uFE0F', d: 'Thunderstorm' },
+function _symbol(code) {
+  let isNight = false
+  let base = code
+  if (base.endsWith('_night')) { isNight = true; base = base.slice(0, -6) }
+  else if (base.endsWith('_day')) base = base.slice(0, -4)
+
+  let e, d
+  if (base.includes('thunder')) { e = '\u26C8\uFE0F'; d = 'Thunderstorm' }
+  else if (base.includes('snowshowers')) { e = '\uD83C\uDF28\uFE0F'; d = 'Snow Showers' }
+  else if (base.includes('snow')) { e = '\u2744\uFE0F'; d = 'Snow' }
+  else if (base.includes('sleetshowers')) { e = '\uD83C\uDF28\uFE0F'; d = 'Sleet Showers' }
+  else if (base.includes('sleet')) { e = '\uD83C\uDF28\uFE0F'; d = 'Sleet' }
+  else if (base.includes('rainshowers')) { e = '\uD83C\uDF27\uFE0F'; d = 'Rain Showers' }
+  else if (base.includes('rain')) { e = '\uD83C\uDF27\uFE0F'; d = 'Rain' }
+  else if (base === 'fog') { e = '\uD83C\uDF2B\uFE0F'; d = 'Fog' }
+  else if (base === 'cloudy') { e = '\u2601\uFE0F'; d = 'Cloudy' }
+  else if (base === 'partlycloudy') { e = isNight ? '\u2601\uFE0F' : '\u26C5'; d = 'Partly Cloudy' }
+  else if (base === 'fair') { e = isNight ? '\uD83C\uDF19' : '\uD83C\uDF24\uFE0F'; d = 'Fair' }
+  else if (base === 'clearsky') { e = isNight ? '\uD83C\uDF19' : '\u2600\uFE0F'; d = 'Clear' }
+  else { e = '\u2753'; d = code }
+  return { e, d }
 }
 
-function _wmo(code) {
-  return WMO[code] || { e: '\u2753', d: 'Unknown' }
+// Same apparent-temperature formula libgweather uses (Australian BOM APPARENT_TEMP)
+function _apparent(t, rh, ws) {
+  let e = (rh / 100) * 6.105 * Math.exp((17.27 * t) / (237.7 + t))
+  return t + 0.33 * e - 0.70 * ws - 4.00
 }
 
 let _session = null
@@ -162,6 +161,19 @@ export const WeatherStatus = GObject.registerClass(
     }
 
     _resolveCoords() {
+      try {
+        let s = new Gio.Settings({ schema_id: 'org.gnome.Weather' })
+        let v = s.get_value('locations').recursiveUnpack()
+        let pts = v && v[0] && v[0][1] && v[0][1][3]
+        if (pts && pts[0]) {
+          this._lat = pts[0][0] * 180 / Math.PI
+          this._lon = pts[0][1] * 180 / Math.PI
+          this._fetchWeather()
+          return
+        }
+      } catch (e) {
+        logError(e, `${TAG} gsettings location`)
+      }
       if (this._geoPending) return
       this._geoPending = true
       let msg = new Soup.Message({
@@ -192,22 +204,23 @@ export const WeatherStatus = GObject.registerClass(
     }
 
     _fallbackCoords() {
-      this._lat = 10.8231
-      this._lon = 106.6297
+      this._lat = 21.0167
+      this._lon = 105.8
       this._fetchWeather()
     }
 
     _fetchWeather() {
       let url =
-        'https://api.open-meteo.com/v1/forecast' +
-        `?latitude=${this._lat}&longitude=${this._lon}` +
-        '&current=temperature_2m,apparent_temperature,weather_code' +
-        '&hourly=temperature_2m,apparent_temperature,weather_code' +
-        '&timezone=auto&forecast_days=1'
+        'https://api.met.no/weatherapi/locationforecast/2.0/compact' +
+        `?lat=${this._lat}&lon=${this._lon}`
       let msg = new Soup.Message({
         method: 'GET',
         uri: GLib.Uri.parse(url, 0),
       })
+      msg.request_headers.append(
+        'User-Agent',
+        'alienware-hsx2coder-gnome/1.0 (https://github.com/anomalyco/opencode)',
+      )
       if (!msg) return
       _session_().send_and_read_async(
         msg, GLib.PRIORITY_DEFAULT, null,
@@ -227,38 +240,41 @@ export const WeatherStatus = GObject.registerClass(
     }
 
     _processWeather(data) {
-      if (!data || !data.current) return
-      let temp = Math.round(data.current.temperature_2m)
-      let feels = data.current.apparent_temperature != null
-        ? Math.round(data.current.apparent_temperature)
-        : null
-      let code = data.current.weather_code
-      let w = _wmo(code)
-      this._weather = { temp, feels, code, emoji: w.e, desc: w.d }
+      let ts = data && data.properties && data.properties.timeseries
+      if (!ts || !ts[0]) return
+      let now = ts[0].data.instant.details
+      let temp = Math.round(now.air_temperature)
+      let feels = Math.round(
+        _apparent(now.air_temperature, now.relative_humidity, now.wind_speed),
+      )
+      let sym = ts[0].data.next_1_hours
+        ? ts[0].data.next_1_hours.summary.symbol_code
+        : 'cloudy'
+      let w = _symbol(sym)
+      this._weather = { temp, feels, code: sym, emoji: w.e, desc: w.d }
 
-      if (data.hourly && data.hourly.time) {
-        this._weather.hourly = []
-        for (let i = 0; i < data.hourly.time.length; i++) {
-          if (i >= 24) break
-          let t = data.hourly.temperature_2m[i]
-          let f = data.hourly.apparent_temperature != null
-            ? Math.round(data.hourly.apparent_temperature[i])
-            : null
-          let c = data.hourly.weather_code[i]
-          let w2 = _wmo(c)
-          let timeStr = data.hourly.time[i]
-          let hour = timeStr.includes('T')
-            ? timeStr.split('T')[1].substring(0, 5)
-            : '--:--'
-          this._weather.hourly.push({
-            time: hour,
-            temp: Math.round(t),
-            feels: f,
-            code: c,
-            emoji: w2.e,
-            desc: w2.d,
-          })
-        }
+      this._weather.hourly = []
+      for (let i = 0; i < ts.length && i < 24; i++) {
+        let d = ts[i].data
+        let det = d.instant.details
+        let t = Math.round(det.air_temperature)
+        let f = Math.round(
+          _apparent(det.air_temperature, det.relative_humidity, det.wind_speed),
+        )
+        let s2 = d.next_1_hours
+          ? d.next_1_hours.summary.symbol_code
+          : 'cloudy'
+        let w2 = _symbol(s2)
+        let dt = new Date(ts[i].time)
+        let hour = `${String(dt.getHours()).padStart(2, '0')}:${String(dt.getMinutes()).padStart(2, '0')}`
+        this._weather.hourly.push({
+          time: hour,
+          temp: t,
+          feels: f,
+          code: s2,
+          emoji: w2.e,
+          desc: w2.d,
+        })
       }
 
       this._updateDisplay()

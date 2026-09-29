@@ -1441,5 +1441,18 @@
       <default>true</default>
       <summary>Show Dash running dot</summary>
     </key>
+
+    <!-- Bluetooth roller interval -->
+    <key type="i" name="bt-roller-interval">
+      <default>30</default>
+      <range min="10" max="300"/>
+      <summary>Bluetooth widget device cycle interval in seconds</summary>
+      <description>How often the panel Bluetooth widget cycles through connected devices. Min 10, max 300 seconds.</description>
+    </key>
+    <key type="as" name="bt-hidden-devices">
+      <default>[]</default>
+      <summary>Hidden Bluetooth devices</summary>
+      <description>List of Bluetooth device object paths hidden from the panel widget.</description>
+    </key>
   </schema>
 </schemalist>

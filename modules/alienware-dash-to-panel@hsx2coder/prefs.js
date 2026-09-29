@@ -524,6 +524,7 @@ const Preferences = class {
 
     labels[Pos.SHOW_APPS_BTN] = _('Show Applications button')
     labels[Pos.ACTIVITIES_BTN] = _('Activities button')
+    labels[Pos.WEATHER] = _('Weather')
     labels[Pos.TASKBAR] = _('Taskbar')
     labels[Pos.DATE_MENU] = _('Date menu')
     labels[Pos.SYSTEM_MENU] = _('System menu')
@@ -1239,6 +1240,7 @@ const Preferences = class {
     const TOPBAR_CLONE_ELEMENTS = [
       { element: Pos.SHOW_APPS_BTN, visible: false, position: Pos.STACKED_TL },
       { element: Pos.ACTIVITIES_BTN, visible: true, position: Pos.STACKED_TL },
+      { element: Pos.WEATHER, visible: true, position: Pos.STACKED_TL },
       { element: Pos.LEFT_BOX, visible: true, position: Pos.STACKED_TL },
       { element: Pos.TASKBAR, visible: false, position: Pos.STACKED_TL },
       { element: Pos.CENTER_BOX, visible: true, position: Pos.CENTERED_MONITOR },
@@ -2108,6 +2110,19 @@ const Preferences = class {
       .connect('value-changed', (widget) => {
         this._settings.set_int(
           'show-apps-icon-side-padding',
+          widget.get_value(),
+        )
+      })
+
+    // Bluetooth roller interval
+    this._builder
+      .get_object('bt_roller_interval_spinbutton')
+      .set_value(this._settings.get_int('bt-roller-interval'))
+    this._builder
+      .get_object('bt_roller_interval_spinbutton')
+      .connect('value-changed', (widget) => {
+        this._settings.set_int(
+          'bt-roller-interval',
           widget.get_value(),
         )
       })

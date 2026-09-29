@@ -53,6 +53,7 @@ import * as PopupMenu from 'resource:///org/gnome/shell/ui/popupMenu.js'
 import * as DateMenu from 'resource:///org/gnome/shell/ui/dateMenu.js'
 import * as Volume from 'resource:///org/gnome/shell/ui/status/volume.js'
 import { BluetoothStatus } from './bluetoothStatus.js'
+import { WeatherStatus } from './weather.js'
 
 import * as Intellihide from './intellihide.js'
 import * as Transparency from './transparency.js'
@@ -137,22 +138,30 @@ export const Panel = GObject.registerClass(
           Main.panel._onMenuSet.call(this, indicator)
         }
 
+        // Weather + Bluetooth in own containers — DTP positions via WEATHER + LEFT_BOX
+        this._weatherBox = new St.BoxLayout({ name: 'weatherBox' })
+        this._weatherStatus = new WeatherStatus()
+        this._weatherBox.add_child(this._weatherStatus)
+        this.panel.add_child(this._weatherBox)
+
+        this._bluetoothBox = new St.BoxLayout({ name: 'bluetoothBox' })
+        this._btStatus = new BluetoothStatus()
+        this._bluetoothBox.add_child(this._btStatus)
+        this.panel.add_child(this._bluetoothBox)
+        // DTP boxes — kept for compatibility
         this._leftBox = this.panel._leftBox = Utils.createBoxLayout({
           name: 'panelLeft',
         })
-
-        // Bluetooth Status indicator — add to _leftBox, which DTP positions
-        // as the LEFT_BOX element (labeled "Bluetooth Status" in settings)
-        this._btStatus = new BluetoothStatus()
-        this._leftBox.add_child(this._btStatus)
-
         this._rightBox = this.panel._rightBox = Utils.createBoxLayout({
           name: 'panelRight',
         })
-
         this._centerBox = this.panel._centerBox = Utils.createBoxLayout({
           name: 'panelCenter',
         })
+        // TEST: red dot to verify LEFT_BOX alloc
+        this._testDot = new St.BoxLayout({ style: 'min-width:20px;min-height:20px;background-color:red;' })
+        this._leftBox.add_child(this._testDot)
+
 
         this.menuManager = this.panel.menuManager =
           new PopupMenu.PopupMenuManager(this.panel)
@@ -191,7 +200,8 @@ export const Panel = GObject.registerClass(
 
         panelBoxes.forEach((p) => (this[p] = Main.panel[p]))
 
-        // Bluetooth Status — just create, self-attaches to DTP panel later
+        // Weather + Bluetooth Status — self-attach via their _attachToDTP
+        this._weatherStatus = new WeatherStatus()
         this._btStatus = new BluetoothStatus()
 
         ;['activities', systemMenuInfo.name, 'dateMenu'].forEach((b) => {
@@ -429,6 +439,10 @@ export const Panel = GObject.registerClass(
     disable() {
       this.panelStyle.disable()
 
+      if (this._weatherStatus) {
+        this._weatherStatus.destroy()
+        this._weatherStatus = null
+      }
       if (this._btStatus) {
         this._btStatus.destroy()
         this._btStatus = null
@@ -593,9 +607,9 @@ export const Panel = GObject.registerClass(
 
       panelPositions.forEach((pos) => {
         let allocationMap = this.allocationMap[pos.element]
+        if (!allocationMap || !allocationMap.actor) return
 
-        if (allocationMap.actor) {
-          allocationMap.actor.visible = pos.visible
+        allocationMap.actor.visible = pos.visible
 
           if (!pos.visible) return
 
@@ -645,7 +659,6 @@ export const Panel = GObject.registerClass(
 
           allocationMap.position = currentPosition
           previousPosition = currentPosition
-        }
       })
     }
 
@@ -920,7 +933,8 @@ export const Panel = GObject.registerClass(
         Pos.ACTIVITIES_BTN,
         this.statusArea.activities ? this.statusArea.activities.container : 0,
       )
-      setMap(Pos.LEFT_BOX, this._leftBox)
+      if (this._weatherBox) setMap(Pos.WEATHER, this._weatherBox)
+      setMap(Pos.LEFT_BOX, this._bluetoothBox || this._leftBox)
       setMap(Pos.TASKBAR, this.taskbar.actor)
       setMap(Pos.CENTER_BOX, this._centerBox)
       setMap(Pos.DATE_MENU, this.statusArea.dateMenu.container)

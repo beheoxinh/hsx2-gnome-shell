@@ -21,6 +21,7 @@ export const TASKBAR = 'taskbar'
 export const DATE_MENU = 'dateMenu'
 export const SYSTEM_MENU = 'systemMenu'
 export const LEFT_BOX = 'leftBox'
+export const WEATHER = 'weather'
 export const CENTER_BOX = 'centerBox'
 export const RIGHT_BOX = 'rightBox'
 export const DESKTOP_BTN = 'desktopButton'
@@ -42,6 +43,7 @@ export const END = 'END'
 export const defaults = [
   { element: SHOW_APPS_BTN, visible: true, position: STACKED_TL },
   { element: ACTIVITIES_BTN, visible: false, position: STACKED_TL },
+  { element: WEATHER, visible: true, position: STACKED_TL },
   { element: LEFT_BOX, visible: true, position: STACKED_TL },
   { element: TASKBAR, visible: true, position: STACKED_TL },
   { element: CENTER_BOX, visible: true, position: STACKED_BR },

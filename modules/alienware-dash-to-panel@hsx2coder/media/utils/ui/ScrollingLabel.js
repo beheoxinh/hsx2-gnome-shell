@@ -122,7 +122,7 @@ export const ScrollingLabel = GObject.registerClass(
       if (delay > 0) {
         this._pauseId = GLib.timeout_add(GLib.PRIORITY_DEFAULT, delay, () => {
           this._pauseId = null;
-          if (!this._paused) this._startTick();
+          if (!this._paused && this._label) this._startTick();
           return GLib.SOURCE_REMOVE;
         });
       } else {
@@ -134,21 +134,27 @@ export const ScrollingLabel = GObject.registerClass(
       if (this._tickId !== null) return;
 
       this._tickId = GLib.timeout_add(GLib.PRIORITY_DEFAULT, FRAME_MS, () => {
-        if (this._paused || !this._label) {
+        try {
+          if (this._paused || !this._label) {
+            this._tickId = null;
+            return GLib.SOURCE_REMOVE;
+          }
+
+          const next = this._label.translation_x - this._pxPerFrame;
+
+          if (-next >= this._oneWidth) {
+            this._label.translation_x = 0;
+            this._tickId = null;
+            this._scheduleAfterPause(false);
+            return GLib.SOURCE_REMOVE;
+          }
+
+          this._label.translation_x = next;
+        } catch (e) {
+          log(`AMCScrollingLabel: tick error, stopping: ${e}`);
           this._tickId = null;
           return GLib.SOURCE_REMOVE;
         }
-
-        const next = this._label.translation_x - this._pxPerFrame;
-
-        if (-next >= this._oneWidth) {
-          this._label.translation_x = 0;
-          this._tickId = null;
-          this._scheduleAfterPause(false);
-          return GLib.SOURCE_REMOVE;
-        }
-
-        this._label.translation_x = next;
         return GLib.SOURCE_CONTINUE;
       });
     }
