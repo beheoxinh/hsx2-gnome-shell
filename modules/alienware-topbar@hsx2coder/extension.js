@@ -64,20 +64,20 @@ export default class TopbarExtension extends Extension {
         PanelHost.disable();
     }
 
-    /** @param {boolean} teardown true while disabling */
+    /**
+     * Tear the widget subsystems down, then build them again unless this is
+     * the disabling pass. One teardown path so a future field cannot be added
+     * to only one of two identical blocks.
+     * @param {boolean} teardown true while disabling
+     */
     #rebuildWidgets(teardown = false) {
-        if (teardown) {
-            this.#commandMenu?.disable();
-            this.#commandMenu = null;
-            this.#clipboard?.disable();
-            this.#clipboard = null;
-            return;
-        }
-
         this.#commandMenu?.disable();
         this.#commandMenu = null;
         this.#clipboard?.disable();
         this.#clipboard = null;
+
+        if (teardown)
+            return;
 
         // each widget subsystem is a real Extension and needs its own
         // settings-schema, but the schemas dir is this module's

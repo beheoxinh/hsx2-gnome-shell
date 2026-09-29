@@ -500,11 +500,6 @@ export class API
         };
     }
 
-    isLocked()
-    {
-        return this._main.sessionMode.isLocked;
-    }
-
     /**
      * enable window picker icon
      *
@@ -1215,15 +1210,6 @@ export class API
         ) {
             this.UIStyleClassAdd(this.#getAPIClassname('osd-position-center'));
         }
-    }
-
-    panelIconGetSize()
-    {
-        if (this._panelIconSize !== undefined) {
-            return this._panelIconSize;
-        }
-
-        return this._panel.PANEL_ICON_SIZE;
     }
 
     #lookingGlassGetSize()
