@@ -12,6 +12,7 @@ names the suite actually uses.
 import os
 import re
 import subprocess
+import xml.etree.ElementTree as ET
 import sys
 import tempfile
 
@@ -57,14 +58,28 @@ def load_known():
                                    env=env, capture_output=True)
                 if r.returncode or not os.path.exists(out):
                     continue
-                xml = open(out, encoding='utf-8').read()
-            classes = {}
-            for m in re.finditer(r'<class name="(\w+)"(.*?)</class>', xml, re.S):
-                methods = set(re.findall(r'<method name="(\w+)"', m.group(2)))
-                # properties and signals are reachable too
-                methods |= set(re.findall(r'<property name="(\w+)"', m.group(2)))
-                methods |= set(re.findall(r'<(?:signal|function) name="(\w+)"', m.group(2)))
-                classes[m.group(1)] = methods
+                # ElementTree, not regex: g-ir-generate nests
+                # <record name="FooClass"> inside <class name="Foo">, so a
+                # backreference regex either stops early or runs past the end.
+                root = ET.parse(out).getroot()
+                classes = {}
+                for elem in root.iter():
+                    # the GIR carries an xmlns, so tags arrive namespaced
+                    tag = elem.tag.rsplit('}', 1)[-1]
+                    if tag not in ('class', 'record', 'union', 'struct'):
+                        continue
+                    name = elem.get('name')
+                    if not name:
+                        continue
+                    methods = set()
+                    # direct children only, so a nested FooClass does not leak
+                    for child in elem:
+                        ctag = child.tag.rsplit('}', 1)[-1]
+                        if ctag in ('method', 'function', 'property',
+                                    'signal', 'field'):
+                            methods.add(child.get('name'))
+                    methods.update(('new', 'copy'))
+                    classes[name] = methods
             known[ns] = classes
             break
     return known or None
