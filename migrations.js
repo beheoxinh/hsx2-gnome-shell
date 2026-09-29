@@ -11,18 +11,19 @@
  */
 
 import Gio from 'gi://Gio';
+import GLib from 'gi://GLib';
 
 import {SUITE_SCHEMA} from './modules.js';
 
 const MIGRATION_FLAG = 'migration-consolidation-v1';
 
-/** [from schema id, from key, to schema id, to key] */
+/** [from schema id, from key, to schema id, to key, enum?] */
 const KEY_MOVES = [
     // topbar-panel-controls -> alienware-topbar
     ['org.gnome.shell.extensions.topbar-panel-controls', 'panel', 'org.gnome.shell.extensions.alienware-topbar', 'panel-visible'],
     ['org.gnome.shell.extensions.topbar-panel-controls', 'panel-in-overview', 'org.gnome.shell.extensions.alienware-topbar', 'panel-in-overview'],
     ['org.gnome.shell.extensions.topbar-panel-controls', 'panel-size', 'org.gnome.shell.extensions.alienware-topbar', 'panel-height'],
-    ['org.gnome.shell.extensions.topbar-panel-controls', 'top-panel-position', 'org.gnome.shell.extensions.alienware-topbar', 'panel-position-int'],
+    ['org.gnome.shell.extensions.topbar-panel-controls', 'top-panel-position', 'org.gnome.shell.extensions.alienware-topbar', 'panel-position', true],
     ['org.gnome.shell.extensions.topbar-panel-controls', 'panel-corner-size', 'org.gnome.shell.extensions.alienware-topbar', 'panel-corner-size'],
     ['org.gnome.shell.extensions.topbar-panel-controls', 'panel-button-padding-size', 'org.gnome.shell.extensions.alienware-topbar', 'panel-button-padding'],
     ['org.gnome.shell.extensions.topbar-panel-controls', 'panel-indicator-padding-size', 'org.gnome.shell.extensions.alienware-topbar', 'panel-indicator-padding'],
@@ -31,7 +32,7 @@ const KEY_MOVES = [
     ['org.gnome.shell.extensions.topbar-panel-controls', 'background-menu', 'org.gnome.shell.extensions.alienware-topbar', 'background-menu'],
     ['org.gnome.shell.extensions.topbar-panel-controls', 'show-apps-button', 'org.gnome.shell.extensions.alienware-topbar', 'show-apps-button'],
     ['org.gnome.shell.extensions.topbar-panel-controls', 'clock-menu', 'org.gnome.shell.extensions.alienware-topbar', 'clock-visible'],
-    ['org.gnome.shell.extensions.topbar-panel-controls', 'clock-menu-position', 'org.gnome.shell.extensions.alienware-topbar', 'clock-position-int'],
+    ['org.gnome.shell.extensions.topbar-panel-controls', 'clock-menu-position', 'org.gnome.shell.extensions.alienware-topbar', 'clock-position', true],
     ['org.gnome.shell.extensions.topbar-panel-controls', 'clock-menu-position-offset', 'org.gnome.shell.extensions.alienware-topbar', 'clock-position-offset'],
     ['org.gnome.shell.extensions.topbar-panel-controls', 'world-clock', 'org.gnome.shell.extensions.alienware-topbar', 'world-clock'],
     ['org.gnome.shell.extensions.topbar-panel-controls', 'weather', 'org.gnome.shell.extensions.alienware-topbar', 'weather'],
@@ -68,12 +69,13 @@ const KEY_MOVES = [
 
 /** enum nicks, so an int from an old schema lands on a valid enum value */
 const ENUM_NICKS = {
-    'panel-position-int': ['top', 'bottom'],
-    'clock-position-int': ['left', 'center', 'right'],
+    'panel-position': ['top', 'bottom'],
+    'clock-position': ['left', 'center', 'right'],
 };
 
+// frozen copies of the schemas the keys moved out of, plus the ones they moved into
 const SCHEMA_DIRS = [
-    '',
+    'migrations/schemas',
     'modules/alienware-topbar@hsx2coder/schemas',
     'modules/alienware-advanced-alt-tab@hsx2coder/schemas',
     'modules/alienware-gnome-customizer-manager@hsx2coder/schemas',
@@ -82,7 +84,9 @@ const SCHEMA_DIRS = [
 function buildSchemaSource(baseDir) {
     let source = Gio.SettingsSchemaSource.get_default();
     for (const rel of SCHEMA_DIRS) {
-        const path = rel ? `${baseDir}/${rel}` : baseDir;
+        const path = `${baseDir}/${rel}`;
+        if (!GLib.file_test(`${path}/gschemas.compiled`, GLib.FileTest.EXISTS))
+            continue;
         source = Gio.SettingsSchemaSource.new_from_directory(path, source, false);
     }
     return source;
@@ -109,7 +113,7 @@ export function runMigrations(extension, log = () => {}) {
 
     let moved = 0;
     let skipped = 0;
-    for (const [fromId, fromKey, toId, toKey] of KEY_MOVES) {
+    for (const [fromId, fromKey, toId, toKey, asEnum] of KEY_MOVES) {
         const from = settingsFor(fromId);
         const to = settingsFor(toId);
         if (!from || !to) {
@@ -129,15 +133,10 @@ export function runMigrations(extension, log = () => {}) {
             continue;
         }
 
-        let packed = value;
-        const nicks = ENUM_NICKS[toKey];
-        if (nicks) {
+        if (asEnum) {
+            const nicks = ENUM_NICKS[toKey] ?? [];
             const idx = Number(value.unpack());
-            const nick = nicks[idx] ?? nicks[0];
-            const schema = to.settings_schema;
-            if (!schema.has_key(toKey))
-                continue;
-            to.set_string(toKey, nick);
+            to.set_string(toKey, nicks[idx] ?? nicks[0] ?? '');
             moved++;
             continue;
         }

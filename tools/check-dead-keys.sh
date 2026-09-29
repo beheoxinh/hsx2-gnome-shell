@@ -8,6 +8,8 @@ set -uo pipefail
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$ROOT" || exit 2
 
+# migrations/schemas holds frozen copies of schemas the keys moved out of; they
+# are sources for migrations.js only and are not registered with the shell
 mapfile -t XML < <(find schemas modules -name '*.gschema.xml' 2>/dev/null | sort)
 mapfile -t JS < <(find . -name '*.js' -not -path './.git/*' -not -path './.bak/*' 2>/dev/null | sort)
 
@@ -76,8 +78,11 @@ else:
 
 # schema ids referenced from JS but never declared
 refs = set(re.findall(r"['\"](org\.[A-Za-z0-9._-]+)['\"]", blob))
+MIGRATION_ONLY = {'org.gnome.shell.extensions.panel-clone',
+                  'org.gnome.shell.extensions.topbar-panel-controls'}
 orphan_refs = sorted(r for r in refs if r.startswith(('org.gnome.shell.extensions.',))
-                     and r not in schema_ids and not r.endswith(('.desktop',)))
+                     and r not in schema_ids and r not in MIGRATION_ONLY
+                     and not r.endswith(('.desktop',)))
 if orphan_refs:
     print(f"ORPHAN SCHEMA REFS: {len(orphan_refs)} id(s) used in JS but not declared\n")
     for r in orphan_refs:
@@ -89,7 +94,7 @@ else:
 
 sys.exit(1 if rc else 0)
 PY
-[ $? -ne 0 ] && RC=1
+if [ $? -ne 0 ]; then RC=1; fi
 
 echo
 echo "=== glib-compile-schemas --strict ==="

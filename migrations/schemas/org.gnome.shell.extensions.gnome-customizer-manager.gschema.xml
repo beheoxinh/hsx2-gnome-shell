@@ -1,0 +1,56 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  Frozen copy of the gnome-customizer-manager keys that moved to
+  alienware-topbar and advanced-alt-tab. Present only so migrations.js can read
+  the values a user set before the move; not registered with GNOME Shell.
+-->
+<schemalist>
+  <schema id="org.gnome.shell.extensions.gnome-customizer-manager"
+          path="/org/gnome/shell/extensions/gnome-customizer-manager/">
+    <key type="b" name="window-preview-caption">
+      <default>true</default>
+      <summary>Window Preview Caption</summary>
+    </key>
+    <key type="b" name="window-preview-close-button">
+      <default>true</default>
+      <summary>Window Preview Close Button</summary>
+    </key>
+    <key type="b" name="quick-settings">
+      <default>true</default>
+      <summary>Quick Settings Menu</summary>
+    </key>
+    <key type="b" name="quick-settings-dark-mode">
+      <default>true</default>
+      <summary>Dark Mode Toggle in Quick Settings</summary>
+    </key>
+    <key type="b" name="quick-settings-night-light">
+      <default>true</default>
+      <summary>Night Light Toggle in Quick Settings</summary>
+    </key>
+    <key type="b" name="quick-settings-do-not-disturb">
+      <default>true</default>
+      <summary>Do Not Disturb Toggle in Quick Settings</summary>
+    </key>
+    <key type="b" name="quick-settings-backlight">
+      <default>true</default>
+      <summary>Backlight Toggle in Quick Settings</summary>
+    </key>
+    <key type="b" name="quick-settings-airplane-mode">
+      <default>true</default>
+      <summary>Airplane Mode Toggle in Quick Settings</summary>
+    </key>
+    <key type="b" name="accent-color-icon">
+      <default>false</default>
+      <summary>Accent Color for Icons</summary>
+    </key>
+    <key type="i" name="max-displayed-search-results">
+      <default>0</default>
+      <range min="0" max="40"/>
+      <summary>Max Displayed Search Results</summary>
+    </key>
+    <key type="b" name="invert-calendar-column-items">
+      <default>false</default>
+      <summary>Invert Calendar Column Items</summary>
+    </key>
+  </schema>
+</schemalist>
