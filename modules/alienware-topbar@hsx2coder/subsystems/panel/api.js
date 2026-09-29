@@ -2152,4 +2152,11 @@ export class PanelApi
     {
         this.UIStyleClassRemove(this.#getAPIClassname('accent-color-icon'));
     }
+    /**
+     * @returns {boolean} whether the session is locked
+     */
+    isLocked()
+    {
+        return this._main.sessionMode.isLocked;
+    }
 }

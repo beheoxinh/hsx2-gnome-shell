@@ -1510,4 +1510,40 @@ export class API
 
         delete(this._quickSettingsCallSignals);
     }
+
+    /**
+     * add class name to the UI group
+     *
+     * @param {string} classname class name
+     *
+     * @returns {void}
+     */
+    UIStyleClassAdd(classname)
+    {
+        this._main.layoutManager.uiGroup.add_style_class_name(classname);
+    }
+
+    /**
+     * remove class name from UI group
+     *
+     * @param {string} classname class name
+     *
+     * @returns {void}
+     */
+    UIStyleClassRemove(classname)
+    {
+        this._main.layoutManager.uiGroup.remove_style_class_name(classname);
+    }
+
+    /**
+     * check whether UI group has class name
+     *
+     * @param {string} classname class name
+     *
+     * @returns {boolean}
+     */
+    UIStyleClassContain(classname)
+    {
+        return this._main.layoutManager.uiGroup.has_style_class_name(classname);
+    }
 }
