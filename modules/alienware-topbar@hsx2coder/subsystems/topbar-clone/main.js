@@ -97,6 +97,11 @@ export class TopbarCloneSubsystem {
     }
 
     _build() {
+        // always tear down first: _syncEnabledState can reach here with clones
+        // already on the stage (toggling clone-topbar off then on), and building
+        // on top of them leaks a clone panel per toggle
+        this._teardown();
+
         const monitors = Main.layoutManager.monitors || [];
         const primaryIndex = Main.layoutManager.primaryIndex;
 
@@ -128,7 +133,6 @@ export class TopbarCloneSubsystem {
             return;
         this._rebuildIdleId = GLib.timeout_add(GLib.PRIORITY_DEFAULT, 800, () => {
             this._rebuildIdleId = 0;
-            this._teardown();
             this._build();
             return GLib.SOURCE_REMOVE;
         });

@@ -48,12 +48,9 @@ export class PanelApi
     _clocksItemShowSignal = undefined;
     _backlightToggleShowSignal = undefined;
     _rfkillToggleShowSignal = undefined;
-    _appButtonForComputeWorkspacesSignal = undefined;
     _quickSettingsCallSignals = undefined;
     _searchActiveSignal = undefined;
     _setMenuOld = undefined;
-    _workspacesInAppGrid = undefined;
-    _workspacesInAppGridHeight = undefined;
 
     constructor(dependencies)
     {
