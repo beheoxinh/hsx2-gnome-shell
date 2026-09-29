@@ -140,6 +140,33 @@ class PanelHostImpl {
         return Main.panel.addToStatusArea(role, actor, position, target);
     }
 
+    /**
+     * Put an actor in the shell's chrome layer, so a cloned or injected bar
+     * participates in fullscreen, workspace and monitor-change handling.
+     * @param {Clutter.Actor} actor
+     * @param {object} params trackFullscreen, affectsStruts, affectsInputRegion
+     */
+    addChrome(actor, params) {
+        try {
+            this.#api?.chromeAdd(actor, params);
+        } catch (e) {
+            logError(e, '[alienware-topbar] addChrome failed');
+            return false;
+        }
+        return true;
+    }
+
+    removeChrome(actor) {
+        // never let a failed remove abort the caller's teardown loop
+        try {
+            this.#api?.chromeRemove(actor);
+        } catch (e) {
+            logError(e, '[alienware-topbar] removeChrome failed');
+            return false;
+        }
+        return true;
+    }
+
     removeStatusItem(role) {
         const actor = this.getStatusItem(role);
         this.#owned.delete(role);

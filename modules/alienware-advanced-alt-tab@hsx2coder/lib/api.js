@@ -16,9 +16,6 @@ export class AltTabApi
 
     #originals = {};
 
-    _altTabIconSize = undefined;
-    _altTabWindowPreviewSize = undefined;
-    _switcherPopupDelay = undefined;
     _altTab = undefined;
     _altTabAPP_ICON_SIZE = undefined;
     _altTabAPP_ICON_SIZE_SMALL = undefined;
@@ -321,54 +318,6 @@ export class AltTabApi
         }
 
         this.#altTabSizesSet(null, null, size);
-    }
-
-    /**
-     * set default alt tab small icon size
-     *
-     * @returns {void}
-     */
-
-    /**
-     * set default alt tab small icon size
-     *
-     * @returns {void}
-     */
-    altTabSmallIconSetDefaultSize()
-    {
-        if (!this.#originals['altTabAppIconSizeSmall']) {
-            return;
-        }
-
-        this.#altTabSizesSet(null, this.#originals['altTabAppIconSizeSmall'], null);
-    }
-
-    /**
-     * set alt tab small icon size
-     *
-     * @param {number} size 1-512
-     *
-     * @returns {void}
-     */
-
-    /**
-     * set alt tab small icon size
-     *
-     * @param {number} size 1-512
-     *
-     * @returns {void}
-     */
-    altTabSmallIconSetSize(size)
-    {
-        if (size < 1 || size > 512) {
-            return;
-        }
-
-        if (!this.#originals['altTabAppIconSizeSmall']) {
-            this.#originals['altTabAppIconSizeSmall'] = this._altTab.APP_ICON_SIZE_SMALL;
-        }
-
-        this.#altTabSizesSet(null, size, null);
     }
 
     /**

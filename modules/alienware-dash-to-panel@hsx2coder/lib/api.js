@@ -13,9 +13,6 @@ export class DashApi
 {
     #shellVersion = null;
 
-    _dashVisibility = undefined;
-    _dashSeparatorVisibility = undefined;
-    _dashIconSize = undefined;
 
     constructor(dependencies)
     {

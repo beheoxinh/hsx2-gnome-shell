@@ -5,6 +5,8 @@ import Graphene from 'gi://Graphene';
 import St from 'gi://St';
 
 import * as Main from 'resource:///org/gnome/shell/ui/main.js';
+
+import {PanelHost} from '../panel/host.js';
 import * as CtrlAltTab from 'resource:///org/gnome/shell/ui/ctrlAltTab.js';
 import * as Util from 'resource:///org/gnome/shell/misc/util.js';
 
@@ -519,9 +521,10 @@ class ClonePanelBox {
         this.panel = new CloneTopBar(monitorIndex, settings);
         this.panelBox.add_child(this.panel);
 
-        Main.layoutManager.addChrome(this.panelBox, {
-            affectsStruts: true,
+        PanelHost.addChrome(this.panelBox, {
             trackFullscreen: true,
+            affectsStruts: false,
+            affectsInputRegion: true,
         });
 
         Main.ctrlAltTabManager.addGroup(this.panel, 'Top Bar',
@@ -614,7 +617,7 @@ class ClonePanelBox {
             this._allocationChangedId = 0;
         }
         try { Main.ctrlAltTabManager.removeGroup(this.panel); } catch (_e) { /* already disconnected */ }
-        try { Main.layoutManager.removeChrome(this.panelBox); } catch (_e) { /* already disconnected */ }
+        PanelHost.removeChrome(this.panelBox);
         this.panelBox.destroy();
         this.panelBox = null;
         this.panel = null;
