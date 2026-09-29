@@ -45,10 +45,5 @@
       <default>true</default>
       <summary>Enable Topbar Panel Controls module</summary>
     </key>
-    <key name="bt-panel-width" type="i">
-      <default>150</default>
-      <summary>Bluetooth Status panel widget width</summary>
-      <description>Width of the Bluetooth Status indicator text area on the panel, in pixels.</description>
-    </key>
   </schema>
 </schemalist>

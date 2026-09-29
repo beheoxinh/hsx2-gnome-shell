@@ -1,0 +1,240 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<schemalist>
+  <enum id="org.gnome.shell.extensions.alienware-topbar.panel-position">
+    <value nick="top" value="0"/>
+    <value nick="bottom" value="1"/>
+  </enum>
+
+  <enum id="org.gnome.shell.extensions.alienware-topbar.clock-position">
+    <value nick="left" value="0"/>
+    <value nick="center" value="1"/>
+    <value nick="right" value="2"/>
+  </enum>
+
+  <schema id="org.gnome.shell.extensions.alienware-topbar"
+          path="/org/gnome/shell/extensions/alienware-topbar/">
+
+    <!-- Panel geometry and visibility -->
+    <key name="panel-visible" type="b">
+      <default>true</default>
+      <summary>Show the top bar</summary>
+      <description>Master switch for the top bar. When off the bar is hidden on every workspace and monitor.</description>
+    </key>
+
+    <key name="panel-in-overview" type="b">
+      <default>false</default>
+      <summary>Show the top bar in the Activities overview</summary>
+      <description>When enabled, a hidden top bar is still shown while the overview is open.</description>
+    </key>
+
+    <key name="panel-height" type="i">
+      <default>0</default>
+      <range min="0" max="96"/>
+      <summary>Top bar height in pixels</summary>
+      <description>0 restores the GNOME Shell default height.</description>
+    </key>
+
+    <key name="panel-position" enum="org.gnome.shell.extensions.alienware-topbar.panel-position">
+      <default>'top'</default>
+      <summary>Top bar position</summary>
+      <description>Which screen edge the top bar is attached to.</description>
+    </key>
+
+    <key name="panel-corner-size" type="i">
+      <default>0</default>
+      <range min="0" max="24"/>
+      <summary>Corner radius</summary>
+      <description>Corner radius of the bar background. 0 restores the default.</description>
+    </key>
+
+    <key name="panel-button-padding" type="i">
+      <default>0</default>
+      <range min="0" max="24"/>
+      <summary>Button horizontal padding</summary>
+      <description>Horizontal padding around panel buttons. 0 restores the default.</description>
+    </key>
+
+    <key name="panel-indicator-padding" type="i">
+      <default>0</default>
+      <range min="0" max="24"/>
+      <summary>Indicator horizontal padding</summary>
+      <description>Horizontal padding around status area indicators. 0 restores the default.</description>
+    </key>
+
+    <key name="panel-icon-size" type="i">
+      <default>0</default>
+      <range min="0" max="48"/>
+      <summary>Panel icon size</summary>
+      <description>Icon size used by top bar buttons and indicators. 0 restores the default.</description>
+    </key>
+
+    <!-- Panel items -->
+    <key name="background-menu" type="b">
+      <default>true</default>
+      <summary>Show the background menu button</summary>
+    </key>
+
+    <key name="activities-button" type="b">
+      <default>true</default>
+      <summary>Show the Activities button</summary>
+    </key>
+
+    <key name="show-apps-button" type="b">
+      <default>true</default>
+      <summary>Show the applications button</summary>
+    </key>
+
+    <key name="search-entry" type="b">
+      <default>true</default>
+      <summary>Show the search entry</summary>
+    </key>
+
+    <key name="start-search" type="b">
+      <default>true</default>
+      <summary>Type to search</summary>
+      <description>Show the search entry in the overview when the user starts typing.</description>
+    </key>
+
+    <key name="max-search-results" type="i">
+      <default>0</default>
+      <range min="0" max="32"/>
+      <summary>Maximum search results</summary>
+      <description>How many search results are listed at once. 0 restores the default.</description>
+    </key>
+
+    <key name="notification-icon" type="b">
+      <default>true</default>
+      <summary>Show the notification (message tray) icon</summary>
+    </key>
+
+    <key name="keyboard-layout-indicator" type="b">
+      <default>true</default>
+      <summary>Show the keyboard layout indicator</summary>
+    </key>
+
+    <key name="accessibility-menu" type="b">
+      <default>true</default>
+      <summary>Show the accessibility menu</summary>
+    </key>
+
+    <key name="power-icon" type="b">
+      <default>true</default>
+      <summary>Show the power status icon</summary>
+    </key>
+
+    <key name="screen-sharing-indicator" type="b">
+      <default>true</default>
+      <summary>Show the screen sharing indicator</summary>
+    </key>
+
+    <key name="screen-recording-indicator" type="b">
+      <default>true</default>
+      <summary>Show the screen recording indicator</summary>
+    </key>
+
+    <!-- Clock and calendar -->
+    <key name="clock-visible" type="b">
+      <default>true</default>
+      <summary>Show the clock</summary>
+    </key>
+
+    <key name="clock-position" enum="org.gnome.shell.extensions.alienware-topbar.clock-position">
+      <default>'center'</default>
+      <summary>Clock position</summary>
+      <description>Which top bar section holds the clock. This is the only place allowed to reparent the date menu.</description>
+    </key>
+
+    <key name="clock-position-offset" type="i">
+      <default>0</default>
+      <range min="-64" max="64"/>
+      <summary>Clock offset</summary>
+      <description>Extra pixels inserted in front of the clock, used to balance the other panel items.</description>
+    </key>
+
+    <key name="world-clock" type="b">
+      <default>true</default>
+      <summary>World clocks in the calendar</summary>
+    </key>
+
+    <key name="weather" type="b">
+      <default>true</default>
+      <summary>Weather in the calendar</summary>
+    </key>
+
+    <key name="events-button" type="b">
+      <default>true</default>
+      <summary>Events button in the calendar</summary>
+    </key>
+
+    <key name="calendar" type="b">
+      <default>true</default>
+      <summary>Calendar in the calendar popup</summary>
+    </key>
+
+    <key name="invert-calendar-column-items" type="b">
+      <default>false</default>
+      <summary>Invert calendar column items</summary>
+    </key>
+
+    <!-- Quick settings -->
+    <key name="quick-settings" type="b">
+      <default>true</default>
+      <summary>Show the quick settings menu</summary>
+    </key>
+
+    <key name="quick-settings-dark-mode" type="b">
+      <default>true</default>
+      <summary>Dark mode toggle in quick settings</summary>
+    </key>
+
+    <key name="quick-settings-night-light" type="b">
+      <default>true</default>
+      <summary>Night light toggle in quick settings</summary>
+    </key>
+
+    <key name="quick-settings-do-not-disturb" type="b">
+      <default>true</default>
+      <summary>Do not disturb toggle in quick settings</summary>
+    </key>
+
+    <key name="quick-settings-backlight" type="b">
+      <default>true</default>
+      <summary>Backlight slider in quick settings</summary>
+    </key>
+
+    <key name="quick-settings-airplane-mode" type="b">
+      <default>true</default>
+      <summary>Airplane mode toggle in quick settings</summary>
+    </key>
+
+    <key name="accent-color-icon" type="b">
+      <default>false</default>
+      <summary>Accent colour for icons</summary>
+      <description>Use the accent colour instead of white for panel icons.</description>
+    </key>
+
+    <!-- Multi-monitor clone -->
+    <key name="clone-topbar" type="b">
+      <default>true</default>
+      <summary>Clone the top bar onto secondary monitors</summary>
+      <description>Render a copy of the top bar on every monitor except the primary one.</description>
+    </key>
+
+    <key name="clone-show-clock" type="b">
+      <default>true</default>
+      <summary>Clock on cloned bars</summary>
+    </key>
+
+    <key name="clone-show-tray" type="b">
+      <default>true</default>
+      <summary>Status area on cloned bars</summary>
+    </key>
+
+    <key name="clone-show-indicators" type="b">
+      <default>true</default>
+      <summary>Panel item state on cloned bars</summary>
+      <description>Apply the current visibility of every panel item to the cloned bars.</description>
+    </key>
+
+  </schema>
+</schemalist>

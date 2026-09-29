@@ -1,0 +1,18 @@
+# Schema ids that are verbatim/partial ports of upstream GNOME extensions.
+# Their upstream key sets are intentionally kept intact even when this suite does
+# not implement every key, so dead-key lint must not flag them.
+#
+# In-house schemas (alienware-suite, alienware-topbar, gnome-customizer-manager,
+# notification-configurator, workspace-control, panel-clone, ...) are deliberately
+# NOT listed: every key they declare must be read by code.
+#
+# Format: one schema id per line, '#' starts a comment.
+org.gnome.shell.extensions.dash-to-panel
+org.gnome.shell.extensions.system-monitor-next-applet
+org.gnome.shell.extensions.advanced-media-controller
+org.gnome.shell.extensions.indicators-appindicator
+org.gnome.shell.extensions.advanced-alt-tab-window-switcher
+org.gnome.shell.extensions.clipboard-indicator
+org.gnome.shell.extensions.commandmenu2
+org.gnome.shell.extensions.capsnum-touchpad
+org.gnome.shell.extensions.ding

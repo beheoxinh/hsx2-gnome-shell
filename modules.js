@@ -13,8 +13,6 @@ export const MODULES = [
         uuid: 'alienware-gnome-customizer-manager@hsx2coder',
         entry: 'extension.js',
         prefsEntry: 'prefs.js',
-        sessionMode: 'user',
-        hasStylesheet: false,
     },
     {
         key: 'workspaceControl',
@@ -24,8 +22,6 @@ export const MODULES = [
         uuid: 'alienware-workspace-control@hsx2coder',
         entry: 'extension.js',
         prefsEntry: 'prefs.js',
-        sessionMode: 'user',
-        hasStylesheet: false,
     },
     {
         key: 'topbarPanelControls',
@@ -35,8 +31,6 @@ export const MODULES = [
         uuid: 'alienware-topbar-panel-controls@hsx2coder',
         entry: 'extension.js',
         prefsEntry: 'prefs.js',
-        sessionMode: 'user',
-        hasStylesheet: false,
     },
     {
         key: 'dashToPanel',
@@ -46,8 +40,6 @@ export const MODULES = [
         uuid: 'alienware-dash-to-panel@hsx2coder',
         entry: 'extension.js',
         prefsEntry: 'prefs.js',
-        sessionMode: 'user',
-        hasStylesheet: true,
     },
     {
         key: 'systemMonitor',
@@ -57,8 +49,6 @@ export const MODULES = [
         uuid: 'alienware-monitor@hsx2coder',
         entry: 'extension.js',
         prefsEntry: 'prefs.js',
-        sessionMode: 'user',
-        hasStylesheet: true,
     },
     {
         key: 'topbarWidgets',
@@ -68,8 +58,6 @@ export const MODULES = [
         uuid: 'alienware-topbar-widgets@hsx2coder',
         entry: 'extension.js',
         prefsEntry: 'prefs.js',
-        sessionMode: 'user',
-        hasStylesheet: true,
     },
     {
         key: 'indicators',
@@ -79,8 +67,6 @@ export const MODULES = [
         uuid: 'alienware-indicators@hsx2coder',
         entry: 'extension.js',
         prefsEntry: 'prefs.js',
-        sessionMode: 'user',
-        hasStylesheet: false,
     },
     {
         key: 'desktopIcons',
@@ -90,8 +76,6 @@ export const MODULES = [
         uuid: 'alienware-desktop-enable-gnome@hsx2coder',
         entry: 'extension.js',
         prefsEntry: 'prefs.js',
-        sessionMode: 'user',
-        hasStylesheet: false,
     },
     {
         key: 'advancedAltTab',
@@ -101,8 +85,6 @@ export const MODULES = [
         uuid: 'alienware-advanced-alt-tab@hsx2coder',
         entry: 'extension.js',
         prefsEntry: 'prefs.js',
-        sessionMode: 'user',
-        hasStylesheet: true,
     },
     {
         key: 'notificationConfigurator',
@@ -112,8 +94,6 @@ export const MODULES = [
         uuid: 'alienware-notification-configurator@hsx2coder',
         entry: 'extension.js',
         prefsEntry: 'prefs.js',
-        sessionMode: 'user',
-        hasStylesheet: false,
     },
 ];
 
@@ -139,12 +119,4 @@ function _readText(file) {
     if (!ok)
         throw new Error(`Cannot read ${file.get_path()}`);
     return new TextDecoder('utf-8').decode(bytes);
-}
-
-export function moduleEntryURL(suiteExtension, moduleDef, entryFile) {
-    const file = suiteExtension.dir
-        .get_child('modules')
-        .get_child(moduleDef.uuid)
-        .get_child(entryFile);
-    return file.get_uri();
 }

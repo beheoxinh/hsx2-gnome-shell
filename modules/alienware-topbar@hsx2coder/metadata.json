@@ -1,0 +1,8 @@
+{
+    "description": "Top bar and panel: layout, clock, quick settings, indicators, widgets, multi-monitor clone",
+    "name": "Topbar & Panel",
+    "settings-schema": "org.gnome.shell.extensions.alienware-topbar",
+    "shell-version": ["46", "47", "48", "49", "50", "51", "52", "53", "54"],
+    "uuid": "alienware-topbar@hsx2coder",
+    "version": 1
+}
