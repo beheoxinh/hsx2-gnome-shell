@@ -3193,14 +3193,6 @@ export default class SystemMonitorExtension extends Extension {
             GLib.Source.remove(this.menuTimeout);
             this.menuTimeout = null;
         }
-        // restore system power icon if necessary
-        // workaround bug introduced by multiple cpus init :
-        // if (Schema.get_boolean('battery-hidesystem') && this.__sm.elts.battery.icon_hidden) {
-        //    this.__sm.elts.battery.hide_system_icon(false);
-        // }
-        // for (let i in this.__sm.elts) {
-        //    if (this.__sm.elts[i].elt == 'battery')
-        //        this.__sm.elts[i].hide_system_icon(false);
         // }
 
         if (this._MountsMonitor) {
