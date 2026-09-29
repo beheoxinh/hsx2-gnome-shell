@@ -34,6 +34,9 @@ export const SIDE = {LEFT: 0, CENTER: 1, RIGHT: 2};
 class PanelHostImpl {
     #api = null;
     #listeners = new Set();
+    /** role -> actor, so remove() reaches the same object add() created even
+     *  when a dash-to-panel override reroutes addToStatusArea elsewhere */
+    #owned = new Map();
 
     get api() {
         return this.#api;
@@ -83,6 +86,14 @@ class PanelHostImpl {
     }
 
     disable() {
+        for (const actor of this.#owned.values()) {
+            try {
+                actor.destroy();
+            } catch (_) {
+                /* already gone */
+            }
+        }
+        this.#owned.clear();
         this.#api?.close();
         this.#api = null;
         this.#emit();
@@ -96,18 +107,32 @@ class PanelHostImpl {
      * dash-to-panel override installed on the panel object is still honoured.
      */
     addStatusItem(role, indicator, position = 0, box = 'right') {
+        this.#owned.get(role)?.destroy();
+        this.#owned.set(role, indicator);
         return Main.panel.addToStatusArea(role, indicator, position, this.getBox(box));
+    }
+
+    /** The actor PanelHost added for this role, or undefined. */
+    getStatusItem(role) {
+        return this.#owned.get(role) ?? Main.panel?.statusArea?.[role];
+    }
+
+    hasStatusItem(role) {
+        return this.#owned.has(role) || !!Main.panel?.statusArea?.[role];
     }
 
     /** Same as addStatusItem but for raw actors that are not indicators. */
     addPanelBoxItem(role, actor, position = 0, box = 'right') {
+        this.#owned.get(role)?.destroy();
+        this.#owned.set(role, actor);
         if (typeof Main.panel._addToPanelBox === 'function')
             return Main.panel._addToPanelBox(role, actor, position, this.getBox(box));
         return Main.panel.addToStatusArea(role, actor, position, this.getBox(box));
     }
 
     removeStatusItem(role) {
-        const actor = Main.panel?.statusArea?.[role];
+        const actor = this.getStatusItem(role);
+        this.#owned.delete(role);
         if (!actor)
             return false;
         actor.destroy();

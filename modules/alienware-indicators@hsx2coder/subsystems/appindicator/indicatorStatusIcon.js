@@ -40,13 +40,10 @@ export function addIconToPanel(statusIcon) {
     const settings = SettingsManager.getDefaultGSettings();
     const indicatorId = `appindicator-${statusIcon.uniqueId}`;
 
-    const currentIcon = PanelHost.statusArea[indicatorId];
-    if (currentIcon) {
-        if (currentIcon !== statusIcon)
-            currentIcon.destroy();
-
-        PanelHost.statusArea[indicatorId] = null;
-    }
+    // through the host API, not the raw statusArea dict: dash-to-panel may
+    // have rerouted addToStatusArea, and only the host knows what it added
+    if (PanelHost.hasStatusItem(indicatorId))
+        PanelHost.removeStatusItem(indicatorId);
 
     PanelHost.addStatusItem(indicatorId, statusIcon, 1,
         settings.get_string('tray-pos'));

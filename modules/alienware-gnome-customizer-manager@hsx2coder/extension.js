@@ -7,7 +7,6 @@
  */
 
 import Clutter from 'gi://Clutter';
-import Gdk from 'gi://Gdk';
 import Gio from 'gi://Gio';
 import GLib from 'gi://GLib';
 import GObject from 'gi://GObject';
@@ -54,7 +53,6 @@ export default class GnomeCustomizerManagerExtension extends Extension {
                 Main,
                 St,
                 Clutter,
-                Gdk,
                 GLib,
                 Meta,
                 GObject,
@@ -113,7 +111,6 @@ class CustomizerManager {
         this.#api = api;
         this.#screenshotBox = new ScreenshotBox({
             Settings: this.#settings,
-            Gdk: Gdk,
         });
         this.#workspace = new WorkspaceControl(this.#settings, api);
     }

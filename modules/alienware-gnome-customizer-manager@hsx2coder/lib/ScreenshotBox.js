@@ -1,5 +1,4 @@
 import GLib from 'gi://GLib';
-import Gtk from 'gi://Gtk';
 import St from 'gi://St';
 import {InjectionManager} from 'resource:///org/gnome/shell/extensions/extension.js';
 import * as Main from 'resource:///org/gnome/shell/ui/main.js';
@@ -17,7 +16,6 @@ export class ScreenshotBox
     #attemptCount = 0;
     #capturing = false;
     #cssProvider = null;
-    #gdk = null;
     #dimensionLabel = null;
     #isDragging = false;
     #dragUpdateId = 0;
@@ -27,8 +25,7 @@ export class ScreenshotBox
     constructor(dependencies)
     {
         this.#settings = dependencies['Settings'] || null;
-        this.#gdk = dependencies['Gdk'] || null;
-        this.#cssProvider = new Gtk.CssProvider();
+        this.#cssProvider = new St.CssProvider();
     }
 
     enable()
@@ -131,11 +128,7 @@ export class ScreenshotBox
             return;
         }
 
-        if (!this.#cssProvider || !this.#gdk)
-            return;
-
-        const display = this.#gdk.Display.get_default();
-        if (!display)
+        if (!this.#cssProvider)
             return;
 
         this.#cssProvider.load_from_data(`
@@ -160,26 +153,15 @@ export class ScreenshotBox
             }
         `, -1);
 
-        Gtk.StyleContext.add_provider_for_display(
-            display,
-            this.#cssProvider,
-            Gtk.STYLE_PROVIDER_PRIORITY_APPLICATION
-        );
+        St.ThemeContext.get_for_stage(global.stage).add_provider(this.#cssProvider);
     }
 
     #removeCss()
     {
-        if (!this.#cssProvider || !this.#gdk)
+        if (!this.#cssProvider)
             return;
 
-        const display = this.#gdk.Display.get_default();
-        if (!display)
-            return;
-
-        Gtk.StyleContext.remove_provider_for_display(
-            display,
-            this.#cssProvider
-        );
+        St.ThemeContext.get_for_stage(global.stage).remove_provider(this.#cssProvider);
     }
 
     #patchWhenReady()

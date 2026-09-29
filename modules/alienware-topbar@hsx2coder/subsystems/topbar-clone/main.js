@@ -33,6 +33,20 @@ export class TopbarCloneSubsystem {
             this._settings.connect('changed::clone-topbar',
                 () => this._syncEnabledState()));
 
+        // connected once per enable(), never per toggle
+        if (!this._monitorsChangedId) {
+            this._monitorsChangedId = Main.layoutManager.connect('monitors-changed',
+                () => this._scheduleRebuild());
+            this._workareasChangedId = global.display.connect('workareas-changed',
+                () => this._syncGeometry());
+            this._settingsChangedIds.push(
+                this._settings.connect('changed::clone-show-clock',
+                    () => this._scheduleRebuild()),
+                this._settings.connect('changed::clone-show-tray',
+                    () => this._scheduleRebuild()),
+            );
+        }
+
         this._syncEnabledState();
     }
 
@@ -51,19 +65,6 @@ export class TopbarCloneSubsystem {
 
         this._build();
 
-        // connected once per enable(), never per toggle
-        if (!this._monitorsChangedId) {
-            this._monitorsChangedId = Main.layoutManager.connect('monitors-changed',
-                () => this._scheduleRebuild());
-            this._workareasChangedId = global.display.connect('workareas-changed',
-                () => this._syncGeometry());
-            this._settingsChangedIds.push(
-                this._settings.connect('changed::clone-show-clock',
-                    () => this._scheduleRebuild()),
-                this._settings.connect('changed::clone-show-tray',
-                    () => this._scheduleRebuild()),
-            );
-        }
 
         log(`${LOG_PREFIX} enabled (${this._boxes.length} clone panel(s))`);
     }
