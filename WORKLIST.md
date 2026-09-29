@@ -399,3 +399,11 @@ Rủi ro cao nhất: **Phase 6** (mất dconf nếu sai). Phase 4 và 5 (viết 
 10. `topbar-clone` chỉ connect `monitors-changed` **sau** khi kiểm tra số màn hình → cắm màn hình thứ hai vào máy 1 màn hình thì không bao giờ có clone.
 11. `PanelHost.addStatusItem` / `removeStatusItem` dùng 2 đường resolve khác nhau → actor bỏ rơi khi dash-to-panel reroute.
 12. `panel-in-overview` có trong schema nhưng không có signal handler → toggle không có tác dụng.
+13. `St.CssProvider` / `St.ThemeContext.add_provider` **không tồn tại** trong St typelib của GNOME 50 — dòng đầu tiên của `enable()` → GNOME disable cả extension.
+14. Bộ nạp CSS trước đó **không nạp gì cả** (`hasStylesheet` chết từ lâu): clipboard indicator, media, dash đều chạy không style.
+15. Tách engine làm mất **8 method**: `UIStyleClassAdd/Remove/Contain`, `isLocked`, `monitorGetInfo`, `panelIconGetSize`, `isPanelVisible`, `searchEntryHide/Show`. Tất cả nằm trong `try/catch` nên chỉ thấy stack trace. Riêng `AltTabApi.open()` + `DashApi.open()` throw → **alt-tab và dash-to-panel không enable được**.
+16. `enable-advanced-media-controller` mặc định `false` → sau khi tách, media controller mất tính năng (trước đó nó bật theo dash-to-panel).
+17. `_build()` của topbar clone chỉ teardown ở đường hotplug → toggle `clone-topbar` rò một clone panel mỗi lần.
+18. `PanelHost.addStatusItem` / `removeStatusItem` resolve qua 2 đường khác nhau → actor mồ côi khi dash-to-panel reroute.
+19. Module `enable()` throw giữa chừng để lại actor trong panel (không có cleanup).
+20. `PanelHost.getBox` / `add*` deref `Main.panel` không null-safe → crash nếu panel chưa sẵn sàng hoặc module topbar bị tắt.

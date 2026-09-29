@@ -78,6 +78,12 @@ domain**, thân hành động giữ nguyên từng dòng:
 
 Mỗi class có `open()`/`close()` riêng để hoàn tác đúng patch của nó.
 
+**Bẫy khi tách:** thân method được copy nguyên văn nhưng có thể gọi **helper dùng
+chung**. Helper đó phải tồn tại trong *từng* class, không chỉ một class. Tìm
+"dead method" bằng cách so caller **trong file khác** sẽ xoá nhầm chính vì
+caller nằm ở class anh em. Đã xảy ra 8 lần, tất cả bị `try/catch` nuốt nên chỉ
+thấy stack trace. Chạy `check-engine-calls.py` sau **mọi** lần sửa engine.
+
 ### 1.5 Patch dùng chung
 
 `_computeWorkspacesBoxForState` bị hai domain sửa (search entry của topbar,
@@ -173,6 +179,7 @@ GNOME 45 bỏ cơ chế migration per-extension, nên:
 | Check | Bắt được gì |
 |---|---|
 | `check-syntax.sh` | JS không parse **dưới ngữ pháp ES module** (copy sang `.mjs` rồi `node --check`; `node --check foo.js` parse như script và bỏ sót lỗi) |
+| `check-engine-calls.py` | `this.x()` trong 4 class engine không resolve; và consumer gọi method engine không có |
 | `check-schema-collisions.sh` | key trùng tên giữa 2 schema id |
 | `check-dead-keys.sh` | key khai báo mà không ai đọc; schema stale |
 | `check-key-usage.py` | code đọc key mà không schema nào khai báo |
