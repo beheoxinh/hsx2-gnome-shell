@@ -1,0 +1,45 @@
+# Keys that code legitimately reads but that no schema in this repository
+# declares. They belong to schemas that ship with GNOME or with an upstream
+# extension whose key set this suite only partially re-declares.
+#
+# Format: one key name per line, '#' starts a comment. tools/check-key-usage.py
+# fails on anything not listed here, so keep it short and justified.
+
+# ── org.gnome.desktop.interface / a11y / wm ──────────────────────────────
+bouncekeys-enable
+click-policy
+clock-format
+color-scheme
+cursor-size
+gtk-theme
+mousekeys-enable
+show-hidden
+show-delete-permanently
+show-image-thumbnails
+slowkeys-enable
+stickykeys-enable
+text-scaling-factor
+
+# ── org.gnome.shell (not re-declared here) ────────────────────────────────
+current-workspace-only
+disabled-extensions
+enable-animations
+enable-hot-corners
+enabled-extensions
+screen-reader-enabled
+send-events
+show-banners
+favorite-apps
+keyboard-layout
+screen-recorder-*
+workspaces-only-on-primary
+
+# ── upstream ports: key sets built at runtime from a prefix ───────────────
+app-ctrl-hotkey-
+app-ctrl-hotkey-kp-
+app-hotkey-
+app-hotkey-kp-
+app-shift-hotkey-
+app-shift-hotkey-kp-
+dot-color-
+dot-color-unfocused-

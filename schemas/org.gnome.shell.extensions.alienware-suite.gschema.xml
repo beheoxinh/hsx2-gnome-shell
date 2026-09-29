@@ -10,11 +10,6 @@
       <default>true</default>
       <summary>Enable System Monitor module</summary>
     </key>
-    <key name="enable-topbar-widgets" type="b">
-      <default>true</default>
-      <summary>Enable Topbar Widgets module</summary>
-      <description>Clipboard indicator, command menus, and topbar clone.</description>
-    </key>
     <key name="enable-indicators" type="b">
       <default>true</default>
       <summary>Enable Indicators module</summary>
@@ -33,17 +28,14 @@
       <default>true</default>
       <summary>Enable Notification Configurator module</summary>
     </key>
-    <key name="enable-workspace-control" type="b">
+    <key name="enable-topbar" type="b">
       <default>true</default>
-      <summary>Enable Workspace Control module</summary>
+      <summary>Enable the Topbar &amp; Panel module</summary>
+      <description>Panel layout, clock, quick settings, panel items, multi-monitor clone, clipboard and command menu widgets.</description>
     </key>
     <key name="enable-gnome-customizer-manager" type="b">
       <default>true</default>
       <summary>Enable Gnome Customizer Manager module</summary>
-    </key>
-    <key name="enable-topbar-panel-controls" type="b">
-      <default>true</default>
-      <summary>Enable Topbar Panel Controls module</summary>
     </key>
   </schema>
 </schemalist>

@@ -5,37 +5,42 @@
  * or its statusArea. Other modules ask PanelHost instead, which is why nothing
  * else in the suite needs Extension.lookupByUUID() to reach the panel.
  *
- * The PanelApi instance behind it was split out of the old shared
- * gnome-customizer-manager engine; its method bodies are unchanged.
+ * PanelApi (moved out of the old shared gnome-customizer-manager engine) is the
+ * implementation behind it; its method bodies are unchanged.
  */
+
+import Gio from 'gi://Gio';
+import GLib from 'gi://GLib';
+import Clutter from 'gi://Clutter';
+import Meta from 'gi://Meta';
+import GObject from 'gi://GObject';
+import St from 'gi://St';
 
 import * as Main from 'resource:///org/gnome/shell/ui/main.js';
 import * as PanelMenu from 'resource:///org/gnome/shell/ui/panelMenu.js';
-import * as PopupMenu from 'resource:///org/gnome/shell/ui/popupMenu.js';
-import * as Search from 'resource:///org/gnome/shell/ui/search.js';
 import * as BackgroundMenu from 'resource:///org/gnome/shell/ui/backgroundMenu.js';
+import * as Search from 'resource:///org/gnome/shell/ui/search.js';
 import * as OverviewControls from 'resource:///org/gnome/shell/ui/overviewControls.js';
 import * as WorkspaceThumbnail from 'resource:///org/gnome/shell/ui/workspaceThumbnail.js';
 import * as WorkspacesView from 'resource:///org/gnome/shell/ui/workspacesView.js';
 import * as WindowPreview from 'resource:///org/gnome/shell/ui/windowPreview.js';
 
-import St from 'gi://St';
-import GLib from 'gi://GLib';
-import Clutter from 'gi://Clutter';
-import Meta from 'gi://Meta';
-import GObject from 'gi://GObject';
-
 import {PanelApi} from './api.js';
 
 const BOXES = ['left', 'center', 'right'];
 
+export const SIDE = {LEFT: 0, CENTER: 1, RIGHT: 2};
+
 class PanelHostImpl {
     #api = null;
-    #signalIds = [];
     #listeners = new Set();
 
     get api() {
         return this.#api;
+    }
+
+    get available() {
+        return this.#api !== null;
     }
 
     get panel() {
@@ -47,7 +52,7 @@ class PanelHostImpl {
     }
 
     /**
-     * @param {object} shellVersion config shellVersion from the suite
+     * @param {number} shellVersion major GNOME Shell version
      */
     enable(shellVersion) {
         if (this.#api)
@@ -56,15 +61,12 @@ class PanelHostImpl {
         this.#api = new PanelApi({
             'Main': Main,
             'PanelMenu': PanelMenu,
-            'PopupMenu': PopupMenu,
             'BackgroundMenu': BackgroundMenu,
             'Search': Search,
             'SearchController': Search.SearchController
                 ? Search.SearchController.get_default()
                 : null,
-            'InterfaceSettings': new imports.gi.Gio.Settings({
-                schema_id: 'org.gnome.desktop.interface',
-            }),
+            'InterfaceSettings': new Gio.Settings({schema_id: 'org.gnome.desktop.interface'}),
             'OverviewControls': OverviewControls,
             'WorkspaceThumbnail': WorkspaceThumbnail,
             'WorkspacesView': WorkspacesView,
@@ -76,29 +78,21 @@ class PanelHostImpl {
             'GObject': GObject,
         }, shellVersion);
 
-        this.#api.open?.();
+        this.#api.open();
         this.#emit();
     }
 
     disable() {
-        this.#api?.close?.();
+        this.#api?.close();
         this.#api = null;
-        for (const id of this.#signalIds) {
-            try {
-                Main.layoutManager.disconnect(id);
-            } catch (_) {
-                /* layoutManager already gone */
-            }
-        }
-        this.#signalIds = [];
         this.#emit();
     }
 
     // ── consumers ────────────────────────────────────────────────────────
 
     /**
-     * Add an indicator to the status area. box is 'right' (default),
-     * 'center' or 'left'. Delegates to Main.panel.addToStatusArea so that a
+     * Add an indicator to the status area. box is 'right' (default), 'center'
+     * or 'left'. Goes through Main.panel.addToStatusArea on purpose so a
      * dash-to-panel override installed on the panel object is still honoured.
      */
     addStatusItem(role, indicator, position = 0, box = 'right') {
@@ -132,12 +126,12 @@ class PanelHostImpl {
         }
     }
 
-    /** Resolve a side name from a GSettings enum/int position, clamped. */
+    /** Clamp a stored integer position onto a valid side name. */
     sideForIndex(index) {
         return BOXES[Math.max(0, Math.min(BOXES.length - 1, Number(index) || 0))];
     }
 
-    /** Notify consumers when the panel geometry or visibility changed. */
+    /** Notify consumers when the panel engine came up or went down. */
     watch(cb) {
         this.#listeners.add(cb);
         return () => this.#listeners.delete(cb);

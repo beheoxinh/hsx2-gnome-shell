@@ -346,6 +346,17 @@
       <default>true</default>
     </key>
 
+    <key type="b" name="window-preview-caption">
+      <default>true</default>
+      <summary>Show the caption in the window preview</summary>
+      <description>Moved here from alienware-gnome-customizer-manager: the window preview is part of the alt-tab switcher.</description>
+    </key>
+
+    <key type="b" name="window-preview-close-button">
+      <default>true</default>
+      <summary>Show the close button in the window preview</summary>
+    </key>
+
   </schema>
 
 </schemalist>

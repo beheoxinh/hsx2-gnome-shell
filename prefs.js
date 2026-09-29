@@ -5,30 +5,26 @@ import Gtk from 'gi://Gtk';
 
 import {ExtensionPreferences} from 'resource:///org/gnome/Shell/Extensions/js/extensions/prefs.js';
 
+import TopbarPrefs from './modules/alienware-topbar@hsx2coder/prefs.js';
 import DashToPanelPrefs from './modules/alienware-dash-to-panel@hsx2coder/prefs.js';
 import SystemMonitorPrefs from './modules/alienware-monitor@hsx2coder/prefs.js';
-import TopbarWidgetsPrefs from './modules/alienware-topbar-widgets@hsx2coder/prefs.js';
 import IndicatorsPrefs from './modules/alienware-indicators@hsx2coder/prefs.js';
 import DingPrefs from './modules/alienware-desktop-enable-gnome@hsx2coder/prefs.js';
 import AdvancedAltTabPrefs from './modules/alienware-advanced-alt-tab@hsx2coder/prefs.js';
 import NotificationConfiguratorPrefs from './modules/alienware-notification-configurator@hsx2coder/prefs.js';
-import WorkspaceControlPrefs from './modules/alienware-workspace-control@hsx2coder/prefs.js';
-import TopbarPanelControlsPrefs from './modules/alienware-topbar-panel-controls@hsx2coder/prefs.js';
 import GnomeCustomizerManagerPrefs from './modules/alienware-gnome-customizer-manager@hsx2coder/prefs.js';
 
 import {MODULES, buildSubMetadata, moduleEntryURL} from './modules.js';
 
 const PREFS_REGISTRY = {
+    'alienware-topbar@hsx2coder': TopbarPrefs,
     'alienware-dash-to-panel@hsx2coder': DashToPanelPrefs,
     'alienware-monitor@hsx2coder': SystemMonitorPrefs,
-    'alienware-topbar-widgets@hsx2coder': TopbarWidgetsPrefs,
     'alienware-indicators@hsx2coder': IndicatorsPrefs,
     'alienware-desktop-enable-gnome@hsx2coder': DingPrefs,
     'alienware-advanced-alt-tab@hsx2coder': AdvancedAltTabPrefs,
     'alienware-notification-configurator@hsx2coder': NotificationConfiguratorPrefs,
-    'alienware-workspace-control@hsx2coder': WorkspaceControlPrefs,
     'alienware-gnome-customizer-manager@hsx2coder': GnomeCustomizerManagerPrefs,
-    'alienware-topbar-panel-controls@hsx2coder': TopbarPanelControlsPrefs,
 };
 
 export default class AlienwareSuitePreferences extends ExtensionPreferences {

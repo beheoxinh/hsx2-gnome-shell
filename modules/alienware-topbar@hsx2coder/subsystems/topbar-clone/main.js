@@ -13,12 +13,12 @@ import * as CtrlAltTab from 'resource:///org/gnome/shell/ui/ctrlAltTab.js';
 import * as Util from 'resource:///org/gnome/shell/misc/util.js';
 import {DateMenuButton} from 'resource:///org/gnome/shell/ui/dateMenu.js';
 
-const LOG_PREFIX = '[topbar-widgets/topbar-clone] ';
+const LOG_PREFIX = '[alienware-topbar/clone] ';
 const INACTIVE_WORKSPACE_DOT_SCALE = 0.75;
 
 export class TopbarCloneSubsystem {
-    static SCHEMA_ID = 'org.gnome.shell.extensions.panel-clone';
-    static SUBSYS_DIR = 'topbar-clone';
+    static SCHEMA_ID = 'org.gnome.shell.extensions.alienware-topbar';
+
 
     constructor(ctx) {
         this._settings = ctx.settings;
@@ -31,30 +31,48 @@ export class TopbarCloneSubsystem {
     }
 
     enable() {
-        if (!this._settings.get_boolean('enable-topbar-clone')) {
+        // the master switch is watched for the whole lifetime so toggling it
+        // never needs a shell restart; the old code returned early and left the
+        // feature unreachable with no way back
+        this._settingsChangedIds ??= [];
+        this._settingsChangedIds.push(
+            this._settings.connect('changed::clone-topbar',
+                () => this._syncEnabledState()));
+
+        this._syncEnabledState();
+    }
+
+    _syncEnabledState() {
+        if (!this._settings.get_boolean('clone-topbar')) {
             log(`${LOG_PREFIX} disabled via settings`);
+            this._teardown();
             return;
         }
 
         if (Main.layoutManager.monitors.length <= 1) {
             log(`${LOG_PREFIX} only one monitor, nothing to clone`);
+            this._teardown();
             return;
         }
 
         this._build();
 
-        this._monitorsChangedId = Main.layoutManager.connect('monitors-changed',
-            () => this._scheduleRebuild());
-
-        this._workareasChangedId = global.display.connect('workareas-changed',
-            () => this._syncGeometry());
-
-        this._settingsChangedIds = [
-            this._settings.connect('changed::topbar-clone-show-clock',
-                () => this._scheduleRebuild()),
-        ];
+        // connected once per enable(), never per toggle
+        if (!this._monitorsChangedId) {
+            this._monitorsChangedId = Main.layoutManager.connect('monitors-changed',
+                () => this._scheduleRebuild());
+            this._workareasChangedId = global.display.connect('workareas-changed',
+                () => this._syncGeometry());
+            this._settingsChangedIds.push(
+                this._settings.connect('changed::clone-show-clock',
+                    () => this._scheduleRebuild()),
+                this._settings.connect('changed::clone-show-tray',
+                    () => this._scheduleRebuild()),
+            );
+        }
 
         log(`${LOG_PREFIX} enabled (${this._boxes.length} clone panel(s))`);
+    }
     }
 
     disable() {
@@ -395,19 +413,32 @@ class CloneTopBar extends St.BoxLayout {
             () => this.remove_style_pseudo_class('overview'));
 
         this._syncClock();
+        this._syncClock();
+        this._syncTray();
         this._settingId = this._settings
-            ? this._settings.connect('changed::topbar-clone-show-clock', () => this._syncClock())
+            ? this._settings.connect('changed::clone-show-clock', () => this._syncClock())
             : 0;
     }
 
     _syncClock() {
-        let show = true;
+        if (this._centerClone)
+            this._centerClone.visible = this.#bool('clone-show-clock', true);
+    }
+
+    /** Status area section of the clone, toggled by clone-show-tray. */
+    _syncTray() {
+        if (this._qsButton)
+            this._qsButton.visible = this.#bool('clone-show-tray', true);
+    }
+
+    #bool(key, fallback) {
         try {
             if (this._settings && typeof this._settings.get_boolean === 'function')
-                show = this._settings.get_boolean('topbar-clone-show-clock');
-        } catch (_e) {}
-        if (this._centerClone)
-            this._centerClone.visible = show;
+                return this._settings.get_boolean(key);
+        } catch (_) {
+            /* settings went away with the actor */
+        }
+        return fallback;
     }
 
     _openIndicatorMenu(indicator, button, role) {

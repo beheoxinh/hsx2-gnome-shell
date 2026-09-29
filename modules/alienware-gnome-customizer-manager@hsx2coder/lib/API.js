@@ -1712,27 +1712,6 @@ export class API
             return this._getSpacingOld(box, fitMode, vertical);
         };
     }
-
-    /**
-     * show dash app running dot
-     *
-     * @returns {void}
-     */
-    dashAppRunningDotShow()
-    {
-        this.UIStyleClassRemove(this.#getAPIClassname('no-dash-app-running-dot'));
-    }
-
-    /**
-     * hide dash app running dot
-     *
-     * @returns {void}
-     */
-    dashAppRunningDotHide()
-    {
-        this.UIStyleClassAdd(this.#getAPIClassname('no-dash-app-running-dot'));
-    }
-
     #stopAllOnQuickSettingsPropertyCalls()
     {
         if (!this._quickSettingsCallSignals) {

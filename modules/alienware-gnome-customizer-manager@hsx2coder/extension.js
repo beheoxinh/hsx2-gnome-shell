@@ -39,6 +39,7 @@ import * as Config from 'resource:///org/gnome/shell/misc/config.js';
 import {Extension} from 'resource:///org/gnome/shell/extensions/extension.js';
 import {API} from './lib/API.js';
 import {ScreenshotBox} from './lib/ScreenshotBox.js';
+import {WorkspaceControl} from './subsystems/workspace-control.js';
 
 export default class GnomeCustomizerManagerExtension extends Extension {
     #api = null;
@@ -105,6 +106,8 @@ class CustomizerManager {
     #api = null;
     #screenshotBox = null;
 
+    #workspace = null;
+
     constructor(settings, api) {
         this.#settings = settings;
         this.#api = api;
@@ -112,6 +115,7 @@ class CustomizerManager {
             Settings: this.#settings,
             Gdk: Gdk,
         });
+        this.#workspace = new WorkspaceControl(this.#settings, api);
     }
 
     start() {
@@ -119,9 +123,11 @@ class CustomizerManager {
         this.#registerSignals();
         this.#applyAll();
         this.#screenshotBox?.enable();
+        this.#workspace.start();
     }
 
     stop() {
+        this.#workspace?.stop();
         this.#screenshotBox?.disable();
         this.#disconnectSignals();
         this.#revertAll();
@@ -134,27 +140,16 @@ class CustomizerManager {
             'changed::animation',                        () => this.#applyAnimation(false),
             'changed::window-demands-attention-focus',   () => this.#applyWinDemandFocus(false),
             'changed::window-maximized-on-create',       () => this.#applyWinMaxOnCreate(false),
-            'changed::window-preview-caption',           () => this.#applyWinPreviewCaption(false),
-            'changed::window-preview-close-button',      () => this.#applyWinPreviewClose(false),
             'changed::window-picker-icon',               () => this.#applyWinPickerIcon(false),
             'changed::window-menu',                      () => this.#applyWindowMenu(false),
             'changed::window-menu-take-screenshot-button', () => this.#applyWinMenuScreenshot(false),
             'changed::osd',                              () => this.#applyOSD(false),
             'changed::osd-position',                     () => this.#applyOSDPosition(false),
-            'changed::quick-settings',                   () => this.#applyQuickSettings(false),
-            'changed::quick-settings-dark-mode',          () => this.#applyQSDarkMode(false),
-            'changed::quick-settings-night-light',        () => this.#applyQSNightLight(false),
-            'changed::quick-settings-do-not-disturb',     () => this.#applyQSDoNotDisturb(false),
-            'changed::quick-settings-backlight',          () => this.#applyQSBacklight(false),
-            'changed::quick-settings-airplane-mode',      () => this.#applyQSAirplaneMode(false),
             'changed::theme',                            () => this.#applyTheme(false),
             'changed::looking-glass-width',               () => this.#applyLGSize(false),
             'changed::looking-glass-height',               () => this.#applyLGSize(false),
-            'changed::accent-color-icon',                 () => this.#applyAccentColor(false),
-            'changed::max-displayed-search-results',      () => this.#applyMaxSearchResults(false),
             'changed::remove-preselected-box',             () => this.#applyScreenshotBox(false),
             'changed::screenshot-on-release',              () => this.#applyScreenshotRelease(false),
-            'changed::invert-calendar-column-items',       () => this.#applyInvertCalendar(false),
             this
         );
     }
@@ -167,52 +162,30 @@ class CustomizerManager {
         this.#applyAnimation(false);
         this.#applyWinDemandFocus(false);
         this.#applyWinMaxOnCreate(false);
-        this.#applyWinPreviewCaption(false);
-        this.#applyWinPreviewClose(false);
         this.#applyWinPickerIcon(false);
         this.#applyWindowMenu(false);
         this.#applyWinMenuScreenshot(false);
         this.#applyOSD(false);
         this.#applyOSDPosition(false);
-        this.#applyQuickSettings(false);
-        this.#applyQSDarkMode(false);
-        this.#applyQSNightLight(false);
-        this.#applyQSDoNotDisturb(false);
-        this.#applyQSBacklight(false);
-        this.#applyQSAirplaneMode(false);
         this.#applyTheme(false);
         this.#applyLGSize(false);
-        this.#applyAccentColor(false);
-        this.#applyMaxSearchResults(false);
         this.#applyScreenshotBox(false);
         this.#applyScreenshotRelease(false);
-        this.#applyInvertCalendar(false);
     }
 
     #revertAll() {
         this.#applyAnimation(true);
         this.#applyWinDemandFocus(true);
         this.#applyWinMaxOnCreate(true);
-        this.#applyWinPreviewCaption(true);
-        this.#applyWinPreviewClose(true);
         this.#applyWinPickerIcon(true);
         this.#applyWindowMenu(true);
         this.#applyWinMenuScreenshot(true);
         this.#applyOSD(true);
         this.#applyOSDPosition(true);
-        this.#applyQuickSettings(true);
-        this.#applyQSDarkMode(true);
-        this.#applyQSNightLight(true);
-        this.#applyQSDoNotDisturb(true);
-        this.#applyQSBacklight(true);
-        this.#applyQSAirplaneMode(true);
         this.#applyTheme(true);
         this.#applyLGSize(true);
-        this.#applyAccentColor(true);
-        this.#applyMaxSearchResults(true);
         this.#applyScreenshotBox(true);
         this.#applyScreenshotRelease(true);
-        this.#applyInvertCalendar(true);
     }
 
     #a() { return this.#api; }
@@ -236,16 +209,6 @@ class CustomizerManager {
         const a = this.#a(); if (!a) return;
         f || this.#settings.get_boolean('window-maximized-on-create')
             ? a.windowMaximizedOnCreateEnable() : a.windowMaximizedOnCreateDisable();
-    }
-    #applyWinPreviewCaption(f) {
-        const a = this.#a(); if (!a) return;
-        f || this.#settings.get_boolean('window-preview-caption')
-            ? a.windowPreviewCaptionEnable() : a.windowPreviewCaptionDisable();
-    }
-    #applyWinPreviewClose(f) {
-        const a = this.#a(); if (!a) return;
-        f || this.#settings.get_boolean('window-preview-close-button')
-            ? a.windowPreviewCloseButtonEnable() : a.windowPreviewCloseButtonDisable();
     }
     #applyWinPickerIcon(f) {
         const a = this.#a(); if (!a) return;
@@ -277,37 +240,6 @@ class CustomizerManager {
     }
 
     // --- Quick Settings ---
-    #applyQuickSettings(f) {
-        const a = this.#a(); if (!a) return;
-        f || this.#settings.get_boolean('quick-settings')
-            ? a.quickSettingsMenuShow() : a.quickSettingsMenuHide();
-    }
-    #applyQSDarkMode(f) {
-        const a = this.#a(); if (!a) return;
-        f || this.#settings.get_boolean('quick-settings-dark-mode')
-            ? a.quickSettingsDarkStyleToggleShow() : a.quickSettingsDarkStyleToggleHide();
-    }
-    #applyQSNightLight(f) {
-        const a = this.#a(); if (!a) return;
-        f || this.#settings.get_boolean('quick-settings-night-light')
-            ? a.quickSettingsNightLightToggleShow() : a.quickSettingsNightLightToggleHide();
-    }
-    #applyQSDoNotDisturb(f) {
-        const a = this.#a(); if (!a) return;
-        f || this.#settings.get_boolean('quick-settings-do-not-disturb')
-            ? a.quickSettingsDoNotDisturbToggleShow() : a.quickSettingsDoNotDisturbToggleHide();
-    }
-    #applyQSBacklight(f) {
-        const a = this.#a(); if (!a) return;
-        f || this.#settings.get_boolean('quick-settings-backlight')
-            ? a.quickSettingsBacklightToggleShow() : a.quickSettingsBacklightToggleHide();
-    }
-    #applyQSAirplaneMode(f) {
-        const a = this.#a(); if (!a) return;
-        f || this.#settings.get_boolean('quick-settings-airplane-mode')
-            ? a.quickSettingsAirplaneModeToggleShow() : a.quickSettingsAirplaneModeToggleHide();
-    }
-
     // --- Theme ---
     #applyTheme(f) {
         const a = this.#a(); if (!a) return;
@@ -328,30 +260,10 @@ class CustomizerManager {
     }
 
     // --- Accent ---
-    #applyAccentColor(f) {
-        const a = this.#a(); if (!a) return;
-        f || this.#settings.get_boolean('accent-color-icon')
-            ? a.accentColorIconEnable() : a.accentColorIconDisable();
-    }
-
     // --- Search ---
-    #applyMaxSearchResults(f) {
-        const a = this.#a(); if (!a) return;
-        const val = this.#settings.get_int('max-displayed-search-results');
-        f || val === 0
-            ? a.setMaxDisplayedSearchResultToDefault()
-            : a.setMaxDisplayedSearchResult(val);
-    }
-
     // --- Screenshot (handled by ScreenshotBox internally via its own signal connections) ---
     #applyScreenshotBox(f) {}
     #applyScreenshotRelease(f) {}
 
     // --- Calendar ---
-    #applyInvertCalendar(f) {
-        const a = this.#a(); if (!a) return;
-        f || this.#settings.get_boolean('invert-calendar-column-items')
-            ? a.invertCalendarColumnItems()
-            : a.revertCalendarColumnItemsToDefault();
-    }
 }

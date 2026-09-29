@@ -1,0 +1,29 @@
+# Schema-id pairs that legitimately share GSettings key names.
+#
+# A collision only matters when two schemas in this suite that a human also
+# configures by hand declare the same key with different meaning. The pairs
+# below are all "in-house schema vs verbatim upstream port": the port keeps its
+# original key names because that is what its dconf path and its users expect.
+#
+# Any pair NOT listed here is a bug. That is the check that used to be missing:
+# gnome-customizer-manager and topbar-panel-controls both declared
+# `app-button`, `weather`, `world-clock` and `type-to-search` with different
+# meanings, and nothing caught it.
+#
+# Format: one comma separated pair of schema ids per line, '#' starts a comment.
+
+# upstream "Ding" desktop icons vs upstream AppIndicator support
+org.gnome.shell.extensions.ding,org.gnome.shell.extensions.indicators-appindicator
+
+# upstream dash-to-panel keeps its own panel keys; alienware-topbar has its own
+org.gnome.shell.extensions.dash-to-panel,org.gnome.shell.extensions.alienware-topbar
+
+# upstream advanced-media-controller sizes and places its own tray icons
+org.gnome.shell.extensions.advanced-media-controller,org.gnome.shell.extensions.alienware-topbar
+org.gnome.shell.extensions.advanced-media-controller,org.gnome.shell.extensions.dash-to-panel
+
+# upstream system-monitor-next-applet: the pre-rename schema is still shipped
+# because migration.js reads it once for installs that have not migrated yet
+org.gnome.shell.extensions.system-monitor,org.gnome.shell.extensions.system-monitor-next-applet
+org.gnome.shell.extensions.system-monitor,org.gnome.shell.extensions.dash-to-panel
+org.gnome.shell.extensions.system-monitor-next-applet,org.gnome.shell.extensions.dash-to-panel

@@ -20,8 +20,12 @@
 import Gio from 'gi://Gio'
 import GLib from 'gi://GLib'
 import Shell from 'gi://Shell'
+import St from 'gi://St'
+import Clutter from 'gi://Clutter'
 
+import Config from 'resource:///org/gnome/shell/misc/config.js'
 import * as Main from 'resource:///org/gnome/shell/ui/main.js'
+import * as WindowPreview from 'resource:///org/gnome/shell/ui/windowPreview.js'
 import { EventEmitter } from 'resource:///org/gnome/shell/misc/signals.js'
 import {
   Extension,
@@ -33,6 +37,7 @@ import * as PanelManager from './panelManager.js'
 import * as AppIcons from './appIcons.js'
 import * as Utils from './utils.js'
 import MediaControllerExtension from './media/MediaController.js'
+import { DashApi } from './lib/api.js'
 
 const UBUNTU_DOCK_UUID = 'ubuntu-dock@ubuntu.com'
 
@@ -291,10 +296,17 @@ class _JpHandler {
 
   start() {
     try {
-      const gcm = Extension.lookupByUUID('alienware-gnome-customizer-manager@hsx2coder')
-      if (gcm?._api) {
-        this.#api = gcm._api
-        console.log('[DTP-JP] API found, connecting JP dash keys')
+      const shellVersion = Number.parseInt(Config.PACKAGE_VERSION.split('.')[0])
+      this.#api = new DashApi({
+        'Main': Main,
+        'WindowPreview': WindowPreview,
+        'St': St,
+        'GLib': GLib,
+        'Clutter': Clutter,
+      }, shellVersion)
+      this.#api.open()
+      if (this.#api) {
+        console.log('[DTP-JP] API ready, connecting JP dash keys')
         this.#s.connectObject(
           'changed::jp-dash-override',    () => this.#applyDash(false),
           'changed::jp-dash-icon-size',    () => this.#applyDashIconSize(false),
@@ -303,8 +315,6 @@ class _JpHandler {
           this
         )
         this.#applyAll()
-      } else {
-        console.warn('[DTP-JP] GCM API not available')
       }
     } catch (e) {
       logError(e, '[DTP-JP] init failed')
@@ -313,6 +323,7 @@ class _JpHandler {
 
   stop() {
     try { this.#s.disconnectObject(this) } catch(e) {}
+    this.#api?.close()
     this.#api = null
   }
 

@@ -15,8 +15,12 @@ import Shell from 'gi://Shell';
 import GObject from 'gi://GObject';
 import Gio from 'gi://Gio';
 
+import St from 'gi://St';
+import Clutter from 'gi://Clutter';
+
 import * as Main from 'resource:///org/gnome/shell/ui/main.js';
 import * as AltTab from 'resource:///org/gnome/shell/ui/altTab.js';
+import * as SwitcherPopup from 'resource:///org/gnome/shell/ui/switcherPopup.js';
 import * as Layout from 'resource:///org/gnome/shell/ui/layout.js';
 
 import * as WindowSwitcherPopup from './src/windowSwitcherPopup.js';
@@ -26,7 +30,10 @@ import * as SwitcherList from './src/switcherList.js';
 import * as SwitcherItems from './src/switcherItems.js';
 import * as WindowMenu from './src/windowMenu.js';
 
+import Config from 'resource:///org/gnome/shell/misc/config.js';
 import { Extension, gettext as _ } from 'resource:///org/gnome/shell/extensions/extension.js';
+
+import {AltTabApi} from './lib/api.js';
 
 const HOT_CORNER_PRESSURE_TIMEOUT = 1000; // ms
 
@@ -334,31 +341,54 @@ class _AatJpHandler {
     constructor(s) { this.#s = s; }
 
     start() {
-        try {
-            const gcm = Extension.lookupByUUID('alienware-gnome-customizer-manager@hsx2coder');
-            if (gcm?._api) {
-                this.#api = gcm._api;
-                console.log('[AAT-JP] API found, connecting JP alt-tab keys');
-                this.#s.connectObject(
-                    'changed::jp-alt-tab-window-preview-size', () => this.#applyPreviewSize(false),
-                    'changed::jp-alt-tab-icons-size',          () => this.#applyIconSize(false),
-                    'changed::jp-switcher-popup-delay',        () => this.#applyPopupDelay(false),
-                    this
-                );
-                this.#applyPreviewSize(false);
-                this.#applyIconSize(false);
-                this.#applyPopupDelay(false);
-            } else {
-                console.warn('[AAT-JP] GCM API not available');
-            }
-        } catch (e) {
-            logError(e, '[AAT-JP] init failed');
-        }
+        const shellVersion = Number.parseInt(Config.PACKAGE_VERSION.split('.')[0]);
+        this.#api = new AltTabApi({
+            'Main': Main,
+            'AltTab': AltTab,
+            'SwitcherPopup': SwitcherPopup,
+            'St': St,
+            'GLib': GLib,
+            'Clutter': Clutter,
+        }, shellVersion);
+        this.#api.open();
+
+        this.#s.connectObject(
+            'changed::jp-alt-tab-window-preview-size', () => this.#applyPreviewSize(false),
+            'changed::jp-alt-tab-icons-size', () => this.#applyIconSize(false),
+            'changed::jp-switcher-popup-delay', () => this.#applyPopupDelay(false),
+            'changed::window-preview-caption', () => this.#applyPreviewCaption(false),
+            'changed::window-preview-close-button', () => this.#applyPreviewCloseButton(false),
+            this
+        );
+        this.#applyPreviewSize(false);
+        this.#applyIconSize(false);
+        this.#applyPopupDelay(false);
+        this.#applyPreviewCaption(false);
+        this.#applyPreviewCloseButton(false);
     }
 
     stop() {
         try { this.#s.disconnectObject(this); } catch(e) {}
+        this.#api?.close();
         this.#api = null;
+    }
+
+    #applyPreviewCaption(f) {
+        const a = this.#a();
+        if (!a) return;
+        if (f || this.#s.get_boolean('window-preview-caption'))
+            a.windowPreviewCaptionEnable();
+        else
+            a.windowPreviewCaptionDisable();
+    }
+
+    #applyPreviewCloseButton(f) {
+        const a = this.#a();
+        if (!a) return;
+        if (f || this.#s.get_boolean('window-preview-close-button'))
+            a.windowPreviewCloseButtonEnable();
+        else
+            a.windowPreviewCloseButtonDisable();
     }
 
     #a() { return this.#api; }

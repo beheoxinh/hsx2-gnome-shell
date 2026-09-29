@@ -1,45 +1,26 @@
 /**
- * Workspace Control — Extension entry point
+ * Workspace Control, folded into alienware-gnome-customizer-manager.
  *
- * Manages workspace-related GNOME Shell behavior.
- * Uses Just Perfection as runtime backend via Extension.lookupByUUID.
+ * This was a standalone module whose only job was a settings front-end: every
+ * handler called into the customizer's shell-tweak API through
+ * Extension.lookupByUUID. Both halves now live in the same module, so the lookup
+ * hop is gone and the keys sit in one schema instead of two.
  */
 
-import Gio from 'gi://Gio';
-import {Extension} from 'resource:///org/gnome/shell/extensions/extension.js';
-
-export default class WorkspaceControlExtension extends Extension {
-    #manager = null;
-
-    enable() {
-        console.log('[WC] enable()');
-        let settings = this.getSettings();
-        this.#manager = new WorkspaceManager(settings);
-        this.#manager.start();
-    }
-
-    disable() {
-        this.#manager?.stop();
-        this.#manager = null;
-    }
-}
-
-/**
- * Manager — applies workspace settings by calling JP's API.js methods.
- * Finds Just Perfection via Extension.lookupByUUID and borrows its API.
- */
-class WorkspaceManager {
+export class WorkspaceControl {
     #settings = null;
+    #api = null;
     #signalIds = [];
     #jpApi = null;
 
-    constructor(settings) {
+    constructor(settings, api) {
         this.#settings = settings;
+        this.#api = api;
     }
 
     start() {
-        console.log('[WC] WorkspaceManager.start()');
-        this.#findJPApi();
+        console.log('[workspace-control] start()');
+        this.#jpApi = this.#api;
         this.#registerSignals();
         this.#applyAll();
     }
@@ -48,18 +29,6 @@ class WorkspaceManager {
         this.#disconnectSignals();
         this.#revertAll();
         this.#jpApi = null;
-    }
-
-    #findJPApi() {
-        try {
-            const gcm = Extension.lookupByUUID('alienware-gnome-customizer-manager@hsx2coder');
-            if (gcm && gcm._api) {
-                this.#jpApi = gcm._api;
-                console.log('[WC] found GCM API ✓ borrowing runtime engine');
-            }
-        } catch (e) {
-            console.warn('[workspace-control] JP not available, workspace features limited');
-        }
     }
 
     #registerSignals() {
@@ -136,7 +105,7 @@ class WorkspaceManager {
     }
 
     #applyAll() {
-        console.log('[WC] applyAll');
+        console.log('[workspace-control] applyAll');
         this.#applyWorkspace(false);
         this.#applyWorkspacePopup(false);
         this.#applyWorkspaceSwitcherSize(false);

@@ -248,4 +248,26 @@ export class DashApi
      *  height: int
      */
 
+
+    /**
+     * show dash app running dot
+     *
+     * @returns {void}
+     */
+    dashAppRunningDotShow()
+    {
+        this.UIStyleClassRemove(this.#getAPIClassname('no-dash-app-running-dot'));
+    }
+
+
+    /**
+     * hide dash app running dot
+     *
+     * @returns {void}
+     */
+    dashAppRunningDotHide()
+    {
+        this.UIStyleClassAdd(this.#getAPIClassname('no-dash-app-running-dot'));
+    }
+
 }

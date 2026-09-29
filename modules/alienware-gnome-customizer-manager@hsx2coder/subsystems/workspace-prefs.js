@@ -1,21 +1,15 @@
+/**
+ * Workspace Control preferences, folded into alienware-gnome-customizer-manager.
+ *
+ * The keys now live in the customizer schema, so this only builds pages and is
+ * handed the host module's Gio.Settings.
+ */
+
 import Adw from 'gi://Adw';
 import Gio from 'gi://Gio';
 import Gtk from 'gi://Gtk';
-import {ExtensionPreferences} from 'resource:///org/gnome/Shell/Extensions/js/extensions/prefs.js';
 
-export default class WorkspaceControlPreferences extends ExtensionPreferences {
-    fillPreferencesWindow(window) {
-        const s = new Settings(this.getSettings());
-        window._settingsRef = s;
-        for (const {title, iconName, groups} of Settings.getTabDefs(s)) {
-            const page = new Adw.PreferencesPage({title, icon_name: iconName});
-            groups.forEach(g => page.add(g));
-            window.add(page);
-        }
-    }
-}
-
-class Settings {
+class WorkspaceSettings {
     static getTabDefs(s) {
         return [
             {title: 'Workspace', iconName: 'preferences-system-symbolic',   groups: [s.workspaceG]},
@@ -124,5 +118,15 @@ class Settings {
         this.schema.bind('ripple-box', this.rippleBox, 'active', Gio.SettingsBindFlags.DEFAULT);
         this.schema.bind('startup-status', this.startupStatus, 'active', Gio.SettingsBindFlags.DEFAULT);
         this.schema.bind('controls-manager-spacing-size', this.controlsManagerSpacing, 'value', Gio.SettingsBindFlags.DEFAULT);
+    }
+}
+
+export function addWorkspaceControlPages(window, settings) {
+    const s = new WorkspaceSettings(settings);
+    window._settingsRef = s;
+    for (const {title, iconName, groups} of WorkspaceSettings.getTabDefs(s)) {
+        const page = new Adw.PreferencesPage({title, icon_name: iconName});
+        groups.forEach(g => page.add(g));
+        window.add(page);
     }
 }

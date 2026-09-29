@@ -15,15 +15,23 @@ if [ ${#FILES[@]} -eq 0 ]; then
     exit 2
 fi
 
-python3 - "${FILES[@]}" <<'PY'
+python3 - tools/schema-collision-allow.txt "${FILES[@]}" <<'PY'
 import re
 import sys
 import xml.etree.ElementTree as ET
 
+ALLOW_FILE = sys.argv[1]
+allowed_pairs = set()
+for line in open(ALLOW_FILE):
+    line = line.strip()
+    if line and not line.startswith('#') and ',' in line:
+        a, b = (p.strip() for p in line.split(',', 1))
+        allowed_pairs.add(frozenset((a, b)))
+
 # key name -> {schema id -> file}
 index = {}
 dup_schema_id = {}
-for path in sys.argv[1:]:
+for path in sys.argv[2:]:
     try:
         root = ET.parse(path).getroot()
     except ET.ParseError as e:
@@ -37,7 +45,19 @@ for path in sys.argv[1:]:
         for key in schema.findall('key'):
             index.setdefault(key.get('name'), {}).setdefault(sid, path)
 
-collisions = {k: v for k, v in index.items() if len(v) > 1}
+collisions = {}
+allowed = 0
+for name, owners in index.items():
+    if len(owners) < 2:
+        continue
+    ids = sorted(owners)
+    unallowed = any(
+        frozenset((ids[a], ids[b])) not in allowed_pairs
+        for a in range(len(ids)) for b in range(a + 1, len(ids)))
+    if unallowed:
+        collisions[name] = owners
+    else:
+        allowed += 1
 
 if collisions:
     print(f"FAIL: {len(collisions)} key name(s) declared in more than one schema id\n")
@@ -48,5 +68,6 @@ if collisions:
         print()
     sys.exit(1)
 
-print(f"OK: {len(index)} distinct key names across {len(dup_schema_id)} schema ids, 0 collisions")
+print(f"OK: {len(index)} distinct key names across {len(dup_schema_id)} schema ids, "
+      f"0 unallowed collisions ({allowed} allowed upstream-port pair(s))")
 PY

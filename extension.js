@@ -2,30 +2,26 @@ import Gio from 'gi://Gio';
 import GLib from 'gi://GLib';
 import {Extension} from 'resource:///org/gnome/shell/extensions/extension.js';
 
+import TopbarExtension from './modules/alienware-topbar@hsx2coder/extension.js';
 import DashToPanelExtension from './modules/alienware-dash-to-panel@hsx2coder/extension.js';
 import SystemMonitorExtension from './modules/alienware-monitor@hsx2coder/extension.js';
-import TopbarWidgetsExtension from './modules/alienware-topbar-widgets@hsx2coder/extension.js';
 import IndicatorsExtension from './modules/alienware-indicators@hsx2coder/extension.js';
 import DingExtension from './modules/alienware-desktop-enable-gnome@hsx2coder/extension.js';
 import AdvancedAltTabExtension from './modules/alienware-advanced-alt-tab@hsx2coder/extension.js';
 import NotificationConfiguratorExtension from './modules/alienware-notification-configurator@hsx2coder/extension.js';
-import WorkspaceControlExtension from './modules/alienware-workspace-control@hsx2coder/extension.js';
-import TopbarPanelControlsExtension from './modules/alienware-topbar-panel-controls@hsx2coder/extension.js';
 import GnomeCustomizerManagerExtension from './modules/alienware-gnome-customizer-manager@hsx2coder/extension.js';
 
 import {MODULES, buildSubMetadata} from './modules.js';
 
 const CLASS_REGISTRY = {
+    'alienware-topbar@hsx2coder': TopbarExtension,
     'alienware-dash-to-panel@hsx2coder': DashToPanelExtension,
     'alienware-monitor@hsx2coder': SystemMonitorExtension,
-    'alienware-topbar-widgets@hsx2coder': TopbarWidgetsExtension,
     'alienware-indicators@hsx2coder': IndicatorsExtension,
     'alienware-desktop-enable-gnome@hsx2coder': DingExtension,
     'alienware-advanced-alt-tab@hsx2coder': AdvancedAltTabExtension,
     'alienware-notification-configurator@hsx2coder': NotificationConfiguratorExtension,
-    'alienware-workspace-control@hsx2coder': WorkspaceControlExtension,
     'alienware-gnome-customizer-manager@hsx2coder': GnomeCustomizerManagerExtension,
-    'alienware-topbar-panel-controls@hsx2coder': TopbarPanelControlsExtension,
 };
 
 export default class AlienwareSuiteExtension extends Extension {
