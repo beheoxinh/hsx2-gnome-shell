@@ -4,6 +4,43 @@
 
 ---
 
+## 0. Module ownership sau khi gộp (2026-09)
+
+Suite load 9 module, mỗi module một chức năng. Ownership cứng:
+
+| Tài nguyên | Chủ sở hữu duy nhất | Cách module khác dùng |
+|---|---|---|
+| `Main.panel`, `_leftBox`, `_centerBox`, `_rightBox`, `statusArea`, `panelBox` | `alienware-topbar` | `PanelHost` |
+| panel geometry / clock / quick settings / panel item visibility | `alienware-topbar` | không ai khác có key |
+| `_computeWorkspacesBoxForState` patch | `lib/workspacesBoxLayout.js` (refcount) | `addWorkspacesBoxPatch()` |
+| `workspaceSwitcherPopup`, `overview`, `windowMenu`, `lookingGlass`, OSD | `alienware-gnome-customizer-manager` | import `API` trực tiếp |
+| `WindowIcon._init`, `SwitcherPopup.show` | `alienware-advanced-alt-tab` | import `AltTabApi` |
+| dash visibility / dash icon size | `alienware-dash-to-panel` | import `DashApi` |
+
+Không còn `Extension.lookupByUUID` nào trong suite: trước đó có 5 chỗ, và mỗi
+chỗ im lặng trở thành no-op nếu `enable-gnome-customizer-manager` bị tắt,
+vì phụ thuộc thứ tự enable trong `MODULES`.
+
+### 0.1 Vì sao có `lib/workspacesBoxLayout.js`
+
+Hai domain sửa cùng một hàm shell: search entry (topbar) nới khoảng trống trên
+workspace box, và `workspaces-in-app-grid` ép chiều cao box. Trước khi tách, cả
+hai nằm trong một class nên chỉ có một lần patch. Tách xong, mỗi class tự lưu
+`_computeWorkspacesBoxForState` gốc rồi tự khôi phục — module tắt trước sẽ
+khôi phục lại wrapper của module kia và rò nó. `lib/workspacesBoxLayout.js` giữ
+một patch duy nhất, đếm số record, và chỉ khôi phục khi record cuối cùng đi.
+
+### 0.2 Vì sao `tools/` tồn tại
+
+Suite đã có 119 key trùng tên giữa hai schema id trong suốt thời gian tồn tại,
+và 46 trong số đó bị hai module đọc/ghi cùng lúc với **hai ý nghĩa khác nhau**
+(`app-button`, `weather`, `world-clock`, `type-to-search`, `top-panel-position`).
+GSettings không cảnh báo vì khác schema id. Không có gì bắt được, nên giờ có:
+`tools/check-schema-collisions.sh`, `tools/check-key-usage.py` và
+`tools/check-wiring.py`, tất cả chạy được ngoài GNOME Shell.
+
+---
+
 ## 1. Tổng quan giải pháp
 
 ### 1.1 Vấn đề

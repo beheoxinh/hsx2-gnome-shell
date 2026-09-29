@@ -94,7 +94,7 @@ for base, dirs, files in os.walk('.'):
 for path in js_files:
     text = open(path, encoding='utf-8', errors='replace').read()
     for spec in IMPORT.findall(text):
-        if spec.startswith(('gi://', 'resource://', 'file://')):
+        if spec.startswith(('gi://', 'resource://', 'file://')) or spec in ('system',):
             continue
         target = os.path.normpath(os.path.join(os.path.dirname(path), spec))
         if not os.path.isfile(target):
