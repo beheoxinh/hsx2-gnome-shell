@@ -145,8 +145,6 @@ class CustomizerManager {
             'changed::theme',                            () => this.#applyTheme(false),
             'changed::looking-glass-width',               () => this.#applyLGSize(false),
             'changed::looking-glass-height',               () => this.#applyLGSize(false),
-            'changed::remove-preselected-box',             () => this.#applyScreenshotBox(false),
-            'changed::screenshot-on-release',              () => this.#applyScreenshotRelease(false),
             this
         );
     }
@@ -166,8 +164,6 @@ class CustomizerManager {
         this.#applyOSDPosition(false);
         this.#applyTheme(false);
         this.#applyLGSize(false);
-        this.#applyScreenshotBox(false);
-        this.#applyScreenshotRelease(false);
     }
 
     #revertAll() {
@@ -181,8 +177,6 @@ class CustomizerManager {
         this.#applyOSDPosition(true);
         this.#applyTheme(true);
         this.#applyLGSize(true);
-        this.#applyScreenshotBox(true);
-        this.#applyScreenshotRelease(true);
     }
 
     #a() { return this.#api; }
@@ -258,9 +252,4 @@ class CustomizerManager {
 
     // --- Accent ---
     // --- Search ---
-    // --- Screenshot (handled by ScreenshotBox internally via its own signal connections) ---
-    #applyScreenshotBox(f) {}
-    #applyScreenshotRelease(f) {}
-
-    // --- Calendar ---
 }

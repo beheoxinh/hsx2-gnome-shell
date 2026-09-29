@@ -10,7 +10,6 @@
 export class WorkspaceControl {
     #settings = null;
     #hostApi = null;
-    #signalIds = [];
     #jpApi = null;
 
     constructor(settings, api) {
@@ -97,7 +96,6 @@ export class WorkspaceControl {
             () => this.#applyControlsManagerSpacingSize(false),
             this
         );
-        this.#signalIds = [];
     }
 
     #disconnectSignals() {
