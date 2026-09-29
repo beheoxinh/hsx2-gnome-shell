@@ -107,9 +107,14 @@ class PanelHostImpl {
      * dash-to-panel override installed on the panel object is still honoured.
      */
     addStatusItem(role, indicator, position = 0, box = 'right') {
+        const target = this.getBox(box);
+        if (!target) {
+            logError(new Error('no panel'), `[alienware-topbar] cannot add ${role}`);
+            return null;
+        }
         this.#owned.get(role)?.destroy();
         this.#owned.set(role, indicator);
-        return Main.panel.addToStatusArea(role, indicator, position, this.getBox(box));
+        return Main.panel.addToStatusArea(role, indicator, position, target);
     }
 
     /** The actor PanelHost added for this role, or undefined. */
@@ -123,11 +128,16 @@ class PanelHostImpl {
 
     /** Same as addStatusItem but for raw actors that are not indicators. */
     addPanelBoxItem(role, actor, position = 0, box = 'right') {
+        const target = this.getBox(box);
+        if (!target) {
+            logError(new Error('no panel'), `[alienware-topbar] cannot add ${role}`);
+            return null;
+        }
         this.#owned.get(role)?.destroy();
         this.#owned.set(role, actor);
         if (typeof Main.panel._addToPanelBox === 'function')
-            return Main.panel._addToPanelBox(role, actor, position, this.getBox(box));
-        return Main.panel.addToStatusArea(role, actor, position, this.getBox(box));
+            return Main.panel._addToPanelBox(role, actor, position, target);
+        return Main.panel.addToStatusArea(role, actor, position, target);
     }
 
     removeStatusItem(role) {
@@ -141,13 +151,16 @@ class PanelHostImpl {
 
     /** @param {'left'|'center'|'right'} side */
     getBox(side) {
+        // null-safe: consumers call this from their own enable(), which may run
+        // before the panel exists (and when this module is disabled entirely)
+        const panel = Main.panel;
         switch (side) {
         case 'left':
-            return Main.panel._leftBox;
+            return panel?._leftBox ?? null;
         case 'center':
-            return Main.panel._centerBox;
+            return panel?._centerBox ?? null;
         default:
-            return Main.panel._rightBox;
+            return panel?._rightBox ?? null;
         }
     }
 

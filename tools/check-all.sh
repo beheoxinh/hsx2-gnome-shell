@@ -18,6 +18,8 @@ run "dead keys"         ./tools/check-dead-keys.sh
 run "key usage"         python3 tools/check-key-usage.py
 run "prefs keys"        python3 tools/check-prefs-keys.py
 run "unused imports"   python3 tools/check-unused-imports.py
+run "imports"           python3 tools/check-imports.py
+run "shell api"         python3 tools/check-shell-api.py
 run "wiring"            python3 tools/check-wiring.py
 run "schemas load"      env GSETTINGS_BACKEND=memory gjs -m tools/check-schemas.js
 run "migration map"    env GSETTINGS_BACKEND=memory gjs -m tools/migration-dry-run.js

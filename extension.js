@@ -1,5 +1,7 @@
 import Gio from 'gi://Gio';
 import St from 'gi://St';
+import Gdk from 'gi://Gdk';
+import Gtk from 'gi://Gtk';
 import {Extension} from 'resource:///org/gnome/shell/extensions/extension.js';
 
 import AdvancedMediaControllerExtension from './modules/alienware-advanced-media-controller@hsx2coder/extension.js';
@@ -36,7 +38,11 @@ export default class AlienwareSuiteExtension extends Extension {
     }
 
     enable() {
-        this._loadStylesheets();
+        try {
+            this._loadStylesheets();
+        } catch (e) {
+            logError(e, '[alienware-suite] stylesheets skipped');
+        }
         this._suiteSettings = this.getSettings();
 
         // before any module reads its schema, so a returning user keeps the
@@ -95,12 +101,25 @@ export default class AlienwareSuiteExtension extends Extension {
                 files.push(css);
         }
 
+        // Gtk, not St: GNOME Shell's St has no CssProvider and its
+        // ThemeContext exposes no add_provider, so an St.CssProvider here
+        // throws on the first line of enable() and GNOME disables the whole
+        // suite. Gtk is what every other extension on this system uses.
+        let loaded = 0;
         for (const file of files) {
-            const provider = new St.CssProvider();
-            provider.load_from_path(file.get_path());
-            St.ThemeContext.get_for_stage(global.stage).add_provider(provider);
+            try {
+                const provider = new Gtk.CssProvider();
+                provider.load_from_path(file.get_path());
+                Gtk.StyleContext.add_provider_for_display(
+                    Gdk.Display.get_default(), provider,
+                    Gtk.STYLE_PROVIDER_PRIORITY_APPLICATION);
+                loaded++;
+            } catch (e) {
+                // a broken stylesheet must never stop the suite from enabling
+                logError(e, `[alienware-suite] could not load ${file.get_basename()}`);
+            }
         }
-        log(`[alienware-suite] ${files.length} stylesheet(s) registered`);
+        log(`[alienware-suite] ${loaded}/${files.length} stylesheet(s) registered`);
     }
 
     _reactToToggle(def) {
@@ -131,8 +150,19 @@ export default class AlienwareSuiteExtension extends Extension {
 
             log(`[alienware-suite] enabled module ${def.uuid}`);
         } catch (e) {
-            this._loaded.delete(def.uuid);
             logError(e, `[alienware-suite] failed to enable ${def.uuid}`);
+            // a module that threw halfway through may already have put actors
+            // in the panel; without this they stay there forever
+            const partial = this._loaded.get(def.uuid);
+            if (partial) {
+                try {
+                    partial.disable();
+                } catch (cleanupError) {
+                    logError(cleanupError,
+                        `[alienware-suite] cleanup of ${def.uuid} also failed`);
+                }
+                this._loaded.delete(def.uuid);
+            }
         }
     }
 

@@ -3,9 +3,9 @@
   <schema id="org.gnome.shell.extensions.alienware-suite"
           path="/org/gnome/shell/extensions/alienware-suite/">
     <key name="enable-advanced-media-controller" type="b">
-      <default>false</default>
+      <default>true</default>
       <summary>Enable the Advanced Media Controller module</summary>
-      <description>Split out of dash-to-panel, which used to carry it in media/.</description>
+      <description>Split out of dash-to-panel, which used to carry it in media/. It used to come up with dash-to-panel, so default true keeps that behaviour.</description>
     </key>
     <key name="enable-dash-to-panel" type="b">
       <default>true</default>
