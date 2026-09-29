@@ -2,8 +2,8 @@
  * PanelHost — the single door to the GNOME Shell top bar.
  *
  * Only this module may touch Main.panel, its _leftBox / _centerBox / _rightBox
- * or its statusArea. Other modules ask PanelHost instead, which is why nothing
- * else in the suite needs Extension.lookupByUUID() to reach the panel.
+ * or its statusArea. Other modules ask PanelHost instead, so no module has to
+ * reach across a module boundary to get at the bar.
  *
  * PanelApi (moved out of the old shared gnome-customizer-manager engine) is the
  * implementation behind it; its method bodies are unchanged.

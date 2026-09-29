@@ -42,5 +42,11 @@
       <default>true</default>
       <summary>Enable Gnome Customizer Manager module</summary>
     </key>
+
+    <key name="migration-consolidation-v1" type="b">
+      <default>false</default>
+      <summary>Top bar consolidation migration already ran</summary>
+      <description>Set by migrations.js after moving the old panel keys into org.gnome.shell.extensions.alienware-topbar. Do not edit by hand.</description>
+    </key>
   </schema>
 </schemalist>

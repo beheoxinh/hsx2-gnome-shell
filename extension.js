@@ -14,6 +14,7 @@ import NotificationConfiguratorExtension from './modules/alienware-notification-
 import GnomeCustomizerManagerExtension from './modules/alienware-gnome-customizer-manager@hsx2coder/extension.js';
 
 import {MODULES, buildSubMetadata} from './modules.js';
+import {runMigrations} from './migrations.js';
 
 const CLASS_REGISTRY = {
     'alienware-advanced-media-controller@hsx2coder': AdvancedMediaControllerExtension,
@@ -33,13 +34,19 @@ export default class AlienwareSuiteExtension extends Extension {
         this._suiteSettings = null;
         this._loaded = new Map();
         this._signalIds = [];
-        this._origLookupByUUID = null;
     }
 
     enable() {
-        this._installLookupShim();
         this._loadStylesheets();
         this._suiteSettings = this.getSettings();
+
+        // before any module reads its schema, so a returning user keeps the
+        // values they set under the old schema ids
+        try {
+            runMigrations(this, msg => log(msg));
+        } catch (e) {
+            logError(e, '[alienware-suite] migration failed, continuing with defaults');
+        }
 
         for (const def of MODULES) {
             if (this._suiteSettings.get_boolean(def.enableKey))
@@ -64,7 +71,6 @@ export default class AlienwareSuiteExtension extends Extension {
         }
 
         this._suiteSettings = null;
-        this._restoreLookupShim();
     }
 
     /**
@@ -98,30 +104,7 @@ export default class AlienwareSuiteExtension extends Extension {
         log(`[alienware-suite] ${files.length} stylesheet(s) registered`);
     }
 
-    _installLookupShim() {
-        if (this._origLookupByUUID)
-            return;
-        this._origLookupByUUID = Extension.lookupByUUID.bind(Extension);
-        const orig = this._origLookupByUUID;
-        const loaded = this._loaded;
-        const self = this;
 
-        Extension.lookupByUUID = function (uuid) {
-            if (uuid === self.uuid)
-                return self;
-            const sub = loaded.get(uuid);
-            if (sub)
-                return sub;
-            return orig(uuid);
-        };
-    }
-
-    _restoreLookupShim() {
-        if (!this._origLookupByUUID)
-            return;
-        Extension.lookupByUUID = this._origLookupByUUID;
-        this._origLookupByUUID = null;
-    }
 
     _reactToToggle(def) {
         const wantOn = this._suiteSettings.get_boolean(def.enableKey);

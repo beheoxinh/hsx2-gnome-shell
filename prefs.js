@@ -142,12 +142,6 @@ export default class AlienwareSuitePreferences extends ExtensionPreferences {
         });
         subWindow.set_default_size(720, 650);
 
-        const restoreShim = this._installLookupShim(def.uuid, subPrefs);
-        subWindow.connect('close-request', () => {
-            restoreShim();
-            return false;
-        });
-
         try {
             const result = subPrefs.fillPreferencesWindow(subWindow);
             if (result && typeof result.then === 'function') {
@@ -158,7 +152,6 @@ export default class AlienwareSuitePreferences extends ExtensionPreferences {
         } catch (e) {
             logError(e, `[alienware-suite] fillPreferencesWindow threw for ${def.uuid}`);
             this._notify(parent, `Preferences failed for ${def.title}`);
-            restoreShim();
             subWindow.destroy();
             return;
         }
@@ -166,18 +159,6 @@ export default class AlienwareSuitePreferences extends ExtensionPreferences {
         subWindow.present();
     }
 
-    _installLookupShim(uuid, subPrefs) {
-        const orig = ExtensionPreferences.lookupByUUID.bind(ExtensionPreferences);
-        ExtensionPreferences.lookupByUUID = function (queryUuid) {
-            if (queryUuid === uuid)
-                return subPrefs;
-            return orig(queryUuid);
-        };
-        return () => {
-            if (ExtensionPreferences.lookupByUUID !== orig)
-                ExtensionPreferences.lookupByUUID = orig;
-        };
-    }
 
     _notify(parent, message) {
         const dialog = new Adw.MessageDialog({

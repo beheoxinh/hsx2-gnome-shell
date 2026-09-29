@@ -2,9 +2,9 @@
  * Workspace Control, folded into alienware-gnome-customizer-manager.
  *
  * This was a standalone module whose only job was a settings front-end: every
- * handler called into the customizer's shell-tweak API through
- * Extension.lookupByUUID. Both halves now live in the same module, so the lookup
- * hop is gone and the keys sit in one schema instead of two.
+ * handler reached into the customizer's shell-tweak API across a module
+ * boundary. Both halves now live in the same module and the API is handed to
+ * it directly, so the keys sit in one schema instead of two.
  */
 
 export class WorkspaceControl {
