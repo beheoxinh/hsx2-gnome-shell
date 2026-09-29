@@ -270,4 +270,29 @@ export class DashApi
         this.UIStyleClassAdd(this.#getAPIClassname('no-dash-app-running-dot'));
     }
 
+
+    /**
+     * add class name to the UI group
+     *
+     * @param {string} classname class name
+     *
+     * @returns {void}
+     */
+    UIStyleClassAdd(classname)
+    {
+        this._main.layoutManager.uiGroup.add_style_class_name(classname);
+    }
+
+
+    /**
+     * remove class name from UI group
+     *
+     * @param {string} classname class name
+     *
+     * @returns {void}
+     */
+    UIStyleClassRemove(classname)
+    {
+        this._main.layoutManager.uiGroup.remove_style_class_name(classname);
+    }
 }

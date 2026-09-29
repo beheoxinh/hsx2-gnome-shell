@@ -29,11 +29,6 @@ const PANEL_BOX_POSITION = {
     LEFT: 2,
 };
 
-const PANEL_HIDE_MODE = {
-    ALL: 0,
-    DESKTOP: 1,
-};
-
 const SHELL_STATUS = {
     NONE: 0,
     OVERVIEW: 1,
@@ -184,7 +179,6 @@ export class API
         }
 
         this.UIStyleClassRemove(this.#getAPIClassname('shell-version'));
-        this.#startSearchSignal(false);
         this.#computeWorkspacesBoxForStateSetDefault();
         this.#altTabSizesSetDefault();
         this.#unregisterLookingGlassSignals();
@@ -262,44 +256,6 @@ export class API
         }
 
         return `${starter}${type}`;
-    }
-
-    #startSearchSignal(add)
-    {
-        let controller
-        = this._main.overview.viewSelector ||
-          this._main.overview._overview.viewSelector ||
-          this._main.overview._overview.controls._searchController;
-
-        // remove
-        if (!add) {
-            if (this._searchActiveSignal) {
-                controller.disconnect(this._searchActiveSignal);
-                this._searchActiveSignal = null;
-            }
-            return;
-        }
-
-        // add
-        if (this._searchActiveSignal) {
-            return;
-        }
-
-        this._searchActiveSignal = controller.connect('notify::search-active', () => {
-            if (this._searchEntryVisibility) {
-                return;
-            }
-
-            let inSearch = controller.searchActive;
-
-            if (inSearch) {
-                this.UIStyleClassAdd(this.#getAPIClassname('type-to-search'));
-                this.searchEntryShow(true);
-            } else {
-                this.UIStyleClassRemove(this.#getAPIClassname('type-to-search'));
-                this.searchEntryHide(true);
-            }
-        });
     }
 
     OSDEnable()
@@ -1263,6 +1219,20 @@ export class API
         delete(this._monitorsChangedSignal);
     }
 
+
+    /**
+     * Whether the top bar is on screen right now.
+     *
+     * Reads the actor instead of a cached flag: that state moved to the top bar
+     * module, so a copy kept here would drift and the Looking Glass dialog
+     * would be placed as if the panel were visible when it is not.
+     *
+     * @returns {boolean}
+     */
+    isPanelVisible()
+    {
+        return this._main.panel?.visible !== false;
+    }
     /**
      * register the looking glass signals
      *

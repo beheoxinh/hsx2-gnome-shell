@@ -2159,4 +2159,44 @@ export class PanelApi
     {
         return this._main.sessionMode.isLocked;
     }
+
+    /**
+     * get panel icon size
+     *
+     * @returns {void}
+     */
+    panelIconGetSize()
+    {
+        if (this._panelIconSize !== undefined) {
+            return this._panelIconSize;
+        }
+
+        return this._panel.PANEL_ICON_SIZE;
+    }
+    /**
+     * disable window picker icon
+     *
+     * @returns {void}
+     */
+    windowPickerIconDisable()
+    {
+        this.UIStyleClassAdd(this.#getAPIClassname('no-window-picker-icon'));
+    }
+
+    monitorGetInfo()
+    {
+        let pMonitor = this._main.layoutManager.primaryMonitor;
+
+        if (!pMonitor) {
+            return false;
+        }
+
+        return {
+            'x': pMonitor.x,
+            'y': pMonitor.y,
+            'width': pMonitor.width,
+            'height': pMonitor.height,
+            'geometryScale': pMonitor.geometry_scale,
+        };
+    }
 }
