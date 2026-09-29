@@ -172,10 +172,12 @@ GNOME 45 bỏ cơ chế migration per-extension, nên:
 
 | Check | Bắt được gì |
 |---|---|
-| `check-syntax.sh` | JS không parse |
+| `check-syntax.sh` | JS không parse **dưới ngữ pháp ES module** (copy sang `.mjs` rồi `node --check`; `node --check foo.js` parse như script và bỏ sót lỗi) |
 | `check-schema-collisions.sh` | key trùng tên giữa 2 schema id |
 | `check-dead-keys.sh` | key khai báo mà không ai đọc; schema stale |
 | `check-key-usage.py` | code đọc key mà không schema nào khai báo |
+| `check-prefs-keys.py` | prefs bind key của **schema khác** (ràng hơn `check-key-usage`) |
+| `check-unused-imports.py` | import còn lại sau khi di chuyển code; import tên không tồn tại là **link-time error** |
 | `check-wiring.py` | registry lệch, import gãy, viết panel ngoài PanelHost |
 | `check-schemas.js` | mọi schema load và round-trip được |
 | `migration-dry-run.js` | map migration không gãy |
@@ -183,3 +185,6 @@ GNOME 45 bỏ cơ chế migration per-extension, nên:
 Các allowlist có chủ đích, sửa khi thêm ngoại lệ mới:
 `tools/schema-collision-allow.txt`, `tools/dead-keys-allow.txt`,
 `tools/key-usage-allow.txt`.
+
+`tools/check-lifecycle.py` và `tools/split-api.py` là công cụ báo cáo / lịch sử,
+không nằm trong `check-all.sh`.

@@ -1,5 +1,12 @@
 # WORKLIST — Gộp module theo chức năng, dẹp conflict cấu hình
 
+> **TRẠNG THÁI: ĐÃ XONG.** 11 commit, `./tools/check-all.sh` xanh.
+> Mục 0.2 trong file này liệt kê kiến trúc mục tiêu — nó là trạng thái hiện tại.
+> Xem `CHECKPOINT.md` cho danh sách sửa lỗi thật đã tìm ra, `AGENT.md` mục 7 cho
+> bộ kiểm tra. Các "Phase" bên dưới giữ lại như bản ghi kế hoạch; đối chiếu
+> phần "Chênh lệch so với kế hoạch" ở cuối file để biết chỗ nào lệch.
+
+
 > Ngày: 2026-09-29 · Trạng thái: đã audit xong toàn bộ 10 module, chưa sửa code (trừ 1 fix dconf khẩn)
 > Nguồn audit: `/tmp/opencode/audit/{A-suite-core,B-topbar-modules,C-gcm-monitor,D-other-modules}.md`
 
@@ -362,3 +369,33 @@ Chi tiết đầy đủ: `/tmp/opencode/audit/C-gcm-monitor.md` §C7 (bảng R1�
 | **Tổng** | **~26.3 giờ** |
 
 Rủi ro cao nhất: **Phase 6** (mất dconf nếu sai). Phase 4 và 5 (viết lại hành vi).
+
+---
+
+## Chênh lệch so với kế hoạch ban đầu
+
+| Kế hoạch | Thực tế | Vì sao |
+|---|---|---|
+| F1: `topbar-panel-controls` chết vì `lookupByUUID` không resolve | **Sai.** Suite có shim `Extension.lookupByUUID` (`extension.js`), journal xác nhận API tìm thấy và 26 feature chạy thật | Audit đầu tiên bỏ sót shim. Vấn đề thật là **hai tầng settings trên cùng một engine**, không phải feature chết |
+| Gộp 2 module topbar thành 1 | Đúng, nhưng phải **tách engine trước**: `API.js` 149 method tách thành `PanelApi` / `DashApi` / `AltTabApi` / `API` | 5 module khác gọi `gcm._api`; không tách thì gộp topbar chỉ là di chuyển prefs |
+| Phase 6 viết `migrations.js` từ đầu | Đúng, nhưng thêm `migrations/schemas/` giữ **bản đóng băng** của 3 schema cũ | Không có schema cũ thì mọi move âm thầm bỏ qua. Đây là chỗ dễ sót nhất |
+| Phase 9 tách media | Đúng | `media/` 12k LOC nằm nhầm, tách gọn |
+| Phase 10 "chỉ còn 5 hit `Main.panel`" | Đạt, nhưng phải thêm `PanelHost` theo dõi actor đã add | `addToStatusArea` và `statusArea[role]` là 2 đường khác nhau; dash-to-panel reroute khiến actor bị bỏ rơi |
+| — | **Không có trong kế hoạch:** dựng `tools/` (9 check) | Không có gì bắt được 119 key trùng tên trước đây. Và `node --check` **không** bắt được lỗi cú pháp ESM — 6 file hỏng đã lọt qua mọi kiểm tra |
+
+### Bug tìm được sau khi code đã xong (re-audit)
+
+Đều là lỗi **làm module không load được** hoặc **rò actor**, và đều do chính việc refactor:
+
+1. `topbar-clone/main.js` thừa 1 `}` → module topbar clone không load.
+2. `workspace-control.js` khai `#api` vừa là field vừa là method → SyntaxError.
+3. `gnome-customizer-manager/prefs.js` mất `}` của vòng `for` → cửa sổ prefs hỏng.
+4. `gnome-customizer-manager/lib/API.js` mất `}` đóng class.
+5. `dash-to-panel/prefs.js` còn dây `.get_object(...).set_visible()` không có receiver.
+6. `system-monitor/extension.js` còn `}` thừa sau khi gỡ reparent date menu.
+7. `panel/api.js` thừa `}` cuối file do `parse()` lấy method cuối tới EOF.
+8. `prefs.js` import `moduleEntryURL` đã bị xoá khỏi `modules.js` → **link-time error**, cửa sổ prefs chết.
+9. `ScreenshotBox.js` dùng `Gtk.CssProvider` trong tiến trình shell (shell không dùng Gtk) → CSS không áp dụng.
+10. `topbar-clone` chỉ connect `monitors-changed` **sau** khi kiểm tra số màn hình → cắm màn hình thứ hai vào máy 1 màn hình thì không bao giờ có clone.
+11. `PanelHost.addStatusItem` / `removeStatusItem` dùng 2 đường resolve khác nhau → actor bỏ rơi khi dash-to-panel reroute.
+12. `panel-in-overview` có trong schema nhưng không có signal handler → toggle không có tác dụng.
