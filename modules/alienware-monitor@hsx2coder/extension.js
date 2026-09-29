@@ -42,7 +42,8 @@ import * as Util from "resource:///org/gnome/shell/misc/util.js";
 
 import { sm_log } from './utils.js';
 import { parse_bytearray, check_sensors } from './common.js';
-import { migrateSettings } from './migration.js';
+import { migrateSettings } from './migration.js'
+import { PanelHost } from '../alienware-topbar@hsx2coder/subsystems/panel/host.js';
 
 const NetworkManager = NM;
 const UPower = UPowerGlib;
@@ -3069,13 +3070,6 @@ export default class SystemMonitorExtension extends Extension {
         this._menuIsOpen = false;
         this.menuTimeout = null;
 
-        let panel = Main.panel._rightBox;
-        if (this._Schema.get_boolean('center-display')) {
-            panel = Main.panel._centerBox;
-        }
-        else if (this._Schema.get_boolean('left-display')) {
-            panel = Main.panel._leftBox;
-        }
 
         this._MountsMonitor.connect();
 
@@ -3107,17 +3101,13 @@ export default class SystemMonitorExtension extends Extension {
         // See TODO inside Battery
         // positionList[this._Schema.get_int('battery-position')] = new Battery(this);
 
-        if (this._Schema.get_boolean('move-clock')) {
-            let dateMenu = Main.panel.statusArea.dateMenu;
-            Main.panel._centerBox.remove_child(dateMenu.container);
-            Main.panel._addToPanelBox('dateMenu', dateMenu, -1, Main.panel._rightBox);
-            tray.clockMoved = true;
         }
 
         this._Schema.connect('changed::background', (schema, key) => {
             this._Background = color_from_string(this._Schema.get_string(key));
         });
-        Main.panel._addToPanelBox('system-monitor', tray, 1, panel);
+        PanelHost.addPanelBoxItem('system-monitor', tray, 1, PanelHost.sideForIndex(
+            this._Schema.get_int('system-monitor-box')));
 
         // The spacing adds a distance between the graphs/text on the top bar
         let spacing = this._Schema.get_boolean('compact-display') ? '6' : '12';
@@ -3203,12 +3193,6 @@ export default class SystemMonitorExtension extends Extension {
         if (this.menuTimeout) {
             GLib.Source.remove(this.menuTimeout);
             this.menuTimeout = null;
-        }
-        // restore clock
-        if (this.__sm.tray.clockMoved) {
-            let dateMenu = Main.panel.statusArea.dateMenu;
-            Main.panel._rightBox.remove_child(dateMenu.container);
-            Main.panel._addToPanelBox('dateMenu', dateMenu, Main.sessionMode.panel.center.indexOf('dateMenu'), Main.panel._centerBox);
         }
         // restore system power icon if necessary
         // workaround bug introduced by multiple cpus init :

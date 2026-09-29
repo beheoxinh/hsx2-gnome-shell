@@ -16,6 +16,15 @@ export const MODULES = [
         prefsEntry: 'prefs.js',
     },
     {
+        key: 'advancedMediaController',
+        enableKey: 'enable-advanced-media-controller',
+        title: 'Advanced Media Controller',
+        iconName: 'multimedia-player-symbolic',
+        uuid: 'alienware-advanced-media-controller@hsx2coder',
+        entry: 'extension.js',
+        prefsEntry: 'prefs.js',
+    },
+    {
         key: 'topbar',
         enableKey: 'enable-topbar',
         title: 'Topbar & Panel',

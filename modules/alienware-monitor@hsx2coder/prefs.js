@@ -72,31 +72,12 @@ const SMGeneralPrefsPage = GObject.registerClass({
         this._settings.bind('show-tooltip', this._show_tooltip,
             'active', Gio.SettingsBindFlags.DEFAULT
         );
-        this._settings.bind('move-clock', this._move_clock,
-            'active', Gio.SettingsBindFlags.DEFAULT
-        );
         this._settings.bind('compact-display', this._compact_display,
             'active', Gio.SettingsBindFlags.DEFAULT
         );
 
-        this._settings.bind('center-display', this._center_display,
-            'active', Gio.SettingsBindFlags.DEFAULT
-        );
-        this._settings.bind('left-display', this._left_display,
-            'active', Gio.SettingsBindFlags.DEFAULT
-        );
 
         // to alternately disable positioning options
-        this._center_display.connect('notify::active', () => {
-            if (this._center_display.active) {
-                this._settings.set_boolean('left-display', false);
-            }
-        })
-        this._left_display.connect('notify::active', () => {
-            if (this._left_display.active) {
-                this._settings.set_boolean('center-display', false);
-            }
-        })
 
         this._settings.bind('rotate-labels', this._rotate_labels,
             'active', Gio.SettingsBindFlags.DEFAULT
@@ -673,9 +654,6 @@ const SMExpanderRow = GObject.registerClass({
                 this.add_row(item);
 
                 item = new Adw.SwitchRow({title: _('Hide System Icon')});
-                this._settings.bind('battery-hidesystem', item,
-                    'active', Gio.SettingsBindFlags.DEFAULT
-                );
                 this.add_row(item);
                 break;
             }

@@ -13,7 +13,13 @@
     <value value="0" nick="max"/>
     <value value="1" nick="average"/>
   </enum>
-  <schema id="org.gnome.shell.extensions.system-monitor-next-applet" path="/org/gnome/shell/extensions/system-monitor-next-applet/">
+    <enum id="org.gnome.shell.extensions.system-monitor-next-applet.box">
+    <value value="0" nick="right"/>
+    <value value="1" nick="center"/>
+    <value value="2" nick="left"/>
+  </enum>
+
+<schema id="org.gnome.shell.extensions.system-monitor-next-applet" path="/org/gnome/shell/extensions/system-monitor-next-applet/">
     <key name="settings-schema-version" type="i">
       <default>0</default>
       <summary>Settings schema version</summary>
@@ -352,21 +358,6 @@
       <default>'#f2002e'</default>
       <summary>Color of fan in the chart</summary>
     </key>
-    <key name="center-display" type="b">
-      <default>false</default>
-      <summary>Display informations next to the clock</summary>
-      <description>True: Set information at the center, False: Set information in status bar (at top right)</description>
-    </key>
-    <key name="left-display" type="b">
-      <default>false</default>
-      <summary>Display informations on the left side of the clock</summary>
-      <description>True: Set information on the left, False: Set information in status bar (at top right)</description>
-    </key>
-    <key name="move-clock" type="b">
-      <default>false</default>
-      <summary>Move the clock to the right when center-display is true</summary>
-      <description>True: Move the clock to the right, False: Keep it in center</description>
-    </key>
     <key name="rotate-labels" type="b">
       <default>false</default>
       <summary>Rotate the chart labels one quarter-turn</summary>
@@ -518,10 +509,6 @@
       <default>false</default>
       <summary>Display battery time remaining rather than percentage</summary>
     </key>
-    <key name="battery-hidesystem" type="b">
-      <default>false</default>
-      <summary>Hide system battery icon</summary>
-    </key>
     <key name="cpu-font-size" type="d">
       <default>12.0</default>
       <summary>CPU font size</summary>
@@ -616,6 +603,12 @@
       <default>''</default>
       <summary>Custom system monitor command</summary>
       <description>When set, this command will be executed instead of launching GNOME System Monitor</description>
+    </key>
+
+    <key enum="org.gnome.shell.extensions.system-monitor-next-applet.box" name="system-monitor-box">
+      <default>'right'</default>
+      <summary>Which top bar section holds the graphs</summary>
+      <description>Replaces the two center-display/left-display booleans; the panel boxes belong to alienware-topbar.</description>
     </key>
   </schema>
 </schemalist>

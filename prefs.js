@@ -5,6 +5,7 @@ import Gtk from 'gi://Gtk';
 
 import {ExtensionPreferences} from 'resource:///org/gnome/Shell/Extensions/js/extensions/prefs.js';
 
+import AdvancedMediaControllerPrefs from './modules/alienware-advanced-media-controller@hsx2coder/prefs.js';
 import TopbarPrefs from './modules/alienware-topbar@hsx2coder/prefs.js';
 import DashToPanelPrefs from './modules/alienware-dash-to-panel@hsx2coder/prefs.js';
 import SystemMonitorPrefs from './modules/alienware-monitor@hsx2coder/prefs.js';
@@ -17,6 +18,7 @@ import GnomeCustomizerManagerPrefs from './modules/alienware-gnome-customizer-ma
 import {MODULES, buildSubMetadata, moduleEntryURL} from './modules.js';
 
 const PREFS_REGISTRY = {
+    'alienware-advanced-media-controller@hsx2coder': AdvancedMediaControllerPrefs,
     'alienware-topbar@hsx2coder': TopbarPrefs,
     'alienware-dash-to-panel@hsx2coder': DashToPanelPrefs,
     'alienware-monitor@hsx2coder': SystemMonitorPrefs,

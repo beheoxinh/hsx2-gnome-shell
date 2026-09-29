@@ -10,6 +10,7 @@ import * as PanelMenu from 'resource:///org/gnome/shell/ui/panelMenu.js';
 import { Extension } from 'resource:///org/gnome/shell/extensions/extension.js';
 import { SystemIndicator, QuickMenuToggle } from 'resource:///org/gnome/shell/ui/quickSettings.js';
 import { Ornament, PopupImageMenuItem } from 'resource:///org/gnome/shell/ui/popupMenu.js';
+import { PanelHost } from '../../../../alienware-topbar@hsx2coder/subsystems/panel/host.js';
 
 // ── Touchpad types ──
 const TOUCHPAD_SCHEMA = 'org.gnome.desktop.peripherals.touchpad';
@@ -334,7 +335,7 @@ export default class CapsNumTouchpadExtension extends Extension {
 
         // Caps/Num indicator
         this._capsnumIndicator = new CapsNumIndicator(this._settings);
-        Main.panel.addToStatusArea('capsnum-indicator', this._capsnumIndicator, 1, 'right');
+        PanelHost.addStatusItem('capsnum-indicator', this._capsnumIndicator, 1, 'right');
 
         // Touchpad keybinding
         Main.wm.addKeybinding(

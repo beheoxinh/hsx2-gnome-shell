@@ -1,7 +1,9 @@
 import Gio from 'gi://Gio';
+import St from 'gi://St';
 import GLib from 'gi://GLib';
 import {Extension} from 'resource:///org/gnome/shell/extensions/extension.js';
 
+import AdvancedMediaControllerExtension from './modules/alienware-advanced-media-controller@hsx2coder/extension.js';
 import TopbarExtension from './modules/alienware-topbar@hsx2coder/extension.js';
 import DashToPanelExtension from './modules/alienware-dash-to-panel@hsx2coder/extension.js';
 import SystemMonitorExtension from './modules/alienware-monitor@hsx2coder/extension.js';
@@ -14,6 +16,7 @@ import GnomeCustomizerManagerExtension from './modules/alienware-gnome-customize
 import {MODULES, buildSubMetadata} from './modules.js';
 
 const CLASS_REGISTRY = {
+    'alienware-advanced-media-controller@hsx2coder': AdvancedMediaControllerExtension,
     'alienware-topbar@hsx2coder': TopbarExtension,
     'alienware-dash-to-panel@hsx2coder': DashToPanelExtension,
     'alienware-monitor@hsx2coder': SystemMonitorExtension,
@@ -35,6 +38,7 @@ export default class AlienwareSuiteExtension extends Extension {
 
     enable() {
         this._installLookupShim();
+        this._loadStylesheets();
         this._suiteSettings = this.getSettings();
 
         for (const def of MODULES) {
@@ -61,6 +65,37 @@ export default class AlienwareSuiteExtension extends Extension {
 
         this._suiteSettings = null;
         this._restoreLookupShim();
+    }
+
+    /**
+     * Register every stylesheet in the tree, discovered instead of declared:
+     * the old `hasStylesheet` flag was never read, so the clipboard indicator,
+     * the media controller and the dash were all running unstyled.
+     */
+    _loadStylesheets() {
+        const files = [];
+        const own = this.dir.get_child('stylesheet.css');
+        if (own.query_exists(null))
+            files.push(own);
+
+        const modulesDir = this.dir.get_child('modules');
+        const names = modulesDir.enumerate_children('standard::name', Gio.DIRECTORY_QUERY_FLAGS_NONE, null);
+        let info;
+        while ((info = names.next_file(null)) !== null) {
+            const child = modulesDir.get_child(info.get_name());
+            if (!child.query_file_type(Gio.FileQueryInfoFlags.NONE, null))
+                continue;
+            const css = child.get_child('stylesheet.css');
+            if (css.query_exists(null))
+                files.push(css);
+        }
+
+        for (const file of files) {
+            const provider = new St.CssProvider();
+            provider.load_from_path(file.get_path());
+            St.ThemeContext.get_for_stage(global.stage).add_provider(provider);
+        }
+        log(`[alienware-suite] ${files.length} stylesheet(s) registered`);
     }
 
     _installLookupShim() {

@@ -29,6 +29,7 @@ import * as PromiseUtils from './promiseUtils.js';
 import * as SettingsManager from './settingsManager.js';
 import * as Util from './util.js';
 import * as DBusMenu from './dbusMenu.js';
+import { PanelHost } from '../../../alienware-topbar@hsx2coder/subsystems/panel/host.js';
 
 const DEFAULT_ICON_SIZE = Panel.PANEL_ICON_SIZE || 16;
 
@@ -39,15 +40,15 @@ export function addIconToPanel(statusIcon) {
     const settings = SettingsManager.getDefaultGSettings();
     const indicatorId = `appindicator-${statusIcon.uniqueId}`;
 
-    const currentIcon = Main.panel.statusArea[indicatorId];
+    const currentIcon = PanelHost.statusArea[indicatorId];
     if (currentIcon) {
         if (currentIcon !== statusIcon)
             currentIcon.destroy();
 
-        Main.panel.statusArea[indicatorId] = null;
+        PanelHost.statusArea[indicatorId] = null;
     }
 
-    Main.panel.addToStatusArea(indicatorId, statusIcon, 1,
+    PanelHost.addStatusItem(indicatorId, statusIcon, 1,
         settings.get_string('tray-pos'));
 
     Util.connectSmart(settings, 'changed::tray-pos', statusIcon, () =>

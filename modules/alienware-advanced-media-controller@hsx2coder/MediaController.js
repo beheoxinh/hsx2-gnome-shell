@@ -23,8 +23,9 @@ export default class MediaController {
   _loadDtPSettings() {
     try {
       const GioSSS = Gio.SettingsSchemaSource;
+      // the dash-to-panel schema lives in the sibling module directory
       const schemaDir = GLib.build_filenamev([
-        this._path, '..', 'schemas'
+        this._path, '..', 'alienware-dash-to-panel@hsx2coder', 'schemas'
       ]);
       if (GLib.file_test(schemaDir, GLib.FileTest.IS_DIR)) {
         const schemaSource = GioSSS.new_from_directory(

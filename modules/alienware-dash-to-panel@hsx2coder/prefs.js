@@ -32,9 +32,6 @@ import Gdk from 'gi://Gdk'
 import * as PanelSettings from './panelSettings.js'
 import * as Pos from './panelPositions.js'
 
-import {buildGeneralPage} from './media/ui/generalPage.js'
-import {buildPopupPage} from './media/ui/popupPage.js'
-import {buildAppearancePage} from './media/ui/appearancePage.js'
 
 import {
   ExtensionPreferences,
@@ -2795,41 +2792,8 @@ const Preferences = class {
       this._builder.get_object('show_media_player_switch'),
       'active',
       Gio.SettingsBindFlags.DEFAULT,
-    )
-
-    this._builder
       .get_object('show_media_player_options_button')
-      .connect('clicked', () => {
-        try {
-          // load media controller settings
-          const GioSSS = Gio.SettingsSchemaSource
-          const schemaDir = GLib.build_filenamev([this._path, 'media', 'schemas'])
-          let mcSettings = null
-          if (GLib.file_test(schemaDir, GLib.FileTest.IS_DIR)) {
-            const schemaSource = GioSSS.new_from_directory(schemaDir, GioSSS.get_default(), false)
-            const schemaObj = schemaSource.lookup('org.gnome.shell.extensions.advanced-media-controller', true)
-            if (schemaObj)
-              mcSettings = new Gio.Settings({settings_schema: schemaObj})
-          }
-          if (!mcSettings) return
-
-          let win = new Adw.PreferencesWindow({
-            title: _('Media Player'),
-            transient_for: this.notebook.get_root(),
-            modal: true,
-            default_width: 700,
-            default_height: 760,
-          })
-
-          win.add(buildGeneralPage(mcSettings))
-          win.add(buildPopupPage(mcSettings))
-          win.add(buildAppearancePage(mcSettings))
-          win.show()
-        } catch (e) {
-          logError(e, 'Failed to open Media Player settings')
-        }
-      })
-
+      .set_visible(false)
     this._builder
       .get_object('group_apps_label_font_color_colorbutton')
       .connect('color-set', (button) => {

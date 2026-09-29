@@ -84,10 +84,6 @@
       <description>Whether to force all notifications to normal urgency level</description>
     </key>
 
-    <key type="i" name="jp-notif-banner-position">
-      <default>1</default>
-      <range min="0" max="5"/>
-    </key>
 
   </schema>
 

@@ -16,3 +16,5 @@ org.gnome.shell.extensions.clipboard-indicator
 org.gnome.shell.extensions.commandmenu2
 org.gnome.shell.extensions.capsnum-touchpad
 org.gnome.shell.extensions.ding
+# pre-rename schema, still shipped only for migration.js
+org.gnome.shell.extensions.system-monitor

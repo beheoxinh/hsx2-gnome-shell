@@ -1,0 +1,8 @@
+{
+    "description": "Media controller: MPRIS now-playing indicator and popup, hosted in the panel",
+    "name": "Advanced Media Controller",
+    "settings-schema": "org.gnome.shell.extensions.advanced-media-controller",
+    "shell-version": ["46", "47", "48", "49", "50", "51", "52", "53", "54"],
+    "uuid": "alienware-advanced-media-controller@hsx2coder",
+    "version": 1
+}
