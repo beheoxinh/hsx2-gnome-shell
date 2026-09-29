@@ -2792,8 +2792,14 @@ const Preferences = class {
       this._builder.get_object('show_media_player_switch'),
       'active',
       Gio.SettingsBindFlags.DEFAULT,
+    )
+
+    // the media controller is its own module now, so its options live in that
+    // module's preferences window instead of behind this button
+    this._builder
       .get_object('show_media_player_options_button')
       .set_visible(false)
+
     this._builder
       .get_object('group_apps_label_font_color_colorbutton')
       .connect('color-set', (button) => {

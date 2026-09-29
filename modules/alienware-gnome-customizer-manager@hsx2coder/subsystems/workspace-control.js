@@ -9,18 +9,18 @@
 
 export class WorkspaceControl {
     #settings = null;
-    #api = null;
+    #hostApi = null;
     #signalIds = [];
     #jpApi = null;
 
     constructor(settings, api) {
         this.#settings = settings;
-        this.#api = api;
+        this.#hostApi = api;
     }
 
     start() {
         console.log('[workspace-control] start()');
-        this.#jpApi = this.#api;
+        this.#jpApi = this.#hostApi;
         this.#registerSignals();
         this.#applyAll();
     }

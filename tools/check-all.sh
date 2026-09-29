@@ -16,6 +16,7 @@ run "syntax"            ./tools/check-syntax.sh
 run "schema collisions" ./tools/check-schema-collisions.sh
 run "dead keys"         ./tools/check-dead-keys.sh
 run "key usage"         python3 tools/check-key-usage.py
+run "prefs keys"        python3 tools/check-prefs-keys.py
 run "wiring"            python3 tools/check-wiring.py
 run "schemas load"      env GSETTINGS_BACKEND=memory gjs -m tools/check-schemas.js
 run "migration map"    env GSETTINGS_BACKEND=memory gjs -m tools/migration-dry-run.js

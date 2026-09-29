@@ -131,6 +131,26 @@ for path in js_files:
             fail(f'{rel}:{n}: writes the panel directly, use PanelHost')
             break
 
+# ── top bar: every schema key must have an applier ───────────────────────
+TOP = 'modules/alienware-topbar@hsx2coder'
+top_xml = os.path.join(TOP, 'schemas/org.gnome.shell.extensions.alienware-topbar.gschema.xml')
+top_ext = os.path.join(TOP, 'subsystems/panel/extension.js')
+if os.path.isfile(top_xml) and os.path.isfile(top_ext):
+    declared = {k.get('name') for k in ET.parse(top_xml).getroot().iter('key')}
+    text = open(top_ext, encoding='utf-8').read()
+    handled = set(re.findall(r"\['([a-z0-9-]+)',\s*\(\s*[sf]", text))
+    # the clone keys are applied by subsystems/topbar-clone, not this table
+    clone = {'clone-topbar', 'clone-show-clock', 'clone-show-tray', 'clone-show-indicators'}
+    for key in sorted(declared - handled - clone):
+        fail(f'{top_ext}: schema key {key} has no applier in #table()')
+
+    api_path = os.path.join(TOP, 'subsystems/panel/api.js')
+    if os.path.isfile(api_path):
+        api = open(api_path, encoding='utf-8').read()
+        known = set(re.findall(r'^    ([A-Za-z]\w+)\(', api, re.M)) | {'list_keys'}
+        for call in sorted(set(re.findall(r'\ba\.(\w+)\(', text)) - known):
+            fail(f'{top_ext}: calls PanelApi.{call}() which does not exist')
+
 # ── report ───────────────────────────────────────────────────────────────
 if problems:
     print(f'FAIL: {len(problems)} wiring problem(s)\n')

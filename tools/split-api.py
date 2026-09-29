@@ -1,6 +1,14 @@
 #!/usr/bin/env python3
-"""Generate the domain-split API classes and strip the moved methods out of the
-original GCM API.js.
+"""HISTORICAL one-shot tool: it generated PanelApi/DashApi/AltTabApi from the
+pre-split lib/API.js, which no longer exists in that form.
+
+Kept for auditability only. Re-running it now would regenerate the three classes
+from tools/../API.js.orig and discard the hand-written open()/close()/shared
+workspaces-box patch, so it is not part of any check. The output it produced is
+verified by tools/check-syntax.sh and tools/check-wiring.py.
+
+Original purpose: generate the domain-split API classes and strip the moved
+methods out of the original GCM API.js.
 
     python3 tools/split-api.py            # dry run, prints the plan
     python3 tools/split-api.py --write    # actually rewrite the files
@@ -137,9 +145,24 @@ def parse(text):
         m = re.match(r'^    ([A-Za-z_#]\w*)\s*\(', l)
         if m and i + 1 < len(lines) and lines[i + 1].strip() == '{':
             starts.append((i, m.group(1)))
+    def method_end(i):
+        """Line just past the method's own closing brace.
+
+        Using the next method's start (or EOF) drags the class' closing brace
+        into the last method of a file, which then emits a stray `}`.
+        """
+        depth = 0
+        k = i
+        while k < len(lines):
+            depth += lines[k].count('{') - lines[k].count('}')
+            k += 1
+            if depth <= 0:
+                break
+        return k
+
     blocks = []
     for idx, (i, name) in enumerate(starts):
-        end = starts[idx + 1][0] if idx + 1 < len(starts) else len(lines)
+        end = method_end(i)
         start = i
         j = i - 1
         while j >= 0 and (lines[j].strip().startswith(('*', '/*', '*/')) or lines[j].strip() == ''):

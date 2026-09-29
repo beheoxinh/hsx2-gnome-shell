@@ -73,7 +73,6 @@ export class TopbarCloneSubsystem {
 
         log(`${LOG_PREFIX} enabled (${this._boxes.length} clone panel(s))`);
     }
-    }
 
     disable() {
         if (this._rebuildIdleId) {

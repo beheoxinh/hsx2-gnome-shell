@@ -3101,7 +3101,6 @@ export default class SystemMonitorExtension extends Extension {
         // See TODO inside Battery
         // positionList[this._Schema.get_int('battery-position')] = new Battery(this);
 
-        }
 
         this._Schema.connect('changed::background', (schema, key) => {
             this._Background = color_from_string(this._Schema.get_string(key));

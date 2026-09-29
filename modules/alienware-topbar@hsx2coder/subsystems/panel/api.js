@@ -2156,5 +2156,3 @@ export class PanelApi
         this.UIStyleClassRemove(this.#getAPIClassname('accent-color-icon'));
     }
 }
-
-}

@@ -70,11 +70,13 @@ export class PanelExtension {
     #table() {
         const a = PanelHost.api;
         const t = [
-            ['panel-visible',
-                (s, f) => (f || s.get_boolean('panel-visible'))
-                    ? a.panelShow()
-                    : a.panelHide(s.get_boolean('panel-in-overview') ? 1 : 0),
-                s => a.panelHide(0)],
+            // both of these feed the same decision, so both point at the same
+            // applier; panel-in-overview used to be read only while applying
+            // panel-visible, so toggling it on its own did nothing
+            ['panel-visible', (s, f) => this.#applyPanelVisibility(s, f),
+                () => a.panelHide(0)],
+            ['panel-in-overview', (s, f) => this.#applyPanelVisibility(s, f),
+                () => a.panelHide(0)],
 
             ['panel-height',
                 (s, f) => {
@@ -281,6 +283,13 @@ export class PanelExtension {
                 () => a.accentColorIconDisable()],
         ];
         return t;
+    }
+
+    #applyPanelVisibility(settings, force) {
+        const a = PanelHost.api;
+        if (force || settings.get_boolean('panel-visible'))
+            return a.panelShow();
+        return a.panelHide(settings.get_boolean('panel-in-overview') ? 1 : 0);
     }
 
     /**

@@ -13,6 +13,7 @@ export default class GnomeCustomizerManagerPreferences extends ExtensionPreferen
             const page = new Adw.PreferencesPage({title, icon_name: iconName});
             groups.forEach(g => page.add(g));
             window.add(page);
+        }
 
         addWorkspaceControlPages(window, this.getSettings());
     }
