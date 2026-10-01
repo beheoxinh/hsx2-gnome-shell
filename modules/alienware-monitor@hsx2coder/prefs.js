@@ -76,6 +76,12 @@ const SMGeneralPrefsPage = GObject.registerClass({
             'active', Gio.SettingsBindFlags.DEFAULT
         );
 
+        if (this._move_clock)
+            this._move_clock.visible = false;
+        if (this._center_display)
+            this._center_display.visible = false;
+        if (this._left_display)
+            this._left_display.visible = false;
 
         // to alternately disable positioning options
 

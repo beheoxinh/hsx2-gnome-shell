@@ -3146,6 +3146,30 @@ export default class SystemMonitorExtension extends Extension {
         change_usage(this);
         this._Schema.connect('changed::disk-usage-style', change_usage);
 
+        const restartApplet = () => {
+            if (!this.__sm) return;
+            this.disable();
+            this.enable();
+        };
+
+        const restartKeys = [
+            'compact-display',
+            'system-monitor-box',
+            'cpu-position',
+            'freq-position',
+            'memory-position',
+            'swap-position',
+            'net-position',
+            'disk-position',
+            'gpu-position',
+            'thermal-position',
+            'fan-position',
+            'battery-position',
+        ];
+        for (const k of restartKeys) {
+            this._Schema.connect(`changed::${k}`, restartApplet);
+        }
+
         tray.menu.addMenuItem(new PopupMenu.PopupSeparatorMenuItem());
 
         tray.menu.connect(

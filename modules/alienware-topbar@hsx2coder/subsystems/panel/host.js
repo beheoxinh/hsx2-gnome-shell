@@ -193,6 +193,8 @@ class PanelHostImpl {
 
     /** Clamp a stored integer position onto a valid side name. */
     sideForIndex(index) {
+        if (typeof index === 'string')
+            return index;
         return BOXES[Math.max(0, Math.min(BOXES.length - 1, Number(index) || 0))];
     }
 
