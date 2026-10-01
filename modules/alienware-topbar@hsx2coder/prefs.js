@@ -1,10 +1,17 @@
 /**
  * Preferences for alienware-topbar.
  *
- * The panel keys are declared once in PAGES below and bound with the correct
- * Adw widget per GSettings type, so a key can never be bound to an incompatible
- * property again (that is how top-panel-position ended up warning on every
- * open).
+ * Uses SplitPreferencesView (Master-Detail layout) to manage:
+ *   1. Panel & Geometry
+ *   2. Panel Items & Status Area
+ *   3. Clock & Calendar
+ *   4. Quick Settings
+ *   5. Multi-monitor Clone
+ *   6. System Monitor (CPU, GPU, RAM, Disk, Net, Sensor graphs & settings)
+ *   7. AppIndicator / Tray Icons
+ *   8. Caps/Num Lock & Touchpad
+ *   9. Clipboard History Widget
+ *   10. Command Menu Widget
  */
 
 import Adw from 'gi://Adw';
@@ -12,14 +19,17 @@ import Gio from 'gi://Gio';
 import Gtk from 'gi://Gtk';
 
 import {ExtensionPreferences} from 'resource:///org/gnome/Shell/Extensions/js/extensions/prefs.js';
+import {SplitPreferencesView} from '../../lib/ui/splitPrefsView.js';
 
 import ClipboardIndicatorPreferences from './subsystems/widgets/clipboard/prefs.js';
 import CommandMenuExtensionPreferences from './subsystems/widgets/command-menu/prefs.js';
+import SystemMonitorExtensionPreferences from './subsystems/system-monitor/prefs.js';
+import AppIndicatorPreferences from './subsystems/appindicator/prefs.js';
+import CapsNumTouchpadPreferences from './subsystems/capsnum-touchpad/prefs.js';
 
 const FLAGS = Gio.SettingsBindFlags.DEFAULT;
 
-/** [key, title, subtitle, kind] where kind is 'b' | 'i' | 'i-nonzero' | enum */
-const PAGES = [
+const TOPBAR_SECTIONS = [
     {
         title: 'Panel',
         groups: [
@@ -155,60 +165,6 @@ function makeRow(key, title, subtitle, kind) {
     throw new Error(`unknown row kind ${kind} for ${key}`);
 }
 
-export default class TopbarPreferences extends ExtensionPreferences {
-    fillPreferencesWindow(window) {
-        window.set_default_size(760, 720);
-
-        const settings = this.getSettings();
-
-        for (const page of PAGES) {
-            const adwPage = new Adw.PreferencesPage({title: page.title, icon_name: ICONS[page.title]});
-            for (const group of page.groups) {
-                const groupParams = {title: group.title};
-                if (group.description)
-                    groupParams.description = group.description;
-                const adwGroup = new Adw.PreferencesGroup(groupParams);
-                for (const [key, title, subtitle, kind] of group.rows) {
-                    const [row, prop] = makeRow(key, title, subtitle, kind);
-                    adwGroup.add(row);
-                    if (kind.startsWith('enum:')) {
-                        bindEnum(settings, key, row, prop, kind.slice(5).split(','));
-                    } else {
-                        settings.bind(key, row, prop, FLAGS);
-                    }
-                }
-                adwPage.add(adwGroup);
-            }
-            window.add(adwPage);
-        }
-
-        // the two widget subsystems keep their own pages and schemas
-        const baseMeta = {
-            ...this.metadata,
-            uuid: this.uuid,
-            dir: this.dir,
-            path: this.path,
-        };
-        new ClipboardIndicatorPreferences({
-            ...baseMeta,
-            'settings-schema': 'org.gnome.shell.extensions.clipboard-indicator',
-        }).fillPreferencesWindow(window);
-        new CommandMenuExtensionPreferences({
-            ...baseMeta,
-            'settings-schema': 'org.gnome.shell.extensions.commandmenu2',
-        }).fillPreferencesWindow(window);
-    }
-}
-
-const ICONS = {
-    'Panel': 'video-display-symbolic',
-    'Panel items': 'preferences-system-symbolic',
-    'Clock': 'preferences-system-time-symbolic',
-    'Quick Settings': 'preferences-system-network-symbolic',
-    'Multi-monitor': 'video-multi-monitor-symbolic',
-};
-
-/** enum <-> ComboRow index, kept in sync in both directions */
 function bindEnum(settings, key, row, prop, nicks) {
     const apply = () => {
         const i = nicks.indexOf(settings.get_string(key));
@@ -233,4 +189,314 @@ function bindEnum(settings, key, row, prop, nicks) {
             }
         }
     });
+}
+
+function buildAdwRows(settings, pageDef, context = {}) {
+    const page = new Adw.PreferencesPage({
+        title: pageDef.title,
+    });
+
+    const isClockPage = pageDef.title === 'Clock';
+    const isPanelPage = pageDef.title === 'Panel';
+    const smSettings = context.smSettings;
+    const dtpSettings = context.dtpSettings;
+
+    for (const groupDef of pageDef.groups) {
+        const groupParams = {title: groupDef.title};
+        if (groupDef.description)
+            groupParams.description = groupDef.description;
+        const group = new Adw.PreferencesGroup(groupParams);
+
+        for (const [key, title, subtitle, kind] of groupDef.rows) {
+            const [row, prop] = makeRow(key, title, subtitle, kind);
+
+            // Cross-module interaction: System Monitor replaces Clock in the center box
+            if (isClockPage && key === 'clock-visible') {
+                const updateConflictWarning = () => {
+                    const smEnabled = settings.get_boolean('enable-system-monitor');
+                    if (smEnabled) {
+                        row.set_sensitive(false);
+                        row.set_subtitle(
+                            '<span foreground="#e01b24" weight="bold">' +
+                            'Replaced by System Monitor: Clock is disabled while System Monitor is active' +
+                            '</span>'
+                        );
+                        if (row.active)
+                            settings.set_boolean('clock-visible', false);
+                    } else {
+                        row.set_sensitive(true);
+                        row.set_subtitle(subtitle ?? '');
+                    }
+                };
+
+                settings.connect('changed::enable-system-monitor', updateConflictWarning);
+                updateConflictWarning();
+            }
+
+            // Cross-module interaction: Dash to Panel takes over topbar panel position and visibility
+            if (isPanelPage && (key === 'panel-visible' || key === 'panel-position') && dtpSettings) {
+                const updateDtpConflict = () => {
+                    const dtpPos = dtpSettings.get_string('panel-position');
+                    row.set_subtitle(
+                        (subtitle ?? '') +
+                        '\n<span foreground="#3584e4" size="smaller">' +
+                        `Managed by Dash to Panel (currently dock position: ${dtpPos})` +
+                        '</span>'
+                    );
+                };
+                dtpSettings.connect('changed::panel-position', updateDtpConflict);
+                updateDtpConflict();
+            }
+
+            group.add(row);
+            if (kind.startsWith('enum:')) {
+                bindEnum(settings, key, row, prop, kind.slice(5).split(','));
+            } else {
+                settings.bind(key, row, prop, FLAGS);
+            }
+        }
+        page.add(group);
+    }
+    return page;
+}
+
+export default class TopbarPreferences extends ExtensionPreferences {
+    fillPreferencesWindow(window) {
+        const settings = this.getSettings();
+
+        const baseMeta = {
+            ...this.metadata,
+            uuid: this.uuid,
+            dir: this.dir,
+            path: this.path,
+            url: `file://${this.path}/`,
+        };
+
+        let smSettings = null;
+        let dtpSettings = null;
+        try {
+            const GioSSS = Gio.SettingsSchemaSource;
+            const schemaDir = this.dir.get_child('schemas');
+            const schemaSource = GioSSS.new_from_directory(schemaDir.get_path(), GioSSS.get_default(), false);
+            const schemaObj = schemaSource.lookup('org.gnome.shell.extensions.system-monitor-next-applet', true);
+            if (schemaObj)
+                smSettings = new Gio.Settings({settings_schema: schemaObj});
+
+            const dtpDir = this.dir.get_parent().get_child('alienware-dash-to-panel@hsx2coder').get_child('schemas');
+            const dtpSource = GioSSS.new_from_directory(dtpDir.get_path(), GioSSS.get_default(), false);
+            const dtpSchemaObj = dtpSource.lookup('org.gnome.shell.extensions.dash-to-panel', true);
+            if (dtpSchemaObj)
+                dtpSettings = new Gio.Settings({settings_schema: dtpSchemaObj});
+        } catch (_) {}
+
+        const sections = [
+            {
+                id: 'panel-layout',
+                title: 'Panel & Geometry',
+                iconName: 'video-display-symbolic',
+                buildContent: () => buildAdwRows(settings, TOPBAR_SECTIONS[0], {dtpSettings}),
+            },
+            {
+                id: 'panel-items',
+                title: 'Panel Items',
+                iconName: 'preferences-system-windows-symbolic',
+                buildContent: () => buildAdwRows(settings, TOPBAR_SECTIONS[1]),
+            },
+            {
+                id: 'panel-clock',
+                title: 'Clock & Calendar',
+                iconName: 'preferences-system-time-symbolic',
+                buildContent: () => buildAdwRows(settings, TOPBAR_SECTIONS[2], {smSettings}),
+            },
+            {
+                id: 'quick-settings',
+                title: 'Quick Settings',
+                iconName: 'preferences-system-network-symbolic',
+                buildContent: () => buildAdwRows(settings, TOPBAR_SECTIONS[3]),
+            },
+            {
+                id: 'multi-monitor',
+                title: 'Multi-Monitor Clone',
+                iconName: 'video-multi-monitor-symbolic',
+                buildContent: () => buildAdwRows(settings, TOPBAR_SECTIONS[4]),
+            },
+            {
+                id: 'system-monitor',
+                title: 'System Monitor',
+                iconName: 'utilities-system-monitor-symbolic',
+                buildContent: () => {
+                    const smMeta = {
+                        ...baseMeta,
+                        'settings-schema': 'org.gnome.shell.extensions.system-monitor-next-applet',
+                    };
+                    const smPrefs = new SystemMonitorExtensionPreferences(smMeta);
+                    const pages = [];
+                    const dummyWin = {
+                        add(p) { pages.push(p); },
+                        set_title() {},
+                        set_default_size() {},
+                        set_visible_page() {},
+                        search_enabled: false,
+                        connect() {},
+                        destroy() {},
+                    };
+                    smPrefs.fillPreferencesWindow(dummyWin);
+
+                    if (pages.length === 0)
+                        return new Adw.PreferencesPage({title: 'System Monitor'});
+
+                    // Add a Master Switch at the top of System Monitor
+                    const masterGroup = new Adw.PreferencesGroup({
+                        title: 'System Monitor Integration',
+                        description: 'Display CPU, GPU, Memory, Disk and Network monitors on the GNOME panel.',
+                    });
+                    const enableSwitch = new Adw.SwitchRow({
+                        title: 'Enable System Monitor Applet',
+                        subtitle: 'Show graphs and metrics in topbar center box (replaces standard clock).',
+                    });
+                    settings.bind('enable-system-monitor', enableSwitch, 'active', FLAGS);
+                    masterGroup.add(enableSwitch);
+                    pages[0].add(masterGroup);
+
+                    if (pages.length === 1)
+                        return pages[0];
+
+                    const stack = new Adw.ViewStack();
+                    pages.forEach((p, idx) => {
+                        const title = p.title || `Tab ${idx + 1}`;
+                        stack.add_titled(p, `page-${idx}`, title);
+                    });
+                    const switcher = new Adw.ViewSwitcher({
+                        stack,
+                        policy: Adw.ViewSwitcherPolicy.WIDE,
+                    });
+                    const box = new Gtk.Box({orientation: Gtk.Orientation.VERTICAL, spacing: 12});
+                    box.append(switcher);
+                    box.append(stack);
+                    return box;
+                },
+            },
+            {
+                id: 'appindicator',
+                title: 'Tray Icons',
+                iconName: 'application-x-addon-symbolic',
+                buildContent: () => {
+                    const appMeta = {
+                        ...baseMeta,
+                        'settings-schema': 'org.gnome.shell.extensions.indicators-appindicator',
+                    };
+                    const appPrefs = new AppIndicatorPreferences(appMeta);
+                    const pages = [];
+                    const dummyWin = {
+                        add(p) { pages.push(p); },
+                        set_title() {},
+                        set_default_size() {},
+                        set_visible_page() {},
+                        search_enabled: false,
+                        connect() {},
+                        destroy() {},
+                    };
+                    appPrefs.fillPreferencesWindow(dummyWin);
+                    if (pages.length === 1)
+                        return pages[0];
+                    if (pages.length > 1) {
+                        const stack = new Adw.ViewStack();
+                        pages.forEach((p, idx) => {
+                            const title = p.title || `Tab ${idx + 1}`;
+                            stack.add_titled(p, `page-${idx}`, title);
+                        });
+                        const switcher = new Adw.ViewSwitcher({
+                            stack,
+                            policy: Adw.ViewSwitcherPolicy.WIDE,
+                        });
+                        const box = new Gtk.Box({orientation: Gtk.Orientation.VERTICAL, spacing: 12});
+                        box.append(switcher);
+                        box.append(stack);
+                        return box;
+                    }
+                    return new Adw.PreferencesPage({title: 'Tray Icons'});
+                },
+            },
+            {
+                id: 'capsnum-touchpad',
+                title: 'Caps/Num & Touchpad',
+                iconName: 'input-keyboard-symbolic',
+                buildContent: () => {
+                    const capsMeta = {
+                        ...baseMeta,
+                        'settings-schema': 'org.gnome.shell.extensions.capsnum-touchpad',
+                    };
+                    const capsPrefs = new CapsNumTouchpadPreferences(capsMeta);
+                    const pages = [];
+                    const dummyWin = {
+                        add(p) { pages.push(p); },
+                        set_title() {},
+                        set_default_size() {},
+                        set_visible_page() {},
+                        search_enabled: false,
+                        connect() {},
+                        destroy() {},
+                    };
+                    capsPrefs.fillPreferencesWindow(dummyWin);
+                    return pages[0] || new Adw.PreferencesPage({title: 'Caps/Num & Touchpad'});
+                },
+            },
+            {
+                id: 'clipboard',
+                title: 'Clipboard Indicator',
+                iconName: 'edit-paste-symbolic',
+                buildContent: () => {
+                    const clipMeta = {
+                        ...baseMeta,
+                        'settings-schema': 'org.gnome.shell.extensions.clipboard-indicator',
+                    };
+                    const clipPrefs = new ClipboardIndicatorPreferences(clipMeta);
+                    const pages = [];
+                    const dummyWin = {
+                        add(p) { pages.push(p); },
+                        set_title() {},
+                        set_default_size() {},
+                        set_visible_page() {},
+                        search_enabled: false,
+                        connect() {},
+                        destroy() {},
+                    };
+                    clipPrefs.fillPreferencesWindow(dummyWin);
+                    return pages[0] || new Adw.PreferencesPage({title: 'Clipboard Indicator'});
+                },
+            },
+            {
+                id: 'command-menu',
+                title: 'Command Menu',
+                iconName: 'utilities-terminal-symbolic',
+                buildContent: () => {
+                    const cmdMeta = {
+                        ...baseMeta,
+                        'settings-schema': 'org.gnome.shell.extensions.commandmenu2',
+                    };
+                    const cmdPrefs = new CommandMenuExtensionPreferences(cmdMeta);
+                    const pages = [];
+                    const dummyWin = {
+                        add(p) { pages.push(p); },
+                        set_title() {},
+                        set_default_size() {},
+                        set_visible_page() {},
+                        search_enabled: false,
+                        connect() {},
+                        destroy() {},
+                    };
+                    cmdPrefs.fillPreferencesWindow(dummyWin);
+                    return pages[0] || new Adw.PreferencesPage({title: 'Command Menu'});
+                },
+            },
+        ];
+
+        const splitView = new SplitPreferencesView({
+            title: 'Topbar & Indicators',
+            sections,
+        });
+
+        splitView.attachToWindow(window);
+        window.set_default_size(860, 720);
+    }
 }

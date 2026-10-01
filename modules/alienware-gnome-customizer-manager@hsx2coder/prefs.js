@@ -2,20 +2,23 @@ import Adw from 'gi://Adw';
 import Gio from 'gi://Gio';
 import Gtk from 'gi://Gtk';
 import {ExtensionPreferences} from 'resource:///org/gnome/Shell/Extensions/js/extensions/prefs.js';
+import {SplitPreferencesView} from '../../lib/ui/splitPrefsView.js';
 
 import {addWorkspaceControlPages} from './subsystems/workspace-prefs.js';
 
 export default class GnomeCustomizerManagerPreferences extends ExtensionPreferences {
     fillPreferencesWindow(window) {
-        const s = new Settings(this.getSettings());
-        window._settingsRef = s;
-        for (const {title, iconName, groups} of Settings.getTabDefs(s)) {
-            const page = new Adw.PreferencesPage({title, icon_name: iconName});
-            groups.forEach(g => page.add(g));
-            window.add(page);
-        }
+        SplitPreferencesView.renderFromPages(dummyWin => {
+            const s = new Settings(this.getSettings());
+            window._settingsRef = s;
+            for (const {title, iconName, groups} of Settings.getTabDefs(s)) {
+                const page = new Adw.PreferencesPage({title, icon_name: iconName});
+                groups.forEach(g => page.add(g));
+                dummyWin.add(page);
+            }
 
-        addWorkspaceControlPages(window, this.getSettings());
+            addWorkspaceControlPages(dummyWin, this.getSettings());
+        }, window, 'Gnome Customizer Manager');
     }
 }
 

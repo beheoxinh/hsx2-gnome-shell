@@ -339,11 +339,12 @@ export class PanelExtension {
     /** every schema key must appear in the table, otherwise it can never apply */
     #assertEveryKeyHandled() {
         const handled = new Set(this.#table().map(([k]) => k));
-        const cloneKeys = new Set([
+        const nonPanelKeys = new Set([
             'clone-topbar', 'clone-show-clock', 'clone-show-tray', 'clone-show-indicators',
+            'enable-system-monitor', 'enable-indicators',
         ]);
         const missing = this.#settings.settings_schema.list_keys()
-            .filter(k => !handled.has(k) && !cloneKeys.has(k));
+            .filter(k => !handled.has(k) && !nonPanelKeys.has(k));
         if (missing.length) {
             logError(new Error(missing.join(', ')),
                 '[alienware-topbar] schema keys with no handler');

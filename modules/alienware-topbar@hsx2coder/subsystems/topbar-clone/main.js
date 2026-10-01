@@ -41,6 +41,15 @@ export class TopbarCloneSubsystem {
                 () => this._scheduleRebuild());
             this._workareasChangedId = global.display.connect('workareas-changed',
                 () => this._syncGeometry());
+            if (Main.screenShield) {
+                Main.screenShield.connectObject('locked-changed', () => {
+                    if (Main.screenShield.locked) {
+                        this._teardown();
+                    } else {
+                        this._scheduleRebuild();
+                    }
+                }, this);
+            }
             this._settingsChangedIds.push(
                 this._settings.connect('changed::clone-show-clock',
                     () => this._scheduleRebuild()),
@@ -88,6 +97,9 @@ export class TopbarCloneSubsystem {
             global.display.disconnect(this._workareasChangedId);
             this._workareasChangedId = 0;
         }
+        if (Main.screenShield) {
+            Main.screenShield.disconnectObject(this);
+        }
         if (this._settingsChangedIds) {
             for (const id of this._settingsChangedIds)
                 this._settings.disconnect(id);
@@ -103,6 +115,9 @@ export class TopbarCloneSubsystem {
         // already on the stage (toggling clone-topbar off then on), and building
         // on top of them leaks a clone panel per toggle
         this._teardown();
+
+        if (Main.screenShield?.locked)
+            return;
 
         const monitors = Main.layoutManager.monitors || [];
         const primaryIndex = Main.layoutManager.primaryIndex;
@@ -302,12 +317,20 @@ class SizedClone extends Clutter.Clone {
         super._init(params);
         const src = this.source;
         if (src) {
-            this._srcNotifyId = src.connect('notify::size', () => this.queue_relayout());
-            this._srcAllocId = src.connect('notify::allocation', () => this.queue_relayout());
+            this._srcNotifyId = src.connect('notify::size', () => {
+                if (this.source && !this._isDestroyed)
+                    this.queue_relayout();
+            });
+            this._srcAllocId = src.connect('notify::allocation', () => {
+                if (this.source && !this._isDestroyed)
+                    this.queue_relayout();
+            });
         }
     }
 
     vfunc_get_preferred_width(_forHeight) {
+        if (this._isDestroyed || !this.source)
+            return [0, 0];
         const s = this.source;
         let w = s ? s.width : 0;
         if (!Number.isFinite(w) || w < 0) w = 0;
@@ -315,6 +338,8 @@ class SizedClone extends Clutter.Clone {
     }
 
     vfunc_get_preferred_height(_forWidth) {
+        if (this._isDestroyed || !this.source)
+            return [0, 0];
         const s = this.source;
         let h = s ? s.height : 0;
         if (!Number.isFinite(h) || h < 0) h = 0;
@@ -322,11 +347,13 @@ class SizedClone extends Clutter.Clone {
     }
 
     destroy() {
+        this._isDestroyed = true;
         const src = this.source;
         if (src) {
             if (this._srcNotifyId) { try { src.disconnect(this._srcNotifyId); } catch (_e) { /* already disconnected */ } this._srcNotifyId = 0; }
             if (this._srcAllocId) { try { src.disconnect(this._srcAllocId); } catch (_e) { /* already disconnected */ } this._srcAllocId = 0; }
         }
+        this.source = null;
         super.destroy();
     }
 });
@@ -407,10 +434,12 @@ class CloneTopBar extends St.BoxLayout {
             this._openIndicatorMenu(qs, this._qsButton, 'quickSettings'));
         this.add_child(this._qsButton);
 
-        this._showingId = Main.overview.connect('showing',
-            () => this.add_style_pseudo_class('overview'));
-        this._hidingId = Main.overview.connect('hiding',
-            () => this.remove_style_pseudo_class('overview'));
+        this._settings = settings;
+
+        this._onOverviewShowing = () => this.add_style_pseudo_class('overview');
+        this._onOverviewHiding = () => this.remove_style_pseudo_class('overview');
+        Main.overview.connectObject('showing', this._onOverviewShowing,
+                                   'hiding', this._onOverviewHiding, this);
 
         this._syncClock();
         this._syncClock();
@@ -422,16 +451,16 @@ class CloneTopBar extends St.BoxLayout {
 
     _syncClock() {
         if (this._centerClone)
-            this._centerClone.visible = this.#bool('clone-show-clock', true);
+            this._centerClone.visible = this._bool('clone-show-clock', true);
     }
 
     /** Status area section of the clone, toggled by clone-show-tray. */
     _syncTray() {
         if (this._qsButton)
-            this._qsButton.visible = this.#bool('clone-show-tray', true);
+            this._qsButton.visible = this._bool('clone-show-tray', true);
     }
 
-    #bool(key, fallback) {
+    _bool(key, fallback) {
         try {
             if (this._settings && typeof this._settings.get_boolean === 'function')
                 return this._settings.get_boolean(key);
@@ -468,14 +497,7 @@ class CloneTopBar extends St.BoxLayout {
     }
 
     destroy() {
-        if (this._showingId) {
-            Main.overview.disconnect(this._showingId);
-            this._showingId = 0;
-        }
-        if (this._hidingId) {
-            Main.overview.disconnect(this._hidingId);
-            this._hidingId = 0;
-        }
+        Main.overview.disconnectObject(this);
         if (this._settingId && this._settings) {
             try { this._settings.disconnect(this._settingId); } catch (_e) { /* already disconnected */ }
             this._settingId = 0;
@@ -524,7 +546,6 @@ class ClonePanelBox {
         PanelHost.addChrome(this.panelBox, {
             trackFullscreen: true,
             affectsStruts: false,
-            affectsInputRegion: true,
         });
 
         Main.ctrlAltTabManager.addGroup(this.panel, 'Top Bar',
@@ -612,15 +633,20 @@ class ClonePanelBox {
             GLib.source_remove(this._geometryIdleId);
             this._geometryIdleId = 0;
         }
-        if (this._allocationChangedId) {
+        if (this._allocationChangedId && this.panelBox) {
             this.panelBox.disconnect(this._allocationChangedId);
             this._allocationChangedId = 0;
         }
         try { Main.ctrlAltTabManager.removeGroup(this.panel); } catch (_e) { /* already disconnected */ }
-        PanelHost.removeChrome(this.panelBox);
-        this.panelBox.destroy();
-        this.panelBox = null;
-        this.panel = null;
+        if (this.panel) {
+            try { this.panel.destroy(); } catch (_e) {}
+            this.panel = null;
+        }
+        if (this.panelBox) {
+            PanelHost.removeChrome(this.panelBox);
+            try { this.panelBox.destroy(); } catch (_e) {}
+            this.panelBox = null;
+        }
         this._monitor = null;
     }
 }

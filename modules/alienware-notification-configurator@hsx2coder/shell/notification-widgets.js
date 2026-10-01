@@ -1,6 +1,6 @@
 import * as Main from "resource:///org/gnome/shell/ui/main.js";
 export function getMessageTrayContainer() {
-    return Main.messageTray.get_first_child();
+    return Main.messageTray._bannerBin || Main.messageTray.get_first_child();
 }
 export function getBannerBin() {
     return Main.messageTray._bannerBin;
@@ -40,7 +40,9 @@ export function resolveNotificationWidgets(messageTrayContainer) {
     const container = messageTrayContainer?.get_first_child();
     if (!container)
         return null;
-    const notification = container.get_first_child();
+    const notification = container.has_style_class_name?.('notification-banner') ? container : container.get_first_child();
+    if (!notification)
+        return null;
     const header = notification?.get_first_child() !== notification?.get_last_child()
         ? notification?.get_first_child()
         : null;

@@ -236,5 +236,15 @@
       <description>Apply the current visibility of every panel item to the cloned bars.</description>
     </key>
 
+    <key name="enable-system-monitor" type="b">
+      <default>true</default>
+      <summary>Enable System Monitor</summary>
+      <description>Show system performance graphs (CPU, RAM, etc.) in the top bar.</description>
+    </key>
+    <key name="enable-indicators" type="b">
+      <default>true</default>
+      <summary>Enable Indicators and Tray</summary>
+      <description>Show app indicators and tray icons in the top bar.</description>
+    </key>
   </schema>
 </schemalist>

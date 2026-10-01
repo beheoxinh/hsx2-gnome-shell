@@ -11,15 +11,6 @@
       <default>true</default>
       <summary>Enable Dash to Panel module</summary>
     </key>
-    <key name="enable-system-monitor" type="b">
-      <default>true</default>
-      <summary>Enable System Monitor module</summary>
-    </key>
-    <key name="enable-indicators" type="b">
-      <default>true</default>
-      <summary>Enable Indicators module</summary>
-      <description>AppIndicator tray icons, Caps/Num lock, and Touchpad toggle.</description>
-    </key>
     <key name="enable-desktop-icons" type="b">
       <default>true</default>
       <summary>Enable Desktop Icons NG module</summary>
@@ -36,7 +27,7 @@
     <key name="enable-topbar" type="b">
       <default>true</default>
       <summary>Enable the Topbar &amp; Panel module</summary>
-      <description>Panel layout, clock, quick settings, panel items, multi-monitor clone, clipboard and command menu widgets.</description>
+      <description>Panel layout, clock, quick settings, panel items, multi-monitor clone, system monitor, indicators, clipboard and command menu widgets.</description>
     </key>
     <key name="enable-gnome-customizer-manager" type="b">
       <default>true</default>

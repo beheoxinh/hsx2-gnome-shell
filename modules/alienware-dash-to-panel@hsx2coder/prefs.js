@@ -38,6 +38,7 @@ import {
   gettext as _,
   ngettext,
 } from 'resource:///org/gnome/Shell/Extensions/js/extensions/prefs.js'
+import { SplitPreferencesView } from '../../lib/ui/splitPrefsView.js'
 
 const SCALE_UPDATE_TIMEOUT = 500
 const DEFAULT_PANEL_SIZES = [128, 96, 64, 48, 32, 22]
@@ -205,33 +206,40 @@ const Preferences = class {
     this._builder.add_from_file(this._path + '/ui/BoxIsolateMonitorsOptions.ui')
 
     // pages
-    this._builder.add_from_file(this._path + '/ui/SettingsPosition.ui')
-    let pagePosition = this._builder.get_object('position')
-    window.add(pagePosition)
-
-    this._builder.add_from_file(this._path + '/ui/SettingsStyle.ui')
-    let pageStyle = this._builder.get_object('style')
-    window.add(pageStyle)
-
-    this._builder.add_from_file(this._path + '/ui/SettingsBehavior.ui')
-    let pageBehavior = this._builder.get_object('behavior')
-    window.add(pageBehavior)
-
-    this._builder.add_from_file(this._path + '/ui/SettingsAction.ui')
-    let pageAction = this._builder.get_object('action')
-    window.add(pageAction)
-
-    this._builder.add_from_file(this._path + '/ui/SettingsFineTune.ui')
-    let pageFineTune = this._builder.get_object('finetune')
-    window.add(pageFineTune)
-
-    this._builder.add_from_file(this._path + '/ui/SettingsAbout.ui')
-    let pageAbout = this._builder.get_object('about')
-    // window.add(pageAbout)
-
     this._builder.add_from_file(this._path + '/ui/SettingsHiddenApps.ui')
     let pageHiddenApps = this._builder.get_object('hidden_apps_page')
-    if (pageHiddenApps) window.add(pageHiddenApps)
+
+    const dtpPages = [
+      { id: 'position', title: _('Position'), iconName: 'view-paged-symbolic', page: pagePosition },
+      { id: 'style', title: _('Style'), iconName: 'preferences-desktop-theme-symbolic', page: pageStyle },
+      { id: 'behavior', title: _('Behavior'), iconName: 'preferences-system-symbolic', page: pageBehavior },
+      { id: 'action', title: _('Action'), iconName: 'input-mouse-symbolic', page: pageAction },
+      { id: 'finetune', title: _('Fine-Tune'), iconName: 'applications-engineering-symbolic', page: pageFineTune },
+    ]
+    if (pageHiddenApps) {
+      dtpPages.push({
+        id: 'hidden_apps',
+        title: _('Hidden Applications'),
+        iconName: 'edit-find-symbolic',
+        page: pageHiddenApps,
+      })
+    }
+
+    try {
+      const split = new SplitPreferencesView({
+        title: _('Dash to Panel'),
+        sections: dtpPages,
+      })
+      split.attachToWindow(window)
+    } catch (e) {
+      logError(e, '[DTP] SplitPreferencesView failed, falling back to window.add')
+      window.add(pagePosition)
+      window.add(pageStyle)
+      window.add(pageBehavior)
+      window.add(pageAction)
+      window.add(pageFineTune)
+      if (pageHiddenApps) window.add(pageHiddenApps)
+    }
 
     let listbox = this._builder.get_object('taskbar_display_listbox')
     let provider = new Gtk.CssProvider()
@@ -257,7 +265,10 @@ const Preferences = class {
         let targetPageName = settings.get_string('target-prefs-page')
 
         if (targetPageName) {
-          window.set_visible_page_name(targetPageName)
+          try {
+            if (window.set_visible_page_name)
+              window.set_visible_page_name(targetPageName)
+          } catch (_) {}
           settings.set_string('target-prefs-page', '')
         }
       }

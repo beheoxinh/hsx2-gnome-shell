@@ -1,14 +1,10 @@
 import Gio from 'gi://Gio';
 import St from 'gi://St';
-import Gdk from 'gi://Gdk';
-import Gtk from 'gi://Gtk';
 import {Extension} from 'resource:///org/gnome/shell/extensions/extension.js';
 
 import AdvancedMediaControllerExtension from './modules/alienware-advanced-media-controller@hsx2coder/extension.js';
 import TopbarExtension from './modules/alienware-topbar@hsx2coder/extension.js';
 import DashToPanelExtension from './modules/alienware-dash-to-panel@hsx2coder/extension.js';
-import SystemMonitorExtension from './modules/alienware-monitor@hsx2coder/extension.js';
-import IndicatorsExtension from './modules/alienware-indicators@hsx2coder/extension.js';
 import DingExtension from './modules/alienware-desktop-enable-gnome@hsx2coder/extension.js';
 import AdvancedAltTabExtension from './modules/alienware-advanced-alt-tab@hsx2coder/extension.js';
 import NotificationConfiguratorExtension from './modules/alienware-notification-configurator@hsx2coder/extension.js';
@@ -21,8 +17,6 @@ const CLASS_REGISTRY = {
     'alienware-advanced-media-controller@hsx2coder': AdvancedMediaControllerExtension,
     'alienware-topbar@hsx2coder': TopbarExtension,
     'alienware-dash-to-panel@hsx2coder': DashToPanelExtension,
-    'alienware-monitor@hsx2coder': SystemMonitorExtension,
-    'alienware-indicators@hsx2coder': IndicatorsExtension,
     'alienware-desktop-enable-gnome@hsx2coder': DingExtension,
     'alienware-advanced-alt-tab@hsx2coder': AdvancedAltTabExtension,
     'alienware-notification-configurator@hsx2coder': NotificationConfiguratorExtension,
@@ -38,6 +32,7 @@ export default class AlienwareSuiteExtension extends Extension {
     }
 
     enable() {
+        this.initTranslations();
         try {
             this._loadStylesheets();
         } catch (e) {
@@ -75,6 +70,20 @@ export default class AlienwareSuiteExtension extends Extension {
                 this._disableModule(def);
         }
 
+        if (this._loadedStylesheets) {
+            try {
+                const theme = St.ThemeContext.get_for_stage(global.stage)?.get_theme();
+                if (theme) {
+                    for (const file of this._loadedStylesheets) {
+                        try {
+                            theme.unload_stylesheet(file);
+                        } catch (_) {}
+                    }
+                }
+            } catch (_) {}
+            this._loadedStylesheets = null;
+        }
+
         this._suiteSettings = null;
     }
 
@@ -101,23 +110,21 @@ export default class AlienwareSuiteExtension extends Extension {
                 files.push(css);
         }
 
-        // Gtk, not St: GNOME Shell's St has no CssProvider and its
-        // ThemeContext exposes no add_provider, so an St.CssProvider here
-        // throws on the first line of enable() and GNOME disables the whole
-        // suite. Gtk is what every other extension on this system uses.
         let loaded = 0;
-        for (const file of files) {
-            try {
-                const provider = new Gtk.CssProvider();
-                provider.load_from_path(file.get_path());
-                Gtk.StyleContext.add_provider_for_display(
-                    Gdk.Display.get_default(), provider,
-                    Gtk.STYLE_PROVIDER_PRIORITY_APPLICATION);
-                loaded++;
-            } catch (e) {
-                // a broken stylesheet must never stop the suite from enabling
-                logError(e, `[alienware-suite] could not load ${file.get_basename()}`);
+        this._loadedStylesheets = [];
+        try {
+            const theme = St.ThemeContext.get_for_stage(global.stage).get_theme();
+            for (const file of files) {
+                try {
+                    theme.load_stylesheet(file);
+                    this._loadedStylesheets.push(file);
+                    loaded++;
+                } catch (e) {
+                    logError(e, `[alienware-suite] could not load ${file.get_basename()}`);
+                }
             }
+        } catch (err) {
+            logError(err, '[alienware-suite] failed to access shell theme context');
         }
         log(`[alienware-suite] ${loaded}/${files.length} stylesheet(s) registered`);
     }

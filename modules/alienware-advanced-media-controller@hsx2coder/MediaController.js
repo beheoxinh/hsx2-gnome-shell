@@ -1,5 +1,6 @@
 import {
   gettext as _,
+  InjectionManager,
 } from "resource:///org/gnome/shell/extensions/extension.js";
 import * as Main from "resource:///org/gnome/shell/ui/main.js";
 import GLib from "gi://GLib";
@@ -111,8 +112,10 @@ export default class MediaController {
       this._indicator.disconnect(this._indicatorDestroyId);
       this._indicatorDestroyId = 0;
     }
-    this._indicator.destroy();
-    this._indicator = null;
+    if (this._indicator) {
+      try { this._indicator.destroy(); } catch (_) {}
+      this._indicator = null;
+    }
 
     this._updateDefaultPlayerVisibility(true);
 

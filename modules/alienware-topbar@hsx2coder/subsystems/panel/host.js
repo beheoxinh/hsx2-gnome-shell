@@ -148,7 +148,14 @@ class PanelHostImpl {
      */
     addChrome(actor, params) {
         try {
-            this.#api?.chromeAdd(actor, params);
+            if (this.#api) {
+                this.#api.chromeAdd(actor);
+            } else {
+                Main.layoutManager.addChrome(actor, {
+                    affectsStruts: false,
+                    trackFullscreen: true,
+                });
+            }
         } catch (e) {
             logError(e, '[alienware-topbar] addChrome failed');
             return false;
@@ -159,7 +166,11 @@ class PanelHostImpl {
     removeChrome(actor) {
         // never let a failed remove abort the caller's teardown loop
         try {
-            this.#api?.chromeRemove(actor);
+            if (this.#api) {
+                this.#api.chromeRemove(actor);
+            } else {
+                Main.layoutManager.removeChrome(actor);
+            }
         } catch (e) {
             logError(e, '[alienware-topbar] removeChrome failed');
             return false;

@@ -1,6 +1,7 @@
 import Adw from 'gi://Adw';
 import Gio from 'gi://Gio';
 import Gtk from 'gi://Gtk';
+import {SplitPreferencesView} from '../../lib/ui/splitPrefsView.js';
 
 // Desktop Icons NG preferences — standalone class, does NOT extend ExtensionPreferences.
 // Suite constructs us with subMetadata; schema ID ding ≠ UUID, so we build settings manually.
@@ -16,7 +17,7 @@ export default class DingPrefs {
             title: 'Desktop Icons NG',
             transient_for: parent,
             modal: true,
-            default_width: 780,
+            default_width: 800,
             default_height: 700,
         });
         win.set_size_request(600, 400);
@@ -41,17 +42,23 @@ export default class DingPrefs {
         const s = new Settings(settings);
         win._settingsRef = s;
 
-        const stack = new Adw.ViewStack();
-        const switcher = new Adw.ViewSwitcher({stack});
-        const header = new Adw.HeaderBar({title_widget: switcher});
-        win.set_titlebar(header);
-        win.set_child(stack);
+        const sections = Settings.getTabDefs(s).map((tab, idx) => {
+            const page = new Adw.PreferencesPage({title: tab.title, icon_name: tab.iconName});
+            tab.groups.forEach(g => page.add(g));
+            return {
+                id: `tab_${idx}`,
+                title: tab.title,
+                iconName: tab.iconName,
+                page,
+            };
+        });
 
-        for (const {title, iconName, groups} of Settings.getTabDefs(s)) {
-            const page = new Adw.PreferencesPage({title, icon_name: iconName});
-            groups.forEach(g => page.add(g));
-            stack.add_titled_with_icon(page, title, title, iconName);
-        }
+        const split = new SplitPreferencesView({
+            title: 'Desktop Icons NG',
+            sections,
+        });
+        split.attachToWindow(win);
+
         win.present();
     }
 }

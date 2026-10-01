@@ -1,7 +1,0 @@
-{
-    "description": "System indicators — AppIndicator tray icons and Caps/Num lock + Touchpad toggle",
-    "name": "Indicators",
-    "shell-version": ["45", "46", "47", "48", "49", "50"],
-    "uuid": "alienware-indicators@hsx2coder",
-    "version": 1
-}

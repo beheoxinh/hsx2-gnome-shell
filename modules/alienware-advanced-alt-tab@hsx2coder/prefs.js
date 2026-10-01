@@ -15,6 +15,7 @@ import * as Settings from './src/settings.js';
 import * as OptionsFactory from './src/optionsFactory.js';
 
 import { ExtensionPreferences } from 'resource:///org/gnome/Shell/Extensions/js/extensions/prefs.js';
+import {SplitPreferencesView} from '../../lib/ui/splitPrefsView.js';
 
 import { Actions } from './src/enum.js';
 
@@ -111,7 +112,16 @@ export default class AATWS extends ExtensionPreferences {
 
         OptionsFactory.AdwPrefs.getFilledWindow(window, this._getPageList());
         window.set_search_enabled(true);
-        window.set_default_size(720, 800);
+        window.set_default_size(780, 800);
+
+        try {
+            SplitPreferencesView.renderFromPages(dummyWin => {
+                OptionsFactory.AdwPrefs.getFilledWindow(dummyWin, this._getPageList());
+            }, window, _('Window Switcher Control'));
+        } catch (e) {
+            logError(e, '[AATWS] Failed to apply SplitPreferencesView, using default pages');
+        }
+
         window.connect('close-request', () => {
             this.opt.destroy();
             this.opt = null;

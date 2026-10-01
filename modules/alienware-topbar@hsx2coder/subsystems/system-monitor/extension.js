@@ -43,7 +43,7 @@ import * as Util from "resource:///org/gnome/shell/misc/util.js";
 import { sm_log } from './utils.js';
 import { parse_bytearray, check_sensors } from './common.js';
 import { migrateSettings } from './migration.js'
-import { PanelHost } from '../alienware-topbar@hsx2coder/subsystems/panel/host.js';
+import { PanelHost } from '../panel/host.js';
 
 const NetworkManager = NM;
 const UPower = UPowerGlib;
@@ -2837,7 +2837,7 @@ const Gpu = class SystemMonitor_Gpu extends ElementBase {
     refresh() {
         // Run asynchronously, to avoid shell freeze
         try {
-            let path = this.extension.path;
+            let path = this.extension.dir ? this.extension.dir.get_child('subsystems').get_child('system-monitor').get_path() : (this.extension.path + '/subsystems/system-monitor');
             let script = ['/usr/bin/env', 'bash', path + '/gpu_usage.sh'];
 
             // Create subprocess and capture STDOUT
@@ -3108,7 +3108,7 @@ export default class SystemMonitorExtension extends Extension {
         // Hide the original clock on the topbar and place the System Monitor
         // in the center box to replace its position.
         Main.panel.statusArea.dateMenu?.container?.hide();
-        PanelHost.addPanelBoxItem('system-monitor', tray, 0, 'center');
+        PanelHost.addStatusItem('system-monitor', tray, 0, 'center');
 
         // The spacing adds a distance between the graphs/text on the top bar
         let spacing = this._Schema.get_boolean('compact-display') ? '6' : '12';
@@ -3238,7 +3238,7 @@ export default class SystemMonitorExtension extends Extension {
         if (this.__sm.bar) {
             this.__sm.bar.destroy();
         }
-        this.__sm.tray.destroy();
+        PanelHost.removeStatusItem('system-monitor');
         this.__sm = null;
 
         Main.panel.statusArea.dateMenu?.container?.show();

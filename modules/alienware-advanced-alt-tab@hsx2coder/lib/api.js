@@ -27,6 +27,7 @@ export class AltTabApi
     constructor(dependencies)
     {
         this._main = dependencies['Main'] || null;
+        this._altTab = dependencies['AltTab'] || null;
         this._switcherPopup = dependencies['SwitcherPopup'] || null;
         this._st = dependencies['St'] || null;
         this._clutter = dependencies['Clutter'] || null;
@@ -67,6 +68,8 @@ export class AltTabApi
      */
     #altTabSizesSetDefault()
     {
+        if (!this._altTab?.WindowIcon?.prototype)
+            return;
         let WindowIconProto = this._altTab.WindowIcon.prototype;
         if (WindowIconProto._initOld) {
             WindowIconProto._init = WindowIconProto._initOld;

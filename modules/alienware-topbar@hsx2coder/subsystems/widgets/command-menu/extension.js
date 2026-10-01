@@ -139,7 +139,7 @@ export default class CommandMenuExtension extends Extension {
   reloadExtension() {
     this.cmdMenus.forEach(m => m.destroy());
     this.cmdMenus = [];
-    this.#loadMenus();
+    this._loadMenus();
   }
 
   enable() {
@@ -150,7 +150,7 @@ export default class CommandMenuExtension extends Extension {
     this._settingsIds.push(this._settings.connect('changed::config-filepath', () => {
       this.reloadExtension();
     }));
-    this.#loadMenus();
+    this._loadMenus();
   }
 
   disable() {
@@ -161,7 +161,7 @@ export default class CommandMenuExtension extends Extension {
     this._settings = null;
   }
 
-  #loadMenus() {
+  _loadMenus() {
     let filePath = this._settings.get_string('config-filepath');
     if (filePath.startsWith('~/')) filePath = GLib.build_filenamev([GLib.get_home_dir(), filePath.substring(2)]);
     const file = Gio.file_new_for_path(filePath);
@@ -184,10 +184,15 @@ export default class CommandMenuExtension extends Extension {
     }
 
     menus.forEach((menu, i) => {
+      const role = `commandMenu2_${i}`;
+      if (Main.panel.statusArea[role]) {
+        try { Main.panel.statusArea[role].destroy(); } catch (_) {}
+        delete Main.panel.statusArea[role];
+      }
       const popup = new CommandMenuPopup(menu, this._settings);
       const index = Number.isInteger(+menu.index) ? +menu.index : 1;
       const pos = ['left', 'center', 'right'].includes(menu.position) ? menu.position : 'left';
-      Main.panel.addToStatusArea(`commandMenu2_${i}`, popup, index, pos);
+      Main.panel.addToStatusArea(role, popup, index, pos);
       this.cmdMenus.push(popup);
     });
 

@@ -19,10 +19,16 @@ import {PanelExtension} from './subsystems/panel/extension.js';
 import {TopbarCloneSubsystem} from './subsystems/topbar-clone/main.js';
 import ClipboardIndicatorExtension from './subsystems/widgets/clipboard/extension.js';
 import CommandMenuExtension from './subsystems/widgets/command-menu/extension.js';
+import SystemMonitorExtension from './subsystems/system-monitor/extension.js';
+import AppIndicatorExtension from './subsystems/appindicator/extension.js';
+import CapsNumTouchpadExtension from './subsystems/capsnum-touchpad/extension.js';
 
 const SUB_SCHEMAS = {
     clipboard: 'org.gnome.shell.extensions.clipboard-indicator',
     commandMenu: 'org.gnome.shell.extensions.commandmenu2',
+    systemMonitor: 'org.gnome.shell.extensions.system-monitor-next-applet',
+    appIndicator: 'org.gnome.shell.extensions.indicators-appindicator',
+    capsNumTouchpad: 'org.gnome.shell.extensions.capsnum-touchpad',
 };
 
 export default class TopbarExtension extends Extension {
@@ -30,6 +36,9 @@ export default class TopbarExtension extends Extension {
     #clone = null;
     #clipboard = null;
     #commandMenu = null;
+    #systemMonitor = null;
+    #appIndicator = null;
+    #capsNumTouchpad = null;
     #hostUnwatch = null;
 
     enable() {
@@ -46,6 +55,9 @@ export default class TopbarExtension extends Extension {
 
         this.#clone = new TopbarCloneSubsystem({settings, extension: this});
         this.#clone.enable();
+
+        settings.connect('changed::enable-system-monitor', () => this.#rebuildWidgets());
+        settings.connect('changed::enable-indicators', () => this.#rebuildWidgets());
 
         this.#rebuildWidgets();
     }
@@ -71,6 +83,12 @@ export default class TopbarExtension extends Extension {
      * @param {boolean} teardown true while disabling
      */
     #rebuildWidgets(teardown = false) {
+        this.#capsNumTouchpad?.disable();
+        this.#capsNumTouchpad = null;
+        this.#appIndicator?.disable();
+        this.#appIndicator = null;
+        this.#systemMonitor?.disable();
+        this.#systemMonitor = null;
         this.#commandMenu?.disable();
         this.#commandMenu = null;
         this.#clipboard?.disable();
@@ -101,5 +119,32 @@ export default class TopbarExtension extends Extension {
             'settings-schema': SUB_SCHEMAS.commandMenu,
         });
         this.#commandMenu.enable();
+
+        const settings = this.getSettings();
+
+        if (settings.get_boolean('enable-system-monitor')) {
+            this.#systemMonitor = new SystemMonitorExtension({
+                ...baseMeta,
+                ...this.metadata,
+                'settings-schema': SUB_SCHEMAS.systemMonitor,
+            });
+            this.#systemMonitor.enable();
+        }
+
+        if (settings.get_boolean('enable-indicators')) {
+            this.#appIndicator = new AppIndicatorExtension({
+                ...baseMeta,
+                ...this.metadata,
+                'settings-schema': SUB_SCHEMAS.appIndicator,
+            });
+            this.#appIndicator.enable();
+        }
+
+        this.#capsNumTouchpad = new CapsNumTouchpadExtension({
+            ...baseMeta,
+            ...this.metadata,
+            'settings-schema': SUB_SCHEMAS.capsNumTouchpad,
+        });
+        this.#capsNumTouchpad.enable();
     }
 }

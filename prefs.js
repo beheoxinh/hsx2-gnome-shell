@@ -7,8 +7,6 @@ import {ExtensionPreferences} from 'resource:///org/gnome/Shell/Extensions/js/ex
 import AdvancedMediaControllerPrefs from './modules/alienware-advanced-media-controller@hsx2coder/prefs.js';
 import TopbarPrefs from './modules/alienware-topbar@hsx2coder/prefs.js';
 import DashToPanelPrefs from './modules/alienware-dash-to-panel@hsx2coder/prefs.js';
-import SystemMonitorPrefs from './modules/alienware-monitor@hsx2coder/prefs.js';
-import IndicatorsPrefs from './modules/alienware-indicators@hsx2coder/prefs.js';
 import DingPrefs from './modules/alienware-desktop-enable-gnome@hsx2coder/prefs.js';
 import AdvancedAltTabPrefs from './modules/alienware-advanced-alt-tab@hsx2coder/prefs.js';
 import NotificationConfiguratorPrefs from './modules/alienware-notification-configurator@hsx2coder/prefs.js';
@@ -20,8 +18,6 @@ const PREFS_REGISTRY = {
     'alienware-advanced-media-controller@hsx2coder': AdvancedMediaControllerPrefs,
     'alienware-topbar@hsx2coder': TopbarPrefs,
     'alienware-dash-to-panel@hsx2coder': DashToPanelPrefs,
-    'alienware-monitor@hsx2coder': SystemMonitorPrefs,
-    'alienware-indicators@hsx2coder': IndicatorsPrefs,
     'alienware-desktop-enable-gnome@hsx2coder': DingPrefs,
     'alienware-advanced-alt-tab@hsx2coder': AdvancedAltTabPrefs,
     'alienware-notification-configurator@hsx2coder': NotificationConfiguratorPrefs,
@@ -43,7 +39,7 @@ export default class AlienwareSuitePreferences extends ExtensionPreferences {
         const headerGroup = new Adw.PreferencesGroup({
             title: 'Alienware Suite',
             description:
-                'Master switches for every module. ' +
+                'Master switches for every module (7 consolidated modules). ' +
                 'Open per-module settings with the Configure button.',
         });
         page.add(headerGroup);

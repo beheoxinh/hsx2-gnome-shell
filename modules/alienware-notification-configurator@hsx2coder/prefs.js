@@ -3,6 +3,7 @@ import Gdk from "gi://Gdk";
 import Gio from "gi://Gio";
 import Gtk from "gi://Gtk";
 import { ExtensionPreferences, gettext as _, } from "resource:///org/gnome/Shell/Extensions/js/extensions/prefs.js";
+import {SplitPreferencesView} from "../../lib/ui/splitPrefsView.js";
 import { migrateRegexSchema } from "./migrations/regex.js";
 import { DEFAULT_THEME } from "./utils/constants.js";
 import { SettingsManager } from "./utils/settings.js";
@@ -54,19 +55,39 @@ export default class NotificationConfiguratorPreferences extends ExtensionPrefer
         this.settings = this.getSettings();
         migrateRegexSchema(this.settings);
         this.loadData();
-        window.set_default_size(720, 650);
+        window.set_default_size(760, 650);
+
         const globalPage = new Adw.PreferencesPage({
             title: _("Global"),
             icon_name: "preferences-system-symbolic",
         });
-        window.add(globalPage);
         this.buildGlobalPage(globalPage);
+
         const patternsPage = new Adw.PreferencesPage({
             title: _("Patterns"),
             icon_name: "view-list-symbolic",
         });
-        window.add(patternsPage);
         this.buildPatternsPage(window, patternsPage);
+
+        const split = new SplitPreferencesView({
+            title: _('Notifications'),
+            sections: [
+                {
+                    id: 'global',
+                    title: _('Global'),
+                    iconName: 'preferences-system-symbolic',
+                    page: globalPage,
+                },
+                {
+                    id: 'patterns',
+                    title: _('Patterns'),
+                    iconName: 'view-list-symbolic',
+                    page: patternsPage,
+                },
+            ],
+        });
+        split.attachToWindow(window);
+
         window.connect("close-request", () => {
             // biome-ignore lint/style/noNonNullAssertion: cleanup
             this.settings = null;

@@ -6,6 +6,7 @@
  */
 
 import {ExtensionPreferences} from 'resource:///org/gnome/Shell/Extensions/js/extensions/prefs.js';
+import {SplitPreferencesView} from '../../lib/ui/splitPrefsView.js';
 
 import {buildGeneralPage} from './ui/generalPage.js';
 import {buildPopupPage} from './ui/popupPage.js';
@@ -14,8 +15,10 @@ import {buildAppearancePage} from './ui/appearancePage.js';
 export default class AdvancedMediaControllerPreferences extends ExtensionPreferences {
     fillPreferencesWindow(window) {
         const settings = this.getSettings();
-        window.add(buildGeneralPage(settings));
-        window.add(buildPopupPage(settings));
-        window.add(buildAppearancePage(settings));
+        SplitPreferencesView.renderFromPages(dummyWin => {
+            dummyWin.add(buildGeneralPage(settings));
+            dummyWin.add(buildPopupPage(settings));
+            dummyWin.add(buildAppearancePage(settings));
+        }, window, 'Advanced Media Controller');
     }
 }

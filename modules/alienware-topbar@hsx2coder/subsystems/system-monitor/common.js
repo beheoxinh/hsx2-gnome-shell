@@ -25,7 +25,7 @@ function check_sensors(sensor_type) {
                     return parse_bytearray(contents).trim('\n');
                 }
             } catch (e) {
-                console.log(`error loading label from file ${file.get_path()}: ${e}`);
+                // Ignore unreadable sysfs sensor labels
             }
         }
         return null;

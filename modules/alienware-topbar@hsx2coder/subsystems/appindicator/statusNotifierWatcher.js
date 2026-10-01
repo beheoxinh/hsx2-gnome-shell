@@ -158,6 +158,8 @@ export class StatusNotifierWatcher {
         const busAnalyzer = GLib.build_filenamev([
             extension.path, 'tools', 'busAnalyzer.js',
         ]);
+        if (!GLib.file_test(busAnalyzer, GLib.FileTest.EXISTS))
+            return;
 
         const subProcess = Gio.Subprocess.new(['gjs', '-m', busAnalyzer],
             Gio.SubprocessFlags.STDOUT_PIPE | Gio.SubprocessFlags.STDERR_PIPE);

@@ -141,7 +141,9 @@ if os.path.isfile(top_xml) and os.path.isfile(top_ext):
     handled = set(re.findall(r"\['([a-z0-9-]+)',\s*\(\s*[sf]", text))
     # the clone keys are applied by subsystems/topbar-clone, not this table
     clone = {'clone-topbar', 'clone-show-clock', 'clone-show-tray', 'clone-show-indicators'}
-    for key in sorted(declared - handled - clone):
+    # the widget switches are handled by alienware-topbar/extension.js
+    widgets = {'enable-system-monitor', 'enable-indicators'}
+    for key in sorted(declared - handled - clone - widgets):
         fail(f'{top_ext}: schema key {key} has no applier in #table()')
 
     api_path = os.path.join(TOP, 'subsystems/panel/api.js')
