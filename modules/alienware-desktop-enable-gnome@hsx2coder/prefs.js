@@ -133,7 +133,7 @@ class Settings {
         this.#connectEnum(this.iconSize, 'icon-size', [3, 0, 1, 2]);
 
         // start-corner: top-left(0), top-right(1), bottom-left(2), bottom-right(3)
-        this.schema.bind('start-corner', this.startCorner, 'selected', Gio.SettingsBindFlags.DEFAULT);
+        this.#connectEnum(this.startCorner, 'start-corner', [0, 1, 2, 3]);
 
         // arrangeorder: NAME(1), DESCENDINGNAME(2), MODIFIEDTIME(3), KIND(4), SIZE(5)
         this.#connectEnum(this.arrangeOrder, 'arrangeorder', [1, 2, 3, 4, 5]);

@@ -26,7 +26,6 @@ class Settings {
             {title: 'Animation',   iconName: 'preferences-system-symbolic',              groups: [s.animation]},
             {title: 'Windows',     iconName: 'window-duplicate-symbolic',                groups: [s.windows]},
             {title: 'OSD',         iconName: 'video-display-symbolic',                    groups: [s.osd]},
-            {title: 'Quick Settings', iconName: 'emblem-system-symbolic',                groups: [s.quickSettings]},
             {title: 'Advanced',    iconName: 'applications-engineering-symbolic',        groups: [s.advanced]},
         ];
     }
@@ -118,15 +117,8 @@ class Settings {
         this.osd.add(this.osdPosition);
 
         for (const w of [
-            this.quickSettingsMenu, this.quickSettingsDarkMode,
-            this.quickSettingsNightLight, this.quickSettingsDnd,
-            this.quickSettingsBacklight, this.quickSettingsAirplane,
-        ]) this.quickSettings.add(w);
-
-        for (const w of [
             this.theme, this.lookingGlassWidth, this.lookingGlassHeight,
-            this.accentColorIcon, this.maxSearchResults,
-            this.removePreselectedBox, this.screenshotOnRelease, this.invertCalendar,
+            this.removePreselectedBox, this.screenshotOnRelease,
         ]) this.advanced.add(w);
 
         // ── Bind ──
