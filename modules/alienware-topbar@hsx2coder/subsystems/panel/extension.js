@@ -9,7 +9,7 @@
 
 import {PanelHost} from './host.js';
 
-const CLOCK_SIDE = ['left', 'center', 'right'];
+const CLOCK_SIDE = ['center', 'right', 'left'];
 const PANEL_SIDE = ['top', 'bottom'];
 
 /** index of a value inside an enum, or -1 */

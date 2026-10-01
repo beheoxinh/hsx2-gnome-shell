@@ -26,7 +26,7 @@ export const MODULES = [
     {
         key: 'topbar',
         enableKey: 'enable-topbar',
-        title: 'Topbar & Panel',
+        title: 'Topbar and Panel',
         iconName: 'video-display-symbolic',
         uuid: 'alienware-topbar@hsx2coder',
         entry: 'extension.js',

@@ -58,7 +58,7 @@ export default class AlienwareSuitePreferences extends ExtensionPreferences {
 
         for (const def of MODULES) {
             const row = new Adw.ActionRow({
-                title: def.title,
+                title: def.title.replace('&', '&amp;'),
             });
 
             const toggle = new Gtk.Switch({

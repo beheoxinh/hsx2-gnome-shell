@@ -3105,8 +3105,10 @@ export default class SystemMonitorExtension extends Extension {
         this._Schema.connect('changed::background', (schema, key) => {
             this._Background = color_from_string(this._Schema.get_string(key));
         });
-        PanelHost.addPanelBoxItem('system-monitor', tray, 1, PanelHost.sideForIndex(
-            this._Schema.get_int('system-monitor-box')));
+        // Hide the original clock on the topbar and place the System Monitor
+        // in the center box to replace its position.
+        Main.panel.statusArea.dateMenu?.container?.hide();
+        PanelHost.addPanelBoxItem('system-monitor', tray, 0, 'center');
 
         // The spacing adds a distance between the graphs/text on the top bar
         let spacing = this._Schema.get_boolean('compact-display') ? '6' : '12';
@@ -3154,7 +3156,6 @@ export default class SystemMonitorExtension extends Extension {
 
         const restartKeys = [
             'compact-display',
-            'system-monitor-box',
             'cpu-position',
             'freq-position',
             'memory-position',
@@ -3239,6 +3240,8 @@ export default class SystemMonitorExtension extends Extension {
         }
         this.__sm.tray.destroy();
         this.__sm = null;
+
+        Main.panel.statusArea.dateMenu?.container?.show();
 
         sm_log('applet disable');
     }
