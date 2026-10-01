@@ -23,7 +23,7 @@ import Shell from 'gi://Shell'
 import St from 'gi://St'
 import Clutter from 'gi://Clutter'
 
-import Config from 'resource:///org/gnome/shell/misc/config.js'
+import * as Config from 'resource:///org/gnome/shell/misc/config.js'
 import * as Main from 'resource:///org/gnome/shell/ui/main.js'
 import * as WindowPreview from 'resource:///org/gnome/shell/ui/windowPreview.js'
 import { EventEmitter } from 'resource:///org/gnome/shell/misc/signals.js'

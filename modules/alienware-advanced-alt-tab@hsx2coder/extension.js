@@ -30,7 +30,7 @@ import * as SwitcherList from './src/switcherList.js';
 import * as SwitcherItems from './src/switcherItems.js';
 import * as WindowMenu from './src/windowMenu.js';
 
-import Config from 'resource:///org/gnome/shell/misc/config.js';
+import * as Config from 'resource:///org/gnome/shell/misc/config.js';
 import { Extension, gettext as _ } from 'resource:///org/gnome/shell/extensions/extension.js';
 
 import {AltTabApi} from './lib/api.js';

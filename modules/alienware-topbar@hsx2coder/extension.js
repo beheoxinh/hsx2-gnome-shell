@@ -11,7 +11,7 @@
  * import Main.panel for writing.
  */
 
-import Config from 'resource:///org/gnome/shell/misc/config.js';
+import * as Config from 'resource:///org/gnome/shell/misc/config.js';
 import {Extension} from 'resource:///org/gnome/shell/extensions/extension.js';
 
 import {PanelHost} from './subsystems/panel/host.js';

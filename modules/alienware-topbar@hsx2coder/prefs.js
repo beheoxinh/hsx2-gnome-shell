@@ -164,10 +164,10 @@ export default class TopbarPreferences extends ExtensionPreferences {
         for (const page of PAGES) {
             const adwPage = new Adw.PreferencesPage({title: page.title, icon_name: ICONS[page.title]});
             for (const group of page.groups) {
-                const adwGroup = new Adw.PreferencesGroup({
-                    title: group.title,
-                    description: group.description ?? undefined,
-                });
+                const groupParams = {title: group.title};
+                if (group.description)
+                    groupParams.description = group.description;
+                const adwGroup = new Adw.PreferencesGroup(groupParams);
                 for (const [key, title, subtitle, kind] of group.rows) {
                     const [row, prop] = makeRow(key, title, subtitle, kind);
                     adwGroup.add(row);
