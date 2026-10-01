@@ -74,9 +74,9 @@ export class PanelExtension {
             // applier; panel-in-overview used to be read only while applying
             // panel-visible, so toggling it on its own did nothing
             ['panel-visible', (s, f) => this.#applyPanelVisibility(s, f),
-                () => a.panelHide(0)],
+                () => a.panelShow()],
             ['panel-in-overview', (s, f) => this.#applyPanelVisibility(s, f),
-                () => a.panelHide(0)],
+                () => a.panelShow()],
 
             ['panel-height',
                 (s, f) => {
