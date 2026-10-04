@@ -92,9 +92,10 @@ export function addShellThemePages(dummyWin, gcmSettings) {
         logError(e, '[ShellThemePrefs] watch failed');
     }
 
-    const reloadRow = new Adw.ButtonRow({
+    const reloadRow = new Adw.ActionRow({
         title: 'Rescan Theme Folders',
         subtitle: 'Refresh the list from ~/.themes and /usr/share/themes.',
+        activatable: true,
     });
     reloadRow.connect('activated', refreshThemes);
 
