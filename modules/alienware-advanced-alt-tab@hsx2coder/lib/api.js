@@ -1,6 +1,11 @@
 /**
  * Alt-tab API: switcher icon and preview sizing.
  *
+ * Stateless helper owned by modules/alienware-advanced-alt-tab@hsx2coder/extension.js:
+ * constructed in enable(), consumed by _AatJpHandler, released (reference
+ * dropped) in disable(). No signals, no GLib sources, no actors — so no
+ * enable()/disable() of its own. Caller-owned, caller-released.
+ *
  * Split out of alienware-gnome-customizer-manager@hsx2coder lib/API.js by
  * tools/split-api.py. Method bodies are verbatim copies: the only change is
  * that each domain now lives with the module that owns its GSettings keys.

@@ -174,6 +174,10 @@ export class IconCache {
     }
 
     destroy() {
+        if (this._gcTimeout) {
+            try { this._gcTimeout.cancel(); } catch (e) {}
+            this._gcTimeout = null;
+        }
         this.clear();
     }
 }

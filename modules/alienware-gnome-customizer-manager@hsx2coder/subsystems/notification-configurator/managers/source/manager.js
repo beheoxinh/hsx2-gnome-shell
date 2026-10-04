@@ -2,6 +2,10 @@ import { InjectionManager } from "resource:///org/gnome/shell/extensions/extensi
 import { NotificationDestroyedReason, Source, } from "resource:///org/gnome/shell/ui/messageTray.js";
 import { NOTIFICATIONS_PER_SOURCE_DEFAULT, } from "../../utils/settings.js";
 export class SourceManager {
+    // One InjectionManager per manager (source, message-tray, notification-daemon,
+    // window-attention) is intentional, not duplication: each manager restores only
+    // its own prototype patches via injectionManager.clear() in disable(), so a
+    // shared instance would let one manager's disable() undo another's live patches.
     settingsManager;
     injectionManager = new InjectionManager();
     addNotificationHooks = [];

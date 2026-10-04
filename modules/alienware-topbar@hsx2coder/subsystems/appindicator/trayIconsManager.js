@@ -96,7 +96,8 @@ export class TrayIconsManager extends Signals.EventEmitter {
 
     destroy() {
         this.emit('destroy');
-        SettingsManager.getDefaultGSettings().disconnect(this._changedId);
+        try { SettingsManager.getDefaultGSettings()?.disconnect(this._changedId); } catch (e) {}
+        this._changedId = 0;
         this._disable();
         trayIconsManager = null;
     }

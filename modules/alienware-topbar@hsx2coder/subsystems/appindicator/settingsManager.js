@@ -22,6 +22,8 @@ export class SettingsManager {
     }
 
     static destroy() {
+        if (!SettingsManager._settingsManager)
+            return;
         SettingsManager._settingsManager.destroy();
         SettingsManager._settingsManager = null;
     }

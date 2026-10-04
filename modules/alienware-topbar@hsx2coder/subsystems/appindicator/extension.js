@@ -33,7 +33,7 @@ export default class AppIndicatorExtension extends Extension.Extension {
         this._isEnabled = false;
         this._statusNotifierWatcher = null;
         this._watchDog = new Util.NameWatcher(StatusNotifierWatcher.WATCHER_BUS_NAME);
-        this._watchDog.connect('vanished', () => this._maybeEnableAfterNameAvailable());
+        this._watchDogVanishedId = this._watchDog.connect('vanished', () => this._maybeEnableAfterNameAvailable());
 
         // HACK: we want to leave the watchdog alive when disabling the extension,
         // but if we are being reloaded, we destroy it since it could be considered
@@ -60,7 +60,7 @@ export default class AppIndicatorExtension extends Extension.Extension {
 
     disable() {
         this._isEnabled = false;
-        TrayIconsManager.TrayIconsManager.destroy();
+        try { TrayIconsManager.TrayIconsManager.destroy(); } catch (e) { logError(e, 'Topbar context'); }
 
         if (this._statusNotifierWatcher !== null) {
             this._statusNotifierWatcher.destroy();
