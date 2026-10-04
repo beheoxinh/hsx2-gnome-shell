@@ -6,6 +6,7 @@ import {SplitPreferencesView} from '../../lib/ui/splitPrefsView.js';
 
 import {addWorkspaceControlPages} from './subsystems/workspace-prefs.js';
 import NotificationConfiguratorPreferences from './subsystems/notification-configurator/prefs.js';
+import {addShellThemePages} from './subsystems/user-shell-theme/theme-prefs.js';
 
 export default class GnomeCustomizerManagerPreferences extends ExtensionPreferences {
     fillPreferencesWindow(window) {
@@ -68,6 +69,12 @@ export default class GnomeCustomizerManagerPreferences extends ExtensionPreferen
         }
 
         addWorkspaceControlPages(dummyWin, this.getSettings());
+
+        try {
+            addShellThemePages(dummyWin, this.getSettings());
+        } catch (e) {
+            logError(e, 'GCM ShellTheme prefs failed');
+        }
 
         const sections = pages.map((page, idx) => ({
             id: `gcm_${idx}`,

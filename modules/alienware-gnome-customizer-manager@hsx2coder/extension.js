@@ -41,12 +41,14 @@ import {Extension} from 'resource:///org/gnome/shell/extensions/extension.js';
 import {API} from './lib/API.js';
 import {ScreenshotBox} from './lib/ScreenshotBox.js';
 import {WorkspaceControl} from './subsystems/workspace-control.js';
+import {UserShellThemeSubsystem} from './subsystems/user-shell-theme/subsystem.js';
 import {NotificationConfiguratorSubsystem} from './subsystems/notification-configurator/subsystem.js';
 
 export default class GnomeCustomizerManagerExtension extends Extension {
     #api = null;
     #manager = null;
     #notifications = null;
+    #shellTheme = null;
 
     enable() {
         const shellVersion = Number.parseInt(
@@ -97,6 +99,8 @@ export default class GnomeCustomizerManagerExtension extends Extension {
             const notifSettings = this.getSettings('org.gnome.shell.extensions.notification-configurator');
             this.#notifications = new NotificationConfiguratorSubsystem(notifSettings);
             this.#notifications.start();
+            this.#shellTheme = new UserShellThemeSubsystem();
+            this.#shellTheme.start();
         } catch (e) {
             logError(e, '[GCM] notification subsystem start failed');
         }
@@ -107,6 +111,8 @@ export default class GnomeCustomizerManagerExtension extends Extension {
     disable() {
         try {
             this.#notifications?.stop();
+            this.#shellTheme?.stop();
+            this.#shellTheme = null;
         } catch (e) {
             logError(e, '[GCM] notification subsystem stop failed');
         }
