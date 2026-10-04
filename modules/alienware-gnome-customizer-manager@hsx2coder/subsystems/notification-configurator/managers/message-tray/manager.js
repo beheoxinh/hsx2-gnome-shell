@@ -22,6 +22,8 @@ export class MessageTrayManager {
         this.injectionManager.clear();
     }
     patchUpdateState() {
+
+        try {
         const hooks = this.updateStateHooks;
         const messageTrayProto = MessageTray.MessageTray
             .prototype;
@@ -39,8 +41,13 @@ export class MessageTrayManager {
                 return original.call(this);
             }
         });
+            } catch (e) {
+            logError(e, 'NC-TRAY');
+        }
     }
     patchUpdateNotificationTimeout() {
+
+        try {
         const messageTrayProto = MessageTray.MessageTray
             .prototype;
         const hooks = this.updateNotificationTimeoutHooks;
@@ -56,6 +63,9 @@ export class MessageTrayManager {
                 return original.call(this, finalTimeout);
             }
         });
+            } catch (e) {
+            logError(e, 'NC-TRAY');
+        }
     }
     dispose() {
         this.disable();

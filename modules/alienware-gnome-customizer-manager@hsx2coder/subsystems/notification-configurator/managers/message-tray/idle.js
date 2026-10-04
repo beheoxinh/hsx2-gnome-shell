@@ -5,6 +5,8 @@ export class IdleAdapter {
         this.settingsManager = settingsManager;
     }
     createHook() {
+
+        try {
         const settingsManager = this.settingsManager;
         return (original, { tray }) => {
             if (settingsManager.ignoreIdle) {
@@ -12,15 +14,28 @@ export class IdleAdapter {
             }
             original();
         };
+            } catch (e) {
+            logError(e, 'NC-IDLE');
+        }
     }
     register(manager) {
+
+        try {
         this.listenerId = this.settingsManager.events.on("ignoreIdleChanged", () => { });
         manager.registerUpdateStateHook(this.createHook());
+            } catch (e) {
+            logError(e, 'NC-IDLE');
+        }
     }
     dispose() {
+
+        try {
         if (this.listenerId !== undefined) {
             this.settingsManager.events.off(this.listenerId);
             this.listenerId = undefined;
+        }
+            } catch (e) {
+            logError(e, 'NC-IDLE');
         }
     }
 }

@@ -6,24 +6,51 @@ export class NotificationDaemonManager {
     getSourceForPidAndNameHooks = [];
     currentNotification = null;
     registerGetSourceForAppHook(hook) {
+
+        try {
         this.getSourceForAppHooks.push(hook);
+            } catch (e) {
+            logError(e, 'NC-DAEMON');
+        }
     }
     registerGetSourceForPidAndNameHook(hook) {
+
+        try {
         this.getSourceForPidAndNameHooks.push(hook);
+            } catch (e) {
+            logError(e, 'NC-DAEMON');
+        }
     }
     enable() {
+
+        try {
         this.patchNotifyAsync();
         this.patchGetSourceForApp();
         this.patchGetSourceForPidAndName();
+            } catch (e) {
+            logError(e, 'NC-DAEMON');
+        }
     }
     disable() {
+
+        try {
         this.injectionManager.clear();
+            } catch (e) {
+            logError(e, 'NC-DAEMON');
+        }
     }
     getFdoNotificationDaemonProto() {
+
+        try {
         const fdoNotificationDaemon = Main.notificationDaemon._fdoNotificationDaemon;
         return Object.getPrototypeOf(fdoNotificationDaemon);
+            } catch (e) {
+            logError(e, 'NC-DAEMON');
+        }
     }
     patchNotifyAsync() {
+
+        try {
         const proto = this.getFdoNotificationDaemonProto();
         const manager = this;
         this.injectionManager.overrideMethod(proto, "NotifyAsync", (original) => function (params, invocation) {
@@ -40,8 +67,13 @@ export class NotificationDaemonManager {
                 manager.currentNotification = null;
             }
         });
+            } catch (e) {
+            logError(e, 'NC-DAEMON');
+        }
     }
     patchGetSourceForApp() {
+
+        try {
         const proto = this.getFdoNotificationDaemonProto();
         const hooks = this.getSourceForAppHooks;
         const manager = this;
@@ -57,8 +89,13 @@ export class NotificationDaemonManager {
             }
             return original.call(this, sender, app);
         });
+            } catch (e) {
+            logError(e, 'NC-DAEMON');
+        }
     }
     patchGetSourceForPidAndName() {
+
+        try {
         const proto = this.getFdoNotificationDaemonProto();
         const hooks = this.getSourceForPidAndNameHooks;
         const manager = this;
@@ -74,11 +111,19 @@ export class NotificationDaemonManager {
             }
             return original.call(this, sender, pid, appName);
         });
+            } catch (e) {
+            logError(e, 'NC-DAEMON');
+        }
     }
     dispose() {
+
+        try {
         this.disable();
         this.currentNotification = null;
         this.getSourceForAppHooks = [];
         this.getSourceForPidAndNameHooks = [];
+            } catch (e) {
+            logError(e, 'NC-DAEMON');
+        }
     }
 }

@@ -6,6 +6,8 @@ export class GroupingAdapter {
         this.settingsManager = settingsManager;
     }
     createGetSourceForAppHook() {
+
+        try {
         const settingsManager = this.settingsManager;
         return (_original, sender, app, context) => {
             const notification = context.notification;
@@ -19,8 +21,13 @@ export class GroupingAdapter {
             Main.messageTray.add(source);
             return source;
         };
+            } catch (e) {
+            logError(e, 'NC-GROUP');
+        }
     }
     createGetSourceForPidAndNameHook() {
+
+        try {
         const settingsManager = this.settingsManager;
         return (_original, sender, _pid, appName, context) => {
             const notification = context.notification;
@@ -34,10 +41,18 @@ export class GroupingAdapter {
             Main.messageTray.add(source);
             return source;
         };
+            } catch (e) {
+            logError(e, 'NC-GROUP');
+        }
     }
     register(manager) {
+
+        try {
         manager.registerGetSourceForAppHook(this.createGetSourceForAppHook());
         manager.registerGetSourceForPidAndNameHook(this.createGetSourceForPidAndNameHook());
+            } catch (e) {
+            logError(e, 'NC-GROUP');
+        }
     }
     dispose() { }
 }

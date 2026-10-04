@@ -264,6 +264,8 @@ export const WindowSwitcherPopup = {
     },
 
     show(backward, binding, mask) {
+
+        try {
         if (this._updateInProgress)
             return false;
         this._updateInProgress = true;
@@ -316,6 +318,9 @@ export const WindowSwitcherPopup = {
         this._switcherList._updateMouseControls(this._mouseHoveringItemIndex);
 
         return true;
+            } catch (e) {
+            logError(e, 'ALTTAB-POPUP');
+        }
     },
 
     _pushModalCustom() {
@@ -850,6 +855,8 @@ export const WindowSwitcherPopup = {
     },
 
     _itemEntered(switcher, n) {
+
+        try {
         if (!this.mouseActive)
             return;
         const item = this._items[n];
@@ -859,6 +866,9 @@ export const WindowSwitcherPopup = {
             this._itemEnteredHandler(n);
         if (this._switcherList._updateMouseControls) // Prevent error if used by the Tiling assistant
             this._switcherList._updateMouseControls(n);
+            } catch (e) {
+            logError(e, 'ALTTAB-POPUP');
+        }
     },
 
     vfunc_allocate(box) {
@@ -1134,6 +1144,8 @@ export const WindowSwitcherPopup = {
     },
 
     _finish(keyActivated) {
+
+        try {
         if (this._timeoutIds.showWinImmediately) {
             GLib.source_remove(this._timeoutIds.showWinImmediately);
             this._timeoutIds.showWinImmediately = 0;
@@ -1167,6 +1179,9 @@ export const WindowSwitcherPopup = {
             this.fadeAndDestroy();
         else
             this._doNotUpdateOnNewWindow = false;
+            } catch (e) {
+            logError(e, 'ALTTAB-POPUP');
+        }
     },
 
     _shouldToggleSingleAppMode(selected) {
@@ -1347,6 +1362,8 @@ export const WindowSwitcherPopup = {
     },
 
     _select(index) {
+
+        try {
         if (!this._switcherList || index === this._highlighted || index < 0)
             return;
 
@@ -1361,6 +1378,9 @@ export const WindowSwitcherPopup = {
             this._showPreview();
 
         this._resetNoModsTimeout();
+            } catch (e) {
+            logError(e, 'ALTTAB-POPUP');
+        }
     },
 
     _next(reversed = false) {

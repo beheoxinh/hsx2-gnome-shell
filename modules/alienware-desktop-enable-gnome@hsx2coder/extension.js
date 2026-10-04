@@ -336,6 +336,8 @@ export default class DING extends Extension {
      *
      */
     updateDesktopGeometry() {
+
+        try {
         if (this._geomIdleId) {
             GLib.source_remove(this._geomIdleId);
         }
@@ -347,12 +349,17 @@ export default class DING extends Extension {
             }
             return GLib.SOURCE_REMOVE;
         });
+            } catch (e) {
+            logError(e, 'DING');
+        }
     }
 
     /**
      *
      */
     getDesktopGeometry() {
+
+        try {
         let desktopVariantList = [];
         let desktopList = [];
         const ws = global.workspace_manager.get_active_workspace();
@@ -378,6 +385,9 @@ export default class DING extends Extension {
         }
         this.data.x11Manager.setMonitorData(desktopList);
         return new GLib.Variant('av', desktopVariantList);
+            } catch (e) {
+            logError(e, 'DING');
+        }
     }
 
     /**
@@ -454,6 +464,8 @@ export default class DING extends Extension {
      * debug it.
      */
     launchDesktop() {
+
+        try {
         console.log('Launching DING process');
         let argv = [];
         argv.push(GLib.build_filenamev([this.path, 'app', 'ding.js']));
@@ -495,6 +507,9 @@ export default class DING extends Extension {
             }
             this.doRelaunch(reloadTime);
         });
+            } catch (e) {
+            logError(e, 'DING');
+        }
     }
 }
 /**

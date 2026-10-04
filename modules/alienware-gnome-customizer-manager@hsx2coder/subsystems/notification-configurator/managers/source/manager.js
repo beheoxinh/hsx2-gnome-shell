@@ -13,15 +13,32 @@ export class SourceManager {
         this.settingsManager = settingsManager;
     }
     registerAddNotificationHook(hook) {
+
+        try {
         this.addNotificationHooks.push(hook);
+            } catch (e) {
+            logError(e, 'NC-SOURCE');
+        }
     }
     enable() {
+
+        try {
         this.patchAddNotification();
+            } catch (e) {
+            logError(e, 'NC-SOURCE');
+        }
     }
     disable() {
+
+        try {
         this.injectionManager.clear();
+            } catch (e) {
+            logError(e, 'NC-SOURCE');
+        }
     }
     patchAddNotification() {
+
+        try {
         const hooks = this.addNotificationHooks;
         const manager = this;
         this.injectionManager.overrideMethod(Source.prototype, "addNotification", () => function (notification) {
@@ -46,8 +63,13 @@ export class SourceManager {
                 addNotification(notification);
             }
         });
+            } catch (e) {
+            logError(e, 'NC-SOURCE');
+        }
     }
     getMaximumPerSource(source, notification) {
+
+        try {
         const configuration = this.settingsManager.getConfigurationFor(notification.source?.title ?? source.title, notification.title, notification.body);
         const maximumPerSource = configuration.enabled
             ? configuration.notificationCenter.maximumPerSource
@@ -55,8 +77,13 @@ export class SourceManager {
         return maximumPerSource > 0
             ? Math.trunc(maximumPerSource)
             : NOTIFICATIONS_PER_SOURCE_DEFAULT;
+            } catch (e) {
+            logError(e, 'NC-SOURCE');
+        }
     }
     addNotification(source, notification, maximumPerSource) {
+
+        try {
         // Adapted from GNOME Shell js/ui/messageTray.js Source.addNotification().
         if (source.notifications.includes(notification)) {
             return;
@@ -76,9 +103,17 @@ export class SourceManager {
         source.emit("notification-added", notification);
         source.emit("notification-request-banner", notification);
         source.countUpdated();
+            } catch (e) {
+            logError(e, 'NC-SOURCE');
+        }
     }
     dispose() {
+
+        try {
         this.disable();
         this.addNotificationHooks = [];
+            } catch (e) {
+            logError(e, 'NC-SOURCE');
+        }
     }
 }

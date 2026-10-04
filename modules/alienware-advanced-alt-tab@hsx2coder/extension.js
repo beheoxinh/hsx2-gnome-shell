@@ -51,6 +51,8 @@ export default class AATWS extends Extension {
     }
 
     enable() {
+
+        try {
         const Me = {
             metadata: this.metadata,
             gSettings: this.getSettings(),
@@ -86,9 +88,14 @@ export default class AATWS extends Extension {
         // === JP borrowed keys handler ===
         this._jpHandler = new _AatJpHandler(Me.gSettings);
         this._jpHandler.start();
+            } catch (e) {
+            logError(e, 'ALTTAB');
+        }
     }
 
     disable() {
+
+        try {
         if (this._wmFocusToActiveHandlerId)
             global.display.disconnect(this._wmFocusToActiveHandlerId);
 
@@ -118,6 +125,9 @@ export default class AATWS extends Extension {
 
         this._jpHandler?.stop();
         this._jpHandler = null;
+            } catch (e) {
+            logError(e, 'ALTTAB');
+        }
     }
 
     _updateSettings(settings, key) {
@@ -218,6 +228,8 @@ export default class AATWS extends Extension {
     }
 
     _updateHotTrigger() {
+
+        try {
         this._removePressureBarrier();
 
         const position = this._opt.get('hotEdgePosition', true);
@@ -301,9 +313,14 @@ export default class AATWS extends Extension {
                 });
             }
         }
+            } catch (e) {
+            logError(e, 'ALTTAB');
+        }
     }
 
     _removePressureBarrier() {
+
+        try {
         if (this._pressureBarriers !== null) {
             this._pressureBarriers.forEach(barrier => {
                 barrier[0].removeBarrier(barrier[1]);
@@ -322,12 +339,20 @@ export default class AATWS extends Extension {
             GLib.source_remove(this._monitorsChangedDelayId);
             this._monitorsChangedDelayId = 0;
         }
+            } catch (e) {
+            logError(e, 'ALTTAB');
+        }
     }
 
     _onPressureTriggered(monitor) {
+
+        try {
         const fsAllowed = this._opt.get('hotEdgeFullScreen');
         if (!(!fsAllowed && monitor.inFullscreen))
             this._toggleSwitcher(true);
+            } catch (e) {
+            logError(e, 'ALTTAB');
+        }
     }
 }
 

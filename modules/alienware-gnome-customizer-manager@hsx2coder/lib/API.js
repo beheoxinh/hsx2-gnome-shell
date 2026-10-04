@@ -139,6 +139,8 @@ export class API
      */
     open()
     {
+
+        try {
         this.UIStyleClassAdd(this.#getAPIClassname('shell-version'));
 
         // Getting the looking glass instance before having primary monitor
@@ -162,6 +164,9 @@ export class API
                 return this._glib.SOURCE_REMOVE;
             }
         );
+            } catch (e) {
+            logError(e, 'GCM-API');
+        }
     }
 
     /**
@@ -260,6 +265,8 @@ export class API
 
     OSDEnable()
     {
+
+        try {
         if (!this.#originals['osdWindowManagerShow']) {
             return;
         }
@@ -267,6 +274,9 @@ export class API
         this._main.osdWindowManager.show = this.#originals['osdWindowManagerShow'];
         this._main.osdWindowManager.showOne = this.#originals['osdWindowManagerShowOne'];
         this._main.osdWindowManager.showAll = this.#originals['osdWindowManagerShowAll'];
+            } catch (e) {
+            logError(e, 'GCM-API');
+        }
     }
 
     /**
@@ -276,6 +286,8 @@ export class API
      */
     OSDDisable()
     {
+
+        try {
         if (!this.#originals['osdWindowManagerShow']) {
             this.#originals['osdWindowManagerShow']
             = this._main.osdWindowManager.show;
@@ -294,6 +306,9 @@ export class API
         this._main.osdWindowManager.show = () => {};
         this._main.osdWindowManager.showOne = () => {};
         this._main.osdWindowManager.showAll = () => {};
+            } catch (e) {
+            logError(e, 'GCM-API');
+        }
     }
 
     /**
@@ -371,6 +386,8 @@ export class API
      */
     workspaceSwitcherSetDefaultSize()
     {
+
+        try {
         let thumbnailsBox = this._main.overview._overview._controls._thumbnailsBox;
         let ThumbnailsBoxProto = this._workspaceThumbnail.ThumbnailsBox.prototype;
 
@@ -382,6 +399,9 @@ export class API
         delete(ThumbnailsBoxProto._initOld);
 
         thumbnailsBox._maxThumbnailScale = this._workspaceThumbnail.MAX_THUMBNAIL_SCALE;
+            } catch (e) {
+            logError(e, 'GCM-API');
+        }
     }
 
     /**
@@ -393,6 +413,8 @@ export class API
      */
     workspaceSwitcherSetSize(size)
     {
+
+        try {
         let thumbnailsBox = this._main.overview._overview._controls._thumbnailsBox;
         let ThumbnailsBoxProto = this._workspaceThumbnail.ThumbnailsBox.prototype;
 
@@ -406,6 +428,9 @@ export class API
             this._maxThumbnailScale = size;
             this._initOld(...params);
         };
+            } catch (e) {
+            logError(e, 'GCM-API');
+        }
     }
 
     /**
@@ -478,6 +503,8 @@ export class API
 
     monitorGetInfo()
     {
+
+        try {
         let pMonitor = this._main.layoutManager.primaryMonitor;
 
         if (!pMonitor) {
@@ -491,15 +518,23 @@ export class API
             'height': pMonitor.height,
             'geometryScale': pMonitor.geometry_scale,
         };
+            } catch (e) {
+            logError(e, 'GCM-API');
+        }
     }
 
     animationSpeedSetDefault()
     {
+
+        try {
         if (this.#originals['StSlowDownFactor'] === undefined) {
             return;
         }
 
         this._st.Settings.get().slow_down_factor = this.#originals['StSlowDownFactor'];
+            } catch (e) {
+            logError(e, 'GCM-API');
+        }
     }
 
     /**
@@ -511,12 +546,17 @@ export class API
      */
     animationSpeedSet(factor)
     {
+
+        try {
         if (this.#originals['StSlowDownFactor'] === undefined) {
             this.#originals['StSlowDownFactor']
             = this._st.Settings.get().slow_down_factor;
         }
 
         this._st.Settings.get().slow_down_factor = factor;
+            } catch (e) {
+            logError(e, 'GCM-API');
+        }
     }
 
     /**
@@ -526,6 +566,8 @@ export class API
      */
     windowDemandsAttentionFocusEnable()
     {
+
+        try {
         if (
             this._displayWindowDemandsAttentionSignal ||
             this._displayWindowMarkedUrgentSignal
@@ -553,6 +595,9 @@ export class API
         let signalId2 = this.#getSignalId(global.display, 'window-marked-urgent');
         display.disconnect(signalId);
         display.disconnect(signalId2);
+            } catch (e) {
+            logError(e, 'GCM-API');
+        }
     }
 
     /**
@@ -562,6 +607,8 @@ export class API
      */
     windowDemandsAttentionFocusDisable()
     {
+
+        try {
         if (
             !this._displayWindowDemandsAttentionSignal ||
             !this._displayWindowMarkedUrgentSignal
@@ -585,6 +632,9 @@ export class API
             'window-marked-urgent',
             wah._onWindowDemandsAttention.bind(wah)
         );
+            } catch (e) {
+            logError(e, 'GCM-API');
+        }
     }
 
     /**
@@ -594,6 +644,8 @@ export class API
      */
     windowMaximizedOnCreateEnable()
     {
+
+        try {
         if (this._displayWindowCreatedSignal) {
             return;
         }
@@ -611,6 +663,9 @@ export class API
                 }
             }
         );
+            } catch (e) {
+            logError(e, 'GCM-API');
+        }
     }
 
     /**
@@ -620,12 +675,17 @@ export class API
      */
     windowMaximizedOnCreateDisable()
     {
+
+        try {
         if (!this._displayWindowCreatedSignal) {
             return;
         }
 
         global.display.disconnect(this._displayWindowCreatedSignal);
         delete(this._displayWindowCreatedSignal);
+            } catch (e) {
+            logError(e, 'GCM-API');
+        }
     }
 
     /**
@@ -637,6 +697,8 @@ export class API
      */
     startupStatusSet(status)
     {
+
+        try {
         let sessionMode = this._main.sessionMode;
         let layoutManager = this._main.layoutManager;
 
@@ -672,6 +734,9 @@ export class API
                 sessionMode.hasOverview = this.#originals['sessionModeHasOverview'];
             });
         }
+            } catch (e) {
+            logError(e, 'GCM-API');
+        }
     }
 
     /**
@@ -681,12 +746,17 @@ export class API
      */
     startupStatusSetDefault()
     {
+
+        try {
         if (this.#originals['sessionModeHasOverview'] === undefined) {
             return;
         }
 
         if (this._startupCompleteSignal) {
             this._main.layoutManager.disconnect(this._startupCompleteSignal);
+        }
+            } catch (e) {
+            logError(e, 'GCM-API');
         }
     }
 
@@ -905,6 +975,8 @@ export class API
      */
     workspaceBackgroundRadiusSet(size)
     {
+
+        try {
         if (size < 0 || size > 60) {
             return;
         }
@@ -934,6 +1006,9 @@ export class API
 
         let classnameStarter = this.#getAPIClassname('workspace-background-radius-size');
         this.UIStyleClassAdd(classnameStarter + size);
+            } catch (e) {
+            logError(e, 'GCM-API');
+        }
     }
 
     /**
@@ -943,6 +1018,8 @@ export class API
      */
     workspaceWraparoundEnable()
     {
+
+        try {
         let metaWorkspaceProto = this._meta.Workspace.prototype;
 
         if (!this.#originals['metaWorkspaceGetNeighbor']) {
@@ -968,6 +1045,9 @@ export class API
 
             return global.workspace_manager.get_workspace_by_index(neighborIndex);
         };
+            } catch (e) {
+            logError(e, 'GCM-API');
+        }
     }
 
     /**
@@ -1007,6 +1087,8 @@ export class API
      */
     unblockOverlayKey()
     {
+
+        try {
         if (!this._overlayKeyOldSignalId) {
             return;
         }
@@ -1017,6 +1099,9 @@ export class API
         );
 
         delete(this._overlayKeyOldSignalId);
+            } catch (e) {
+            logError(e, 'GCM-API');
+        }
     }
 
     /**
@@ -1026,6 +1111,8 @@ export class API
      */
     blockOverlayKey()
     {
+
+        try {
         this._overlayKeyOldSignalId = this.#getSignalId(global.display, 'overlay-key');
 
         if (!this._overlayKeyOldSignalId) {
@@ -1033,6 +1120,9 @@ export class API
         }
 
         this._gobject.signal_handler_block(global.display, this._overlayKeyOldSignalId);
+            } catch (e) {
+            logError(e, 'GCM-API');
+        }
     }
 
     /**
@@ -1042,6 +1132,8 @@ export class API
      */
     doubleSuperToAppGridEnable()
     {
+
+        try {
         if (this._isDoubleSuperToAppGrid === true) {
             return;
         }
@@ -1055,6 +1147,9 @@ export class API
         this.unblockOverlayKey();
 
         this._isDoubleSuperToAppGrid = true;
+            } catch (e) {
+            logError(e, 'GCM-API');
+        }
     }
 
     /**
@@ -1064,6 +1159,8 @@ export class API
      */
     doubleSuperToAppGridDisable()
     {
+
+        try {
         if (this._isDoubleSuperToAppGrid === false) {
             return;
         }
@@ -1075,10 +1172,15 @@ export class API
         });
 
         this._isDoubleSuperToAppGrid = false;
+            } catch (e) {
+            logError(e, 'GCM-API');
+        }
     }
 
     osdPositionSetDefault()
     {
+
+        try {
         if (!this.#originals['osdWindowShow']) {
             return;
         }
@@ -1106,6 +1208,9 @@ export class API
         this.UIStyleClassRemove(this.#getAPIClassname('osd-position-top'));
         this.UIStyleClassRemove(this.#getAPIClassname('osd-position-bottom'));
         this.UIStyleClassRemove(this.#getAPIClassname('osd-position-center'));
+            } catch (e) {
+            logError(e, 'GCM-API');
+        }
     }
 
     /**
@@ -1117,6 +1222,8 @@ export class API
      */
     osdPositionSet(pos)
     {
+
+        try {
         let osdWindowProto = this._osdWindow.OsdWindow.prototype;
 
         if (!this.#originals['osdWindowShow']) {
@@ -1165,6 +1272,9 @@ export class API
             pos === XY_POSITION.CENTER_END
         ) {
             this.UIStyleClassAdd(this.#getAPIClassname('osd-position-center'));
+        }
+            } catch (e) {
+            logError(e, 'GCM-API');
         }
     }
 
@@ -1231,7 +1341,12 @@ export class API
      */
     isPanelVisible()
     {
+
+        try {
         return this._main.panel?.visible !== false;
+            } catch (e) {
+            logError(e, 'GCM-API');
+        }
     }
     /**
      * register the looking glass signals
@@ -1317,6 +1432,8 @@ export class API
      */
     windowMenuHide()
     {
+
+        try {
         let WindowMenuManagerProto = this._windowMenu.WindowMenuManager.prototype;
 
         if (!this.#originals['showWindowMenuForWindow']) {
@@ -1327,6 +1444,9 @@ export class API
             window.focus(global.get_current_time());
             window.raise();
         };
+            } catch (e) {
+            logError(e, 'GCM-API');
+        }
     }
 
     /**
@@ -1497,7 +1617,12 @@ export class API
      */
     UIStyleClassAdd(classname)
     {
+
+        try {
         this._main.layoutManager.uiGroup.add_style_class_name(classname);
+            } catch (e) {
+            logError(e, 'GCM-API');
+        }
     }
 
     /**
@@ -1509,7 +1634,12 @@ export class API
      */
     UIStyleClassRemove(classname)
     {
+
+        try {
         this._main.layoutManager.uiGroup.remove_style_class_name(classname);
+            } catch (e) {
+            logError(e, 'GCM-API');
+        }
     }
 
     /**
@@ -1521,6 +1651,11 @@ export class API
      */
     UIStyleClassContain(classname)
     {
+
+        try {
         return this._main.layoutManager.uiGroup.has_style_class_name(classname);
+            } catch (e) {
+            logError(e, 'GCM-API');
+        }
     }
 }
