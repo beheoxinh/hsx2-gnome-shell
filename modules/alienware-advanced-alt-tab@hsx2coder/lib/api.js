@@ -392,7 +392,11 @@ export class AltTabApi
      */
     UIStyleClassAdd(classname)
     {
-        this._main.layoutManager.uiGroup.add_style_class_name(classname);
+        try {
+            this._main.layoutManager.uiGroup.add_style_class_name(classname);
+        } catch (e) {
+            logError(e, 'AltTab api:UIStyleClassAdd');
+        }
     }
 
 
@@ -405,6 +409,10 @@ export class AltTabApi
      */
     UIStyleClassRemove(classname)
     {
-        this._main.layoutManager.uiGroup.remove_style_class_name(classname);
+        try {
+            this._main.layoutManager.uiGroup.remove_style_class_name(classname);
+        } catch (e) {
+            logError(e, 'AltTab api:UIStyleClassRemove');
+        }
     }
 }

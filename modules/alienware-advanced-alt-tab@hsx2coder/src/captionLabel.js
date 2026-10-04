@@ -33,11 +33,15 @@ export function showSearchCaption(text, wsp, opt) {
         yOffset: offset,
         monitorIndex: wsp._monitorIndex,
     };
-    if (!wsp._searchCaption) {
-        wsp._searchCaption = new CaptionLabel(params, opt);
-        wsp.add_child(wsp._searchCaption);
-    } else {
-        wsp._searchCaption.update(params);
+    try {
+        if (!wsp._searchCaption) {
+            wsp._searchCaption = new CaptionLabel(params, opt);
+            wsp.add_child(wsp._searchCaption);
+        } else {
+            wsp._searchCaption.update(params);
+        }
+    } catch (e) {
+        logError(e, 'AltTab captionLabel:showSearchCaption');
     }
 }
 
@@ -76,10 +80,19 @@ export function showTitleCaption(wsp, opt) {
     };
 
     if (!wsp._itemCaption) {
-        wsp._itemCaption = new CaptionLabel(params, opt);
-        wsp.add_child(wsp._itemCaption);
+        try {
+            wsp._itemCaption = new CaptionLabel(params, opt);
+            wsp.add_child(wsp._itemCaption);
+        } catch (e) {
+            logError(e, 'AltTab captionLabel:showTitleCaption');
+            return;
+        }
     } else {
-        wsp._itemCaption.update(params);
+        try {
+            wsp._itemCaption.update(params);
+        } catch (e) {
+            logError(e, 'AltTab captionLabel:showTitleCaption');
+        }
     }
 
     if (wsp._inAnimation)
@@ -103,50 +116,77 @@ export const CaptionLabel = GObject.registerClass({
     _init(params, opt) {
         this._search = params.name === 'search-label';
 
-        super._init({
-            style_class: opt.colorStyle.CAPTION_LABEL,
-            style: `font-size: ${params.fontSize}em;`,
-        });
-
-        // horizontal orientation for search label, vertical for title caption
-        if (this.orientation !== undefined) // since GS 48
-            this.orientation = this._search ? Clutter.Orientation.HORIZONTAL : Clutter.Orientation.VERTICAL;
-        else
-            this.vertical = !this._search;
-
-        this._label = new St.Label({
-            name: params.name,
-            text: params.text,
-            reactive: false,
-            y_align: Clutter.ActorAlign.CENTER,
-        });
-
-        if (this._search) {
-            this.addSearchIcon();
-            this._label.add_style_class_name('search-label');
+        try {
+            super._init({
+                style_class: opt.colorStyle.CAPTION_LABEL,
+                style: `font-size: ${params.fontSize}em;`,
+            });
+        } catch (e) {
+            logError(e, 'AltTab captionLabel:_init');
+            return;
         }
 
-        this.add_child(this._label);
+        // horizontal orientation for search label, vertical for title caption
+        try {
+            if (this.orientation !== undefined) // since GS 48
+                this.orientation = this._search ? Clutter.Orientation.HORIZONTAL : Clutter.Orientation.VERTICAL;
+            else
+                this.vertical = !this._search;
+        } catch (e) {
+            logError(e, 'AltTab captionLabel:_init');
+        }
+
+        try {
+            this._label = new St.Label({
+                name: params.name,
+                text: params.text,
+                reactive: false,
+                y_align: Clutter.ActorAlign.CENTER,
+            });
+        } catch (e) {
+            logError(e, 'AltTab captionLabel:_init');
+            return;
+        }
+
+        try {
+            if (this._search) {
+                this.addSearchIcon();
+                this._label.add_style_class_name('search-label');
+            }
+
+            this.add_child(this._label);
+        } catch (e) {
+            logError(e, 'AltTab captionLabel:_init');
+        }
 
         this.update(params);
     }
 
     update(params) {
-        this._label.name = params.name;
-        this._label.text = params.text;
+        try {
+            this._label.name = params.name;
+            this._label.text = params.text;
         if (!this._search)
             this.addDetails(params.description);
-        this._yOffset = params.yOffset;
-        this.show();
+            this._yOffset = params.yOffset;
+            this.show();
+        } catch (e) {
+            logError(e, 'AltTab captionLabel:update');
+        }
     }
 
     setText(text) {
-        this._label.text = text;
+        try {
+            this._label.text = text;
+        } catch (e) {
+            logError(e, 'AltTab captionLabel:setText');
+        }
     }
 
     addDetails(details) {
-        if (details && !this._descriptionLabel) {
-            this._descriptionLabel = new St.Label({
+        try {
+            if (details && !this._descriptionLabel) {
+                this._descriptionLabel = new St.Label({
                 style_class: 'title-description',
             });
             this.add_child(this._descriptionLabel);
@@ -158,20 +198,32 @@ export const CaptionLabel = GObject.registerClass({
             this._descriptionLabel._removed = false;
         }
 
-        if (this._descriptionLabel && details)
-            this._descriptionLabel.text = details;
+            if (this._descriptionLabel && details)
+                this._descriptionLabel.text = details;
+        } catch (e) {
+            logError(e, 'AltTab captionLabel:addDetails');
+        }
     }
 
     addSearchIcon() {
-        const icon = new St.Icon({
+        let icon;
+        try {
+            icon = new St.Icon({
             icon_name: 'edit-find-symbolic',
-            style_class: 'search-icon',
-        });
-        this.add_child(icon);
+                style_class: 'search-icon',
+            });
+            this.add_child(icon);
+        } catch (e) {
+            logError(e, 'AltTab captionLabel:addSearchIcon');
+        }
     }
 
     _destroy() {
-        // Main.layoutManager.removeChrome(this);
-        super.destroy();
+        try {
+            // Main.layoutManager.removeChrome(this);
+            super.destroy();
+        } catch (e) {
+            logError(e, 'AltTab captionLabel:_destroy');
+        }
     }
 });

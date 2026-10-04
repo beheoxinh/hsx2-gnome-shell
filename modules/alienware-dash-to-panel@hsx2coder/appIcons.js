@@ -1955,256 +1955,272 @@ export class TaskbarSecondaryMenu extends AppMenu.AppMenu {
   }
 
   _showAppProperty(source) {
-    let app = source.app
-    let appInfo = app.get_app_info()
-    let appId = app.get_id() || 'N/A'
+    try {
+      let app = source.app
+      let appInfo = app.get_app_info()
+      let appId = app.get_id() || 'N/A'
 
-    // --- Gather info ---
-    let wmClass = 'N/A'
-    let wmClassInstance = 'N/A'
-    let windows = app.get_windows()
-    if (windows.length > 0) {
-      wmClass = windows[0].get_wm_class() || 'N/A'
-      wmClassInstance = windows[0].get_wm_class_instance() || 'N/A'
-    }
+      // --- Gather info ---
+      let wmClass = 'N/A'
+      let wmClassInstance = 'N/A'
+      let windows = app.get_windows()
+      if (windows.length > 0) {
+        wmClass = windows[0].get_wm_class() || 'N/A'
+        wmClassInstance = windows[0].get_wm_class_instance() || 'N/A'
+      }
 
-    let desktopFile = 'N/A'
-    let execPath = 'N/A'
-    let installLocation = 'N/A'
-    let version = 'N/A'
-    let appName = app.get_name() || 'N/A'
-    let appDescription = ''
+      let desktopFile = 'N/A'
+      let execPath = 'N/A'
+      let installLocation = 'N/A'
+      let version = 'N/A'
+      let appName = app.get_name() || 'N/A'
+      let appDescription = ''
 
-    if (appInfo) {
-      let fname = appInfo.get_filename()
-      if (fname) desktopFile = fname
-      let exec = appInfo.get_commandline()
-      if (exec) execPath = exec
-      appDescription = appInfo.get_description() || ''
-    }
+      if (appInfo) {
+        let fname = appInfo.get_filename()
+        if (fname) desktopFile = fname
+        let exec = appInfo.get_commandline()
+        if (exec) execPath = exec
+        appDescription = appInfo.get_description() || ''
+      }
 
-    if (execPath !== 'N/A') {
-      let binary = execPath.split(' ')[0]
-      if (binary.startsWith('/snap/'))
-        installLocation = 'Snap: ' + binary.split('/').slice(0, 3).join('/')
-      else if (binary.startsWith('/var/lib/flatpak/') || binary.includes('flatpak'))
-        installLocation = 'Flatpak'
-      else if (binary.startsWith('/usr/'))
-        installLocation = '/usr (System)'
-      else if (binary.startsWith('/opt/'))
-        installLocation = binary.split('/').slice(0, 3).join('/')
-      else
-        installLocation = GLib.path_get_dirname(binary)
-    }
+      if (execPath !== 'N/A') {
+        let binary = execPath.split(' ')[0]
+        if (binary.startsWith('/snap/'))
+          installLocation = 'Snap: ' + binary.split('/').slice(0, 3).join('/')
+        else if (binary.startsWith('/var/lib/flatpak/') || binary.includes('flatpak'))
+          installLocation = 'Flatpak'
+        else if (binary.startsWith('/usr/'))
+          installLocation = '/usr (System)'
+        else if (binary.startsWith('/opt/'))
+          installLocation = binary.split('/').slice(0, 3).join('/')
+        else
+          installLocation = GLib.path_get_dirname(binary)
+      }
 
-    if (appInfo) {
-      try {
-        let v = appInfo.get_string('X-AppStream-Version') || appInfo.get_string('Version')
-        if (v) version = v
-      } catch (e) {}
-    }
+      if (appInfo) {
+        try {
+          let v = appInfo.get_string('X-AppStream-Version') || appInfo.get_string('Version')
+          if (v) version = v
+        } catch (e) {}
+      }
 
-    let installSize = 'N/A'
-    if (execPath !== 'N/A') {
-      try {
-        let file = Gio.File.new_for_path(execPath.split(' ')[0])
-        let info = file.query_info('standard::size', Gio.FileQueryInfoFlags.NONE, null)
-        let bytes = info.get_size()
-        if (bytes > 1073741824) installSize = (bytes / 1073741824).toFixed(1) + ' GB'
-        else if (bytes > 1048576) installSize = (bytes / 1048576).toFixed(1) + ' MB'
-        else if (bytes > 1024) installSize = (bytes / 1024).toFixed(1) + ' KB'
-        else if (bytes > 0) installSize = bytes + ' B'
-        if (installSize !== 'N/A') installSize += ' (binary)'
-      } catch (e) {}
-    }
+      let installSize = 'N/A'
+      if (execPath !== 'N/A') {
+        try {
+          let file = Gio.File.new_for_path(execPath.split(' ')[0])
+          let info = file.query_info('standard::size', Gio.FileQueryInfoFlags.NONE, null)
+          let bytes = info.get_size()
+          if (bytes > 1073741824) installSize = (bytes / 1073741824).toFixed(1) + ' GB'
+          else if (bytes > 1048576) installSize = (bytes / 1048576).toFixed(1) + ' MB'
+          else if (bytes > 1024) installSize = (bytes / 1024).toFixed(1) + ' KB'
+          else if (bytes > 0) installSize = bytes + ' B'
+          if (installSize !== 'N/A') installSize += ' (binary)'
+        } catch (e) {}
+      }
 
-    let pids = app.get_pids()
-    let pidStr = pids && pids.length > 0 ? pids.join(', ') : 'N/A'
+      let pids = app.get_pids()
+      let pidStr = pids && pids.length > 0 ? pids.join(', ') : 'N/A'
 
-    // --- Build ModalDialog ---
-    let dialog = new ModalDialog.ModalDialog({ destroyOnClose: true })
+      // --- Build ModalDialog ---
+      let dialog = new ModalDialog.ModalDialog({ destroyOnClose: true })
 
-    // Title row with icon
-    let titleBox = new St.BoxLayout({ vertical: false, style: 'spacing: 12px; margin-bottom: 8px;' })
-    let iconTexture = app.create_icon_texture(48)
-    if (iconTexture) titleBox.add_child(iconTexture)
+      // Title row with icon
+      let titleBox = new St.BoxLayout({ vertical: false, style: 'spacing: 12px; margin-bottom: 8px;' })
+      let iconTexture = app.create_icon_texture(48)
+      if (iconTexture) titleBox.add_child(iconTexture)
 
-    let titleVBox = new St.BoxLayout({ vertical: true, y_align: Clutter.ActorAlign.CENTER })
-    titleVBox.add_child(new St.Label({
-      text: appName,
-      style: 'font-size: 17px; font-weight: bold;',
-    }))
-    if (appDescription) {
-      let descLabel = new St.Label({ text: appDescription, style: 'font-size: 11px; color: #aaa;' })
-      descLabel.clutter_text.line_wrap = true
-      titleVBox.add_child(descLabel)
-    }
-    titleBox.add_child(titleVBox)
-    dialog.contentLayout.add_child(titleBox)
+      let titleVBox = new St.BoxLayout({ vertical: true, y_align: Clutter.ActorAlign.CENTER })
+      titleVBox.add_child(new St.Label({
+        text: appName,
+        style: 'font-size: 17px; font-weight: bold;',
+      }))
+      if (appDescription) {
+        let descLabel = new St.Label({ text: appDescription, style: 'font-size: 11px; color: #aaa;' })
+        descLabel.clutter_text.line_wrap = true
+        titleVBox.add_child(descLabel)
+      }
+      titleBox.add_child(titleVBox)
+      dialog.contentLayout.add_child(titleBox)
 
-    // Separator
-    dialog.contentLayout.add_child(new St.Widget({
-      style: 'background-color: rgba(255,255,255,0.12); min-height: 1px; margin: 8px 0;',
-      x_expand: true,
-    }))
-
-    // Info grid
-    let grid = new St.BoxLayout({ vertical: true, style: 'spacing: 4px;', x_expand: true })
-
-    let _addRow = (label, value, extra) => {
-      let row = new St.BoxLayout({ vertical: false, style: 'spacing: 8px;', x_expand: true, reactive: true })
-
-      // Copy button using system icon
-      let cpBtn = new St.Button({
-        reactive: true,
-        y_align: Clutter.ActorAlign.CENTER,
-        style: 'padding: 2px 4px; background: none; border: none;',
-      })
-      cpBtn.set_child(new St.Icon({ icon_name: 'edit-copy-symbolic', icon_size: 14, style: 'color: #888;' }))
-      cpBtn.connect('clicked', () => {
-        St.Clipboard.get_default().set_text(St.ClipboardType.CLIPBOARD, value)
-        cpBtn.get_child().style = 'color: #6f8;'
-        GLib.timeout_add(GLib.PRIORITY_DEFAULT, 800, () => {
-          try { cpBtn.get_child().style = 'color: #888;' } catch (e) {}
-          return GLib.SOURCE_REMOVE
-        })
-        return Clutter.EVENT_STOP
-      })
-      row.add_child(cpBtn)
-
-      row.add_child(new St.Label({
-        text: label,
-        style: 'font-size: 12px; color: #999; min-width: 125px;',
-        y_align: Clutter.ActorAlign.CENTER,
+      // Separator
+      dialog.contentLayout.add_child(new St.Widget({
+        style: 'background-color: rgba(255,255,255,0.12); min-height: 1px; margin: 8px 0;',
+        x_expand: true,
       }))
 
-      let valLabel = new St.Label({
-        text: value,
-        style: 'font-size: 12px;',
-        x_expand: true,
-        y_align: Clutter.ActorAlign.CENTER,
-      })
-      valLabel.clutter_text.line_wrap = true
-      row.add_child(valLabel)
+      // Info grid
+      let grid = new St.BoxLayout({ vertical: true, style: 'spacing: 4px;', x_expand: true })
 
-      if (extra) row.add_child(extra)
+      let _addRow = (label, value, extra) => {
+        let row = new St.BoxLayout({ vertical: false, style: 'spacing: 8px;', x_expand: true, reactive: true })
 
-      grid.add_child(row)
-    }
+        // Copy button using system icon
+        let cpBtn = new St.Button({
+          reactive: true,
+          y_align: Clutter.ActorAlign.CENTER,
+          style: 'padding: 2px 4px; background: none; border: none;',
+        })
+        cpBtn.set_child(new St.Icon({ icon_name: 'edit-copy-symbolic', icon_size: 14, style: 'color: #888;' }))
+        cpBtn.connect('clicked', () => {
+          St.Clipboard.get_default().set_text(St.ClipboardType.CLIPBOARD, value)
+          cpBtn.get_child().style = 'color: #6f8;'
+          GLib.timeout_add(GLib.PRIORITY_DEFAULT, 800, () => {
+            try { cpBtn.get_child().style = 'color: #888;' } catch (e) {}
+            return GLib.SOURCE_REMOVE
+          })
+          return Clutter.EVENT_STOP
+        })
+        row.add_child(cpBtn)
 
-    _addRow('App ID', appId)
-    _addRow('WM_CLASS', wmClass)
-    _addRow('WM_CLASS Instance', wmClassInstance)
+        row.add_child(new St.Label({
+          text: label,
+          style: 'font-size: 12px; color: #999; min-width: 125px;',
+          y_align: Clutter.ActorAlign.CENTER,
+        }))
 
-    // Desktop File row with Edit button
-    let editBtn = new St.Button({
-      label: 'Edit',
-      reactive: true,
-      y_align: Clutter.ActorAlign.CENTER,
-      style: 'font-size: 11px; color: #8af; padding: 2px 10px; background-color: rgba(136,170,255,0.15); border-radius: 4px;',
-    })
-    editBtn.connect('clicked', () => {
-      if (desktopFile !== 'N/A') {
-        try { GLib.spawn_command_line_async('xdg-open ' + GLib.shell_quote(desktopFile)) }
-        catch (e) {
-          try { GLib.spawn_command_line_async('gedit ' + GLib.shell_quote(desktopFile)) }
-          catch (e2) { global.log('App Property: no editor for ' + desktopFile) }
-        }
+        let valLabel = new St.Label({
+          text: value,
+          style: 'font-size: 12px;',
+          x_expand: true,
+          y_align: Clutter.ActorAlign.CENTER,
+        })
+        valLabel.clutter_text.line_wrap = true
+        row.add_child(valLabel)
+
+        if (extra) row.add_child(extra)
+
+        grid.add_child(row)
       }
-      return Clutter.EVENT_STOP
-    })
-    _addRow('Desktop File', desktopFile, editBtn)
 
-    _addRow('Exec', execPath)
-    _addRow('Install Location', installLocation)
-    _addRow('Binary Size', installSize)
-    _addRow('Version', version)
-    _addRow('PID(s)', pidStr)
-    _addRow('Windows', '' + windows.length)
+      _addRow('App ID', appId)
+      _addRow('WM_CLASS', wmClass)
+      _addRow('WM_CLASS Instance', wmClassInstance)
 
-    dialog.contentLayout.add_child(grid)
+      // Desktop File row with Edit button
+      let editBtn = new St.Button({
+        label: 'Edit',
+        reactive: true,
+        y_align: Clutter.ActorAlign.CENTER,
+        style: 'font-size: 11px; color: #8af; padding: 2px 10px; background-color: rgba(136,170,255,0.15); border-radius: 4px;',
+      })
+      editBtn.connect('clicked', () => {
+        if (desktopFile !== 'N/A') {
+          try { GLib.spawn_command_line_async('xdg-open ' + GLib.shell_quote(desktopFile)) }
+          catch (e) {
+            try { GLib.spawn_command_line_async('gedit ' + GLib.shell_quote(desktopFile)) }
+            catch (e2) { global.log('App Property: no editor for ' + desktopFile) }
+          }
+        }
+        return Clutter.EVENT_STOP
+      })
+      _addRow('Desktop File', desktopFile, editBtn)
 
-    // Buttons
-    dialog.setButtons([
-      {
-        label: 'Copy All',
-        action: () => {
-          let clipText = [
-            'App: ' + appName,
-            'App ID: ' + appId,
-            'WM_CLASS: ' + wmClass,
-            'WM_CLASS Instance: ' + wmClassInstance,
-            'Desktop File: ' + desktopFile,
-            'Exec: ' + execPath,
-            'Install Location: ' + installLocation,
-            'Binary Size: ' + installSize,
-            'Version: ' + version,
-            'PID(s): ' + pidStr,
-            'Windows: ' + windows.length,
-          ].join('\n')
-          St.Clipboard.get_default().set_text(St.ClipboardType.CLIPBOARD, clipText)
+      _addRow('Exec', execPath)
+      _addRow('Install Location', installLocation)
+      _addRow('Binary Size', installSize)
+      _addRow('Version', version)
+      _addRow('PID(s)', pidStr)
+      _addRow('Windows', '' + windows.length)
+
+      dialog.contentLayout.add_child(grid)
+
+      // Buttons
+      dialog.setButtons([
+        {
+          label: 'Copy All',
+          action: () => {
+            let clipText = [
+              'App: ' + appName,
+              'App ID: ' + appId,
+              'WM_CLASS: ' + wmClass,
+              'WM_CLASS Instance: ' + wmClassInstance,
+              'Desktop File: ' + desktopFile,
+              'Exec: ' + execPath,
+              'Install Location: ' + installLocation,
+              'Binary Size: ' + installSize,
+              'Version: ' + version,
+              'PID(s): ' + pidStr,
+              'Windows: ' + windows.length,
+            ].join('\n')
+            St.Clipboard.get_default().set_text(St.ClipboardType.CLIPBOARD, clipText)
+          },
         },
-      },
-      {
-        label: 'Close',
-        action: () => { dialog.close() },
-        key: Clutter.KEY_Escape,
-        default: true,
-      },
-    ])
+        {
+          label: 'Close',
+          action: () => { dialog.close() },
+          key: Clutter.KEY_Escape,
+          default: true,
+        },
+      ])
 
-    dialog.open()
+      dialog.open()
+    } catch (e) {
+      logError(e, 'DTP appIcons:_showAppProperty');
+    }
   }
 
   updateQuitItems() {
-    let ungrouped = !!this.sourceActor.window
-    let quitText = _('Quit')
-    let count = getInterestingWindows(
-      this._app,
-      this.sourceActor.dtpPanel.monitor,
-    ).length
-    let quitMultipleText = ngettext(
-      'Quit %d Window',
-      'Quit %d Windows',
-      count,
-    ).format(count)
+    try {
+      let ungrouped = !!this.sourceActor.window
+      let quitText = _('Quit')
+      let count = getInterestingWindows(
+        this._app,
+        this.sourceActor.dtpPanel.monitor,
+      ).length
+      let quitMultipleText = ngettext(
+        'Quit %d Window',
+        'Quit %d Windows',
+        count,
+      ).format(count)
 
-    if (ungrouped) {
-      this._quitAllItem.label.set_text(quitMultipleText)
-      this._quitAllItem.visible = count > 1
-    } else quitText = quitMultipleText
+      if (ungrouped) {
+        this._quitAllItem.label.set_text(quitMultipleText)
+        this._quitAllItem.visible = count > 1
+      } else quitText = quitMultipleText
 
-    this._quitItem.visible = count > 0
-    this._quitItem.label.set_text(quitText)
+      this._quitItem.visible = count > 0
+      this._quitItem.label.set_text(quitText)
     
-    if (this._forceQuitItem) {
-      this._forceQuitItem.visible = count > 0
+      if (this._forceQuitItem) {
+        this._forceQuitItem.visible = count > 0
+      }
+    } catch (e) {
+      logError(e, 'DTP appIcons:updateQuitItems');
     }
   }
 
   _quitFromTaskbar(all) {
-    let windows =
-      !all && this.sourceActor.window // ungrouped applications
-        ? [this.sourceActor.window]
-        : getInterestingWindows(this._app, this.sourceActor.dtpPanel.monitor)
+    try {
+      let windows =
+        !all && this.sourceActor.window // ungrouped applications
+          ? [this.sourceActor.window]
+          : getInterestingWindows(this._app, this.sourceActor.dtpPanel.monitor)
 
-    windows.forEach(
-      (w) =>
-        !!w.get_compositor_private() && w.delete(global.get_current_time()),
-    )
+      windows.forEach(
+        (w) =>
+          !!w.get_compositor_private() && w.delete(global.get_current_time()),
+      )
+    } catch (e) {
+      logError(e, 'DTP appIcons:_quitFromTaskbar');
+    }
   }
 
   _forceQuitFromTaskbar() {
-    let pids = this._app.get_pids()
-    if (pids && pids.length > 0) {
-      pids.forEach((pid) => {
-        try {
-          const GLib = imports.gi.GLib;
-          GLib.spawn_command_line_async('kill -9 ' + pid);
-        } catch (e) {
-          global.log('Dash to Panel: Could not force quit pid ' + pid + ': ' + e)
-        }
-      })
+    try {
+      let pids = this._app.get_pids()
+      if (pids && pids.length > 0) {
+        pids.forEach((pid) => {
+          try {
+            const GLib = imports.gi.GLib;
+            GLib.spawn_command_line_async('kill -9 ' + pid);
+          } catch (e) {
+            global.log('Dash to Panel: Could not force quit pid ' + pid + ': ' + e)
+          }
+        })
+      }
+    } catch (e) {
+      logError(e, 'DTP appIcons:_forceQuitFromTaskbar');
     }
   }
 
@@ -2386,14 +2402,18 @@ export const ShowAppsIconWrapper = class extends EventEmitter {
   }
 
   _onButtonPress(_actor, event) {
-    let button = event.get_button()
-    if (button == 1) {
-      this._setPopupTimeout()
-    } else if (button == 3) {
-      this.popupMenu()
-      return Clutter.EVENT_STOP
+    try {
+      let button = event.get_button()
+      if (button == 1) {
+        this._setPopupTimeout()
+      } else if (button == 3) {
+        this.popupMenu()
+        return Clutter.EVENT_STOP
+      }
+      return Clutter.EVENT_PROPAGATE
+    } catch (e) {
+      logError(e, 'DTP appIcons:_onButtonPress');
     }
-    return Clutter.EVENT_PROPAGATE
   }
 
   _onLeaveEvent() {
@@ -2402,9 +2422,13 @@ export const ShowAppsIconWrapper = class extends EventEmitter {
   }
 
   _onTouchEvent(actor, event) {
-    if (event.type() == Clutter.EventType.TOUCH_BEGIN) this._setPopupTimeout()
+    try {
+      if (event.type() == Clutter.EventType.TOUCH_BEGIN) this._setPopupTimeout()
 
-    return Clutter.EVENT_PROPAGATE
+      return Clutter.EVENT_PROPAGATE
+    } catch (e) {
+      logError(e, 'DTP appIcons:_onTouchEvent');
+    }
   }
 
   _onMenuPoppedDown() {
@@ -2428,26 +2452,30 @@ export const ShowAppsIconWrapper = class extends EventEmitter {
   }
 
   createMenu() {
-    if (!this._menu) {
-      this._menu = new MyShowAppsIconMenu(
-        this.realShowAppsIcon,
-        this.realShowAppsIcon._dtpPanel,
-      )
-      this._menu.connect('open-state-changed', (menu, isPoppedUp) => {
-        if (!isPoppedUp) this._onMenuPoppedDown()
-      })
-      let id = Main.overview.connect('hiding', () => {
-        this._menu.close()
-      })
-      this._menu.actor.connect('destroy', () => {
-        Main.overview.disconnect(id)
-      })
+    try {
+      if (!this._menu) {
+        this._menu = new MyShowAppsIconMenu(
+          this.realShowAppsIcon,
+          this.realShowAppsIcon._dtpPanel,
+        )
+        this._menu.connect('open-state-changed', (menu, isPoppedUp) => {
+          if (!isPoppedUp) this._onMenuPoppedDown()
+        })
+        let id = Main.overview.connect('hiding', () => {
+          this._menu.close()
+        })
+        this._menu.actor.connect('destroy', () => {
+          Main.overview.disconnect(id)
+        })
 
-      // We want to keep the item hovered while the menu is up
-      this._menu.blockSourceEvents = true
+        // We want to keep the item hovered while the menu is up
+        this._menu.blockSourceEvents = true
 
-      Main.uiGroup.add_child(this._menu.actor)
-      this._menuManager.addMenu(this._menu)
+        Main.uiGroup.add_child(this._menu.actor)
+        this._menuManager.addMenu(this._menu)
+      }
+    } catch (e) {
+      logError(e, 'DTP appIcons:createMenu');
     }
   }
 
@@ -2497,105 +2525,113 @@ export const MyShowAppsIconMenu = class extends PopupMenu.PopupMenu {
   }
 
   updateItems(sourceActor) {
-    this.sourceActor = sourceActor
+    try {
+      this.sourceActor = sourceActor
 
-    this.removeAll()
+      this.removeAll()
 
-    if (this.sourceActor != Main.layoutManager.dummyCursor) {
-      this._appendItem({
-        title: _('Event logs'),
-        cmd: ['gnome-logs'],
-      })
+      if (this.sourceActor != Main.layoutManager.dummyCursor) {
+        this._appendItem({
+          title: _('Event logs'),
+          cmd: ['gnome-logs'],
+        })
 
-      this._appendItem({
-        title: _('Display Settings'),
-        cmd: ['gnome-control-center', 'display'],
+        this._appendItem({
+          title: _('Display Settings'),
+          cmd: ['gnome-control-center', 'display'],
+        })
+
+        this._appendList(
+          SETTINGS.get_strv('show-apps-button-context-menu-commands'),
+          SETTINGS.get_strv('show-apps-button-context-menu-titles'),
+        )
+
+        let killZombieItem = this._appendMenuItem(_('Kill Alone Process'))
+        killZombieItem.connect('activate', () => this._killAloneProcess())
+
+        this._appendSeparator()
+      }
+
+      JSON.parse(SETTINGS.get_string('context-menu-entries')).forEach((e) => {
+        if (e.cmd == 'TERMINALSETTINGS')
+          e.cmd = TERMINALSETTINGS.get_string('exec')
+
+        this._appendItem({
+          title: e.title,
+          cmd: e.cmd.split(' '),
+        })
       })
 
       this._appendList(
-        SETTINGS.get_strv('show-apps-button-context-menu-commands'),
-        SETTINGS.get_strv('show-apps-button-context-menu-titles'),
+        SETTINGS.get_strv('panel-context-menu-commands'),
+        SETTINGS.get_strv('panel-context-menu-titles'),
       )
 
-      let killZombieItem = this._appendMenuItem(_('Kill Alone Process'))
-      killZombieItem.connect('activate', () => this._killAloneProcess())
-
       this._appendSeparator()
-    }
 
-    JSON.parse(SETTINGS.get_string('context-menu-entries')).forEach((e) => {
-      if (e.cmd == 'TERMINALSETTINGS')
-        e.cmd = TERMINALSETTINGS.get_string('exec')
-
-      this._appendItem({
-        title: e.title,
-        cmd: e.cmd.split(' '),
+      let lockTaskbarMenuItem = this._appendMenuItem(
+        SETTINGS.get_boolean('taskbar-locked')
+          ? _('Unlock taskbar')
+          : _('Lock taskbar'),
+      )
+      lockTaskbarMenuItem.connect('activate', () => {
+        SETTINGS.set_boolean(
+          'taskbar-locked',
+          !SETTINGS.get_boolean('taskbar-locked'),
+        )
       })
-    })
 
-    this._appendList(
-      SETTINGS.get_strv('panel-context-menu-commands'),
-      SETTINGS.get_strv('panel-context-menu-titles'),
-    )
+      if (this.sourceActor != Main.layoutManager.dummyCursor) {
+        let settingsMenuItem = this._appendMenuItem(_('Panel Settings'))
+        settingsMenuItem.connect('activate', () => DTP_EXTENSION.openPreferences())
+      }
 
-    this._appendSeparator()
+      if (this.sourceActor == Main.layoutManager.dummyCursor) {
+        this._appendSeparator()
+        let item = this._appendMenuItem(
+          this._dtpPanel._restoreWindowList
+            ? _('Restore Windows')
+            : _('Show Desktop'),
+        )
+        item.connect(
+          'activate',
+          this._dtpPanel._onShowDesktopButtonPress.bind(this._dtpPanel),
+        )
 
-    let lockTaskbarMenuItem = this._appendMenuItem(
-      SETTINGS.get_boolean('taskbar-locked')
-        ? _('Unlock taskbar')
-        : _('Lock taskbar'),
-    )
-    lockTaskbarMenuItem.connect('activate', () => {
-      SETTINGS.set_boolean(
-        'taskbar-locked',
-        !SETTINGS.get_boolean('taskbar-locked'),
-      )
-    })
-
-    if (this.sourceActor != Main.layoutManager.dummyCursor) {
-      let settingsMenuItem = this._appendMenuItem(_('Panel Settings'))
-      settingsMenuItem.connect('activate', () => DTP_EXTENSION.openPreferences())
-    }
-
-    if (this.sourceActor == Main.layoutManager.dummyCursor) {
-      this._appendSeparator()
-      let item = this._appendMenuItem(
-        this._dtpPanel._restoreWindowList
-          ? _('Restore Windows')
-          : _('Show Desktop'),
-      )
-      item.connect(
-        'activate',
-        this._dtpPanel._onShowDesktopButtonPress.bind(this._dtpPanel),
-      )
-
-      this._appendSeparator()
-      let collapseItem = this._appendMenuItem(_('Collapse Workspace'))
-      collapseItem.connect('activate', () => {
-        let firstWorkspace = Utils.getWorkspaceByIndex(0)
-        let nWorkspaces = Utils.getWorkspaceCount()
-        for (let i = 1; i < nWorkspaces; i++) {
-          let windows = Utils.getWorkspaceByIndex(i).list_windows()
-          windows.forEach((w) => {
-            if (!w.is_on_all_workspaces()) w.change_workspace(firstWorkspace)
-          })
-        }
-      })
+        this._appendSeparator()
+        let collapseItem = this._appendMenuItem(_('Collapse Workspace'))
+        collapseItem.connect('activate', () => {
+          let firstWorkspace = Utils.getWorkspaceByIndex(0)
+          let nWorkspaces = Utils.getWorkspaceCount()
+          for (let i = 1; i < nWorkspaces; i++) {
+            let windows = Utils.getWorkspaceByIndex(i).list_windows()
+            windows.forEach((w) => {
+              if (!w.is_on_all_workspaces()) w.change_workspace(firstWorkspace)
+            })
+          }
+        })
+      }
+    } catch (e) {
+      logError(e, 'DTP appIcons:updateItems');
     }
   }
 
   // Only add menu entries for commands that exist in path
   _appendItem(info) {
-    if (GLib.find_program_in_path(info.cmd[0])) {
-      let item = this._appendMenuItem(_(info.title))
+    try {
+      if (GLib.find_program_in_path(info.cmd[0])) {
+        let item = this._appendMenuItem(_(info.title))
 
-      item.connect('activate', function () {
-        Util.spawn(info.cmd)
-      })
-      return item
+        item.connect('activate', function () {
+          Util.spawn(info.cmd)
+        })
+        return item
+      }
+
+      return null
+    } catch (e) {
+      logError(e, 'DTP appIcons:_appendItem');
     }
-
-    return null
   }
 
   _appendList(commandList, titleList) {
