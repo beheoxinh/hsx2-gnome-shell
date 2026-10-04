@@ -393,7 +393,7 @@ export const MediaControls = GObject.registerClass(
     ) {
       if (!enabled) {
         if (existing) existing.destroy();
-        slot.destroy_all_children();
+        typeof slot.destroy_all_children === "function" ? slot.destroy_all_children() : slot.remove_all_children();
         const lbl = new St.Label({
           text: fullText,
           y_align: Clutter.ActorAlign.CENTER,
@@ -413,7 +413,7 @@ export const MediaControls = GObject.registerClass(
         return existing;
       }
 
-      slot.destroy_all_children();
+      typeof slot.destroy_all_children === "function" ? slot.destroy_all_children() : slot.remove_all_children();
       const widget = new ScrollingLabel({
         text: fullText,
         viewportWidth: viewW,
@@ -462,7 +462,7 @@ export const MediaControls = GObject.registerClass(
         this._titleScrollLabel.destroy();
         this._titleScrollLabel = null;
       }
-      if (this._titleSlot) this._titleSlot.destroy_all_children();
+      if (this._titleSlot) typeof this._titleSlot.destroy_all_children === "function" ? this._titleSlot.destroy_all_children() : this._titleSlot.remove_all_children();
     }
 
     _stopArtistLabel() {
@@ -470,7 +470,7 @@ export const MediaControls = GObject.registerClass(
         this._artistScrollLabel.destroy();
         this._artistScrollLabel = null;
       }
-      if (this._artistSlot) this._artistSlot.destroy_all_children();
+      if (this._artistSlot) typeof this._artistSlot.destroy_all_children === "function" ? this._artistSlot.destroy_all_children() : this._artistSlot.remove_all_children();
     }
 
     update(info, playerName, manager) {

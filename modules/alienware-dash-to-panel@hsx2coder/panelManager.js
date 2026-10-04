@@ -1152,6 +1152,8 @@ function _newLookingGlassResize() {
     global.dashToPanel.panels,
     (p) => p.monitor == Main.layoutManager.primaryMonitor,
   )
+  if (!primaryMonitorPanel || !primaryMonitorPanel.geom)
+    return
   let topOffset =
     primaryMonitorPanel.geom.position == St.Side.TOP
       ? primaryMonitorPanel.geom.outerSize +
