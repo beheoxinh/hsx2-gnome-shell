@@ -40,6 +40,7 @@ export default class TopbarExtension extends Extension {
     #appIndicator = null;
     #capsNumTouchpad = null;
     #hostUnwatch = null;
+    #settingsIds = [];
 
     enable() {
         const shellVersion = Number.parseInt(Config.PACKAGE_VERSION.split('.')[0]);
@@ -56,7 +57,7 @@ export default class TopbarExtension extends Extension {
         this.#clone = new TopbarCloneSubsystem({settings, extension: this});
         this.#clone.enable();
 
-        settings.connect('changed::enable-system-monitor', () => {
+        this.#settingsIds.push(settings.connect('changed::enable-system-monitor', () => {
             if (!settings.get_boolean('enable-system-monitor')) {
                 // If clock-visible was turned off due to System Monitor replacement, re-enable clock
                 if (!settings.get_boolean('clock-visible')) {
@@ -66,13 +67,17 @@ export default class TopbarExtension extends Extension {
                 }
             }
             this.#rebuildWidgets();
-        });
-        settings.connect('changed::enable-indicators', () => this.#rebuildWidgets());
+        }));
+        this.#settingsIds.push(settings.connect('changed::enable-indicators', () => this.#rebuildWidgets()));
 
         this.#rebuildWidgets();
     }
 
     disable() {
+        for (const id of this.#settingsIds) {
+            try { this.getSettings()?.disconnect(id); } catch (e) {}
+        }
+        this.#settingsIds = [];
         this.#rebuildWidgets(true);
         this.#hostUnwatch?.();
         this.#hostUnwatch = null;

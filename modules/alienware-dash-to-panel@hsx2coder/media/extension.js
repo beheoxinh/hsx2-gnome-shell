@@ -5,6 +5,11 @@
  * product in media/ (12k LOC) behind its own schema and its own prefs imports.
  * It now has its own uuid, enable key and directory, so the two can be enabled
  * independently.
+ *
+ * Lifecycle: single owner. Dash-to-panel NEVER drives this class — its own
+ * _enableMediaController() constructs MediaControllerExtension directly from
+ * media/MediaController.js. This file is the standalone sibling extension's
+ * entry point only; there is exactly one enable()/disable() path per runtime.
  */
 
 import {Extension} from 'resource:///org/gnome/shell/extensions/extension.js';
