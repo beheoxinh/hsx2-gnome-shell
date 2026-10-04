@@ -11,7 +11,7 @@ class AppIndicatorGeneralPage extends Adw.PreferencesPage {
     _init(settings, settingsKey) {
         super._init({
             title: _('General'),
-            icon_name: 'general-preferences-symbolic',
+            icon_name: 'preferences-system-symbolic',
             name: 'General Page',
         });
 

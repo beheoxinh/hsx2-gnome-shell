@@ -41,10 +41,12 @@ import {Extension} from 'resource:///org/gnome/shell/extensions/extension.js';
 import {API} from './lib/API.js';
 import {ScreenshotBox} from './lib/ScreenshotBox.js';
 import {WorkspaceControl} from './subsystems/workspace-control.js';
+import {NotificationConfiguratorSubsystem} from './subsystems/notification-configurator/subsystem.js';
 
 export default class GnomeCustomizerManagerExtension extends Extension {
     #api = null;
     #manager = null;
+    #notifications = null;
 
     enable() {
         const shellVersion = Number.parseInt(
@@ -91,10 +93,25 @@ export default class GnomeCustomizerManagerExtension extends Extension {
         this.#manager = new CustomizerManager(settings, this.#api);
         this.#manager.start();
 
+        try {
+            const notifSettings = this.getSettings('org.gnome.shell.extensions.notification-configurator');
+            this.#notifications = new NotificationConfiguratorSubsystem(notifSettings);
+            this.#notifications.start();
+        } catch (e) {
+            logError(e, '[GCM] notification subsystem start failed');
+        }
+
         log('[gnome-customizer-manager] API engine active');
     }
 
     disable() {
+        try {
+            this.#notifications?.stop();
+        } catch (e) {
+            logError(e, '[GCM] notification subsystem stop failed');
+        }
+        this.#notifications = null;
+
         this.#manager?.stop();
         this.#manager = null;
         this.#api?.close();

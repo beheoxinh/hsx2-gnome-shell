@@ -1366,7 +1366,14 @@ export class API
 
         windowMenuProto._buildMenu = function (window) {
             this._oldBuildMenu(window);
-            this.firstMenuItem.hide();
+            const first = this.firstMenuItem;
+            if (first) {
+                first.hide();
+            } else {
+                const items = this._getMenuItems ? this._getMenuItems() : (this.menuItems ?? []);
+                if (items.length > 0)
+                    items[0].hide();
+            }
         };
     }
 

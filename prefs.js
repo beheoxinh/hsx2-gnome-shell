@@ -2,25 +2,29 @@ import Adw from 'gi://Adw';
 import Gio from 'gi://Gio';
 import Gtk from 'gi://Gtk';
 
+try {
+    if (typeof imports !== 'undefined' && imports.package && typeof imports.package.initFormat === 'function') {
+        imports.package.initFormat();
+    }
+} catch (e) {
+    // ignore
+}
+
 import {ExtensionPreferences} from 'resource:///org/gnome/Shell/Extensions/js/extensions/prefs.js';
 
-import AdvancedMediaControllerPrefs from './modules/alienware-advanced-media-controller@hsx2coder/prefs.js';
 import TopbarPrefs from './modules/alienware-topbar@hsx2coder/prefs.js';
 import DashToPanelPrefs from './modules/alienware-dash-to-panel@hsx2coder/prefs.js';
 import DingPrefs from './modules/alienware-desktop-enable-gnome@hsx2coder/prefs.js';
 import AdvancedAltTabPrefs from './modules/alienware-advanced-alt-tab@hsx2coder/prefs.js';
-import NotificationConfiguratorPrefs from './modules/alienware-notification-configurator@hsx2coder/prefs.js';
 import GnomeCustomizerManagerPrefs from './modules/alienware-gnome-customizer-manager@hsx2coder/prefs.js';
 
 import {MODULES, buildSubMetadata} from './modules.js';
 
 const PREFS_REGISTRY = {
-    'alienware-advanced-media-controller@hsx2coder': AdvancedMediaControllerPrefs,
     'alienware-topbar@hsx2coder': TopbarPrefs,
     'alienware-dash-to-panel@hsx2coder': DashToPanelPrefs,
     'alienware-desktop-enable-gnome@hsx2coder': DingPrefs,
     'alienware-advanced-alt-tab@hsx2coder': AdvancedAltTabPrefs,
-    'alienware-notification-configurator@hsx2coder': NotificationConfiguratorPrefs,
     'alienware-gnome-customizer-manager@hsx2coder': GnomeCustomizerManagerPrefs,
 };
 
@@ -29,7 +33,7 @@ export default class AlienwareSuitePreferences extends ExtensionPreferences {
         const settings = this.getSettings();
 
         window.set_title('Alienware Suite — hsx2coder');
-        window.set_default_size(720, 720);
+        window.set_default_size(1000, 750);
 
         const page = new Adw.PreferencesPage({
             title: 'Modules',
@@ -56,6 +60,15 @@ export default class AlienwareSuitePreferences extends ExtensionPreferences {
             const row = new Adw.ActionRow({
                 title: def.title.replace('&', '&amp;'),
             });
+
+            if (def.iconName) {
+                const icon = new Gtk.Image({
+                    icon_name: def.iconName,
+                    pixel_size: 20,
+                    margin_end: 6,
+                });
+                row.add_prefix(icon);
+            }
 
             const toggle = new Gtk.Switch({
                 valign: Gtk.Align.CENTER,
@@ -90,8 +103,13 @@ export default class AlienwareSuitePreferences extends ExtensionPreferences {
         const aboutRow = new Adw.ActionRow({
             title: 'Alienware Suite',
             subtitle: `${this.metadata.uuid} · v${this.metadata.version}`,
-            icon_name: 'help-about-symbolic',
         });
+        const aboutIcon = new Gtk.Image({
+            icon_name: 'help-about-symbolic',
+            pixel_size: 20,
+            margin_end: 6,
+        });
+        aboutRow.add_prefix(aboutIcon);
         aboutGroup.add(aboutRow);
         page.add(aboutGroup);
 
@@ -110,6 +128,11 @@ export default class AlienwareSuitePreferences extends ExtensionPreferences {
         try {
             subMetadata = buildSubMetadata(this, def);
             subPrefs = new PrefsClass(subMetadata);
+            // Ensure translation lookup resolves sub-extension or suite fallback
+            if (!subPrefs.gettext) {
+                subPrefs.gettext = str => this.gettext ? this.gettext(str) : str;
+                subPrefs.ngettext = (str, p, n) => this.ngettext ? this.ngettext(str, p, n) : (n === 1 ? str : p);
+            }
         } catch (e) {
             logError(e, `[alienware-suite] cannot construct prefs for ${def.uuid}`);
             this._notify(parent, `Failed to load preferences for ${def.title}`);
@@ -134,8 +157,10 @@ export default class AlienwareSuitePreferences extends ExtensionPreferences {
             modal: true,
             title: def.title,
             search_enabled: true,
+            default_width: 1000,
+            default_height: 750,
         });
-        subWindow.set_default_size(720, 650);
+        subWindow.set_default_size(1000, 750);
 
         try {
             const result = subPrefs.fillPreferencesWindow(subWindow);

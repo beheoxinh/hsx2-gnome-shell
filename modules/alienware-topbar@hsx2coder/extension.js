@@ -56,7 +56,17 @@ export default class TopbarExtension extends Extension {
         this.#clone = new TopbarCloneSubsystem({settings, extension: this});
         this.#clone.enable();
 
-        settings.connect('changed::enable-system-monitor', () => this.#rebuildWidgets());
+        settings.connect('changed::enable-system-monitor', () => {
+            if (!settings.get_boolean('enable-system-monitor')) {
+                // If clock-visible was turned off due to System Monitor replacement, re-enable clock
+                if (!settings.get_boolean('clock-visible')) {
+                    settings.set_boolean('clock-visible', true);
+                } else {
+                    PanelHost.api?.dateMenuShow?.();
+                }
+            }
+            this.#rebuildWidgets();
+        });
         settings.connect('changed::enable-indicators', () => this.#rebuildWidgets());
 
         this.#rebuildWidgets();
@@ -83,19 +93,45 @@ export default class TopbarExtension extends Extension {
      * @param {boolean} teardown true while disabling
      */
     #rebuildWidgets(teardown = false) {
-        this.#capsNumTouchpad?.disable();
+        try {
+            this.#capsNumTouchpad?.disable();
+        } catch (e) {
+            logError(e, '[alienware-topbar] capsNumTouchpad disable failed');
+        }
         this.#capsNumTouchpad = null;
-        this.#appIndicator?.disable();
+
+        try {
+            this.#appIndicator?.disable();
+        } catch (e) {
+            logError(e, '[alienware-topbar] appIndicator disable failed');
+        }
         this.#appIndicator = null;
-        this.#systemMonitor?.disable();
+
+        try {
+            this.#systemMonitor?.disable();
+        } catch (e) {
+            logError(e, '[alienware-topbar] systemMonitor disable failed');
+        }
         this.#systemMonitor = null;
-        this.#commandMenu?.disable();
+
+        try {
+            this.#commandMenu?.disable();
+        } catch (e) {
+            logError(e, '[alienware-topbar] commandMenu disable failed');
+        }
         this.#commandMenu = null;
-        this.#clipboard?.disable();
+
+        try {
+            this.#clipboard?.disable();
+        } catch (e) {
+            logError(e, '[alienware-topbar] clipboard disable failed');
+        }
         this.#clipboard = null;
 
         if (teardown)
             return;
+
+        const settings = this.getSettings();
 
         // each widget subsystem is a real Extension and needs its own
         // settings-schema, but the schemas dir is this module's
@@ -106,45 +142,63 @@ export default class TopbarExtension extends Extension {
             url: `file://${this.path}/`,
         };
 
-        this.#clipboard = new ClipboardIndicatorExtension({
-            ...baseMeta,
-            ...this.metadata,
-            'settings-schema': SUB_SCHEMAS.clipboard,
-        });
-        this.#clipboard.enable();
-
-        this.#commandMenu = new CommandMenuExtension({
-            ...baseMeta,
-            ...this.metadata,
-            'settings-schema': SUB_SCHEMAS.commandMenu,
-        });
-        this.#commandMenu.enable();
-
-        const settings = this.getSettings();
-
-        if (settings.get_boolean('enable-system-monitor')) {
-            this.#systemMonitor = new SystemMonitorExtension({
+        try {
+            this.#clipboard = new ClipboardIndicatorExtension({
                 ...baseMeta,
                 ...this.metadata,
-                'settings-schema': SUB_SCHEMAS.systemMonitor,
+                'settings-schema': SUB_SCHEMAS.clipboard,
             });
-            this.#systemMonitor.enable();
+            this.#clipboard.enable();
+        } catch (e) {
+            logError(e, '[alienware-topbar] clipboard enable failed');
+        }
+
+        try {
+            this.#commandMenu = new CommandMenuExtension({
+                ...baseMeta,
+                ...this.metadata,
+                'settings-schema': SUB_SCHEMAS.commandMenu,
+            });
+            this.#commandMenu.enable();
+        } catch (e) {
+            logError(e, '[alienware-topbar] commandMenu enable failed');
+        }
+
+        if (settings.get_boolean('enable-system-monitor')) {
+            try {
+                this.#systemMonitor = new SystemMonitorExtension({
+                    ...baseMeta,
+                    ...this.metadata,
+                    'settings-schema': SUB_SCHEMAS.systemMonitor,
+                });
+                this.#systemMonitor.enable();
+            } catch (e) {
+                logError(e, '[alienware-topbar] systemMonitor enable failed');
+            }
         }
 
         if (settings.get_boolean('enable-indicators')) {
-            this.#appIndicator = new AppIndicatorExtension({
-                ...baseMeta,
-                ...this.metadata,
-                'settings-schema': SUB_SCHEMAS.appIndicator,
-            });
-            this.#appIndicator.enable();
+            try {
+                this.#appIndicator = new AppIndicatorExtension({
+                    ...baseMeta,
+                    ...this.metadata,
+                    'settings-schema': SUB_SCHEMAS.appIndicator,
+                });
+                this.#appIndicator.enable();
+            } catch (e) {
+                logError(e, '[alienware-topbar] appIndicator enable failed');
+            }
         }
 
-        this.#capsNumTouchpad = new CapsNumTouchpadExtension({
-            ...baseMeta,
-            ...this.metadata,
-            'settings-schema': SUB_SCHEMAS.capsNumTouchpad,
-        });
-        this.#capsNumTouchpad.enable();
+        try {
+            this.#capsNumTouchpad = new CapsNumTouchpadExtension({
+                ...baseMeta,
+                ...this.metadata,
+                'settings-schema': SUB_SCHEMAS.capsNumTouchpad,
+            });
+            this.#capsNumTouchpad.enable();
+        } catch (e) {
+            logError(e, '[alienware-topbar] capsNumTouchpad enable failed');
+        }
     }
 }

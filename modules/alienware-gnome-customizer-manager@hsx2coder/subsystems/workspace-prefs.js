@@ -14,7 +14,7 @@ class WorkspaceSettings {
         return [
             {title: 'Workspace', iconName: 'preferences-system-symbolic',   groups: [s.workspaceG]},
             {title: 'Behaviour', iconName: 'input-keyboard-symbolic',       groups: [s.behaviour]},
-            {title: 'Appearance', iconName: 'avatar-default-symbolic',      groups: [s.appearance]},
+            {title: 'Appearance', iconName: 'applications-graphics-symbolic',      groups: [s.appearance]},
         ];
     }
 
@@ -70,9 +70,10 @@ class WorkspaceSettings {
             title: 'Ripple Box',
             subtitle: 'Show ripple animation on workspace/overlay elements.',
         });
-        this.startupStatus = new Adw.SwitchRow({
-            title: 'Start to Overview',
-            subtitle: 'Start in the overview instead of the desktop (off=desktop, on=overview).',
+        this.startupStatus = new Adw.ComboRow({
+            title: 'Startup Status',
+            subtitle: 'Default workspace state after login.',
+            model: this.#strList(['Default', 'Empty Workspace', 'Windows']),
         });
         this.controlsManagerSpacing = new Adw.SpinRow({
             title: 'Overview Spacing',
@@ -116,8 +117,14 @@ class WorkspaceSettings {
         this.schema.bind('overlay-key', this.overlayKey, 'active', Gio.SettingsBindFlags.DEFAULT);
         this.schema.bind('double-super-to-appgrid', this.doubleSuper, 'active', Gio.SettingsBindFlags.DEFAULT);
         this.schema.bind('ripple-box', this.rippleBox, 'active', Gio.SettingsBindFlags.DEFAULT);
-        this.schema.bind('startup-status', this.startupStatus, 'active', Gio.SettingsBindFlags.DEFAULT);
+        this.schema.bind('startup-status', this.startupStatus, 'selected', Gio.SettingsBindFlags.DEFAULT);
         this.schema.bind('controls-manager-spacing-size', this.controlsManagerSpacing, 'value', Gio.SettingsBindFlags.DEFAULT);
+    }
+
+    #strList(items) {
+        const store = new Gtk.StringList();
+        items.forEach(i => store.append(i));
+        return store;
     }
 }
 

@@ -2,24 +2,20 @@ import Gio from 'gi://Gio';
 import St from 'gi://St';
 import {Extension} from 'resource:///org/gnome/shell/extensions/extension.js';
 
-import AdvancedMediaControllerExtension from './modules/alienware-advanced-media-controller@hsx2coder/extension.js';
 import TopbarExtension from './modules/alienware-topbar@hsx2coder/extension.js';
 import DashToPanelExtension from './modules/alienware-dash-to-panel@hsx2coder/extension.js';
 import DingExtension from './modules/alienware-desktop-enable-gnome@hsx2coder/extension.js';
 import AdvancedAltTabExtension from './modules/alienware-advanced-alt-tab@hsx2coder/extension.js';
-import NotificationConfiguratorExtension from './modules/alienware-notification-configurator@hsx2coder/extension.js';
 import GnomeCustomizerManagerExtension from './modules/alienware-gnome-customizer-manager@hsx2coder/extension.js';
 
 import {MODULES, buildSubMetadata} from './modules.js';
 import {runMigrations} from './migrations.js';
 
 const CLASS_REGISTRY = {
-    'alienware-advanced-media-controller@hsx2coder': AdvancedMediaControllerExtension,
     'alienware-topbar@hsx2coder': TopbarExtension,
     'alienware-dash-to-panel@hsx2coder': DashToPanelExtension,
     'alienware-desktop-enable-gnome@hsx2coder': DingExtension,
     'alienware-advanced-alt-tab@hsx2coder': AdvancedAltTabExtension,
-    'alienware-notification-configurator@hsx2coder': NotificationConfiguratorExtension,
     'alienware-gnome-customizer-manager@hsx2coder': GnomeCustomizerManagerExtension,
 };
 
@@ -48,7 +44,11 @@ export default class AlienwareSuiteExtension extends Extension {
             logError(e, '[alienware-suite] migration failed, continuing with defaults');
         }
 
+        const validKeys = this._suiteSettings.settings_schema.list_keys();
         for (const def of MODULES) {
+            if (!validKeys.includes(def.enableKey))
+                continue;
+
             if (this._suiteSettings.get_boolean(def.enableKey))
                 this._enableModule(def);
 
@@ -71,16 +71,18 @@ export default class AlienwareSuiteExtension extends Extension {
         }
 
         if (this._loadedStylesheets) {
-            try {
-                const theme = St.ThemeContext.get_for_stage(global.stage)?.get_theme();
-                if (theme) {
-                    for (const file of this._loadedStylesheets) {
-                        try {
-                            theme.unload_stylesheet(file);
-                        } catch (_) {}
+            const theme = St.ThemeContext.get_for_stage(global.stage)?.get_theme();
+            if (theme) {
+                for (const uri of this._loadedStylesheets) {
+                    try {
+                        theme.unload_stylesheet(Gio.File.new_for_uri(uri));
+                    } catch (e) {
+                        // A hash lookup miss in st_theme_unload_stylesheet() is a
+                        // silent no-op, so a stale entry is harmless here.
+                        logError(e, `[alienware-suite] could not unload ${uri}`);
                     }
                 }
-            } catch (_) {}
+            }
             this._loadedStylesheets = null;
         }
 
@@ -115,12 +117,31 @@ export default class AlienwareSuiteExtension extends Extension {
         try {
             const theme = St.ThemeContext.get_for_stage(global.stage).get_theme();
             for (const file of files) {
+                // Guard the trust boundary: only existing, readable regular files
+                // reach the shell, so a missing stylesheet in any module can never
+                // corrupt the theme's custom stylesheet list.
+                let info;
+                try {
+                    info = file.query_info('standard::type,standard::size',
+                        Gio.FileQueryInfoFlags.NONE, null);
+                } catch (e) {
+                    logError(e, `[alienware-suite] could not stat ${file.get_path()}`);
+                    continue;
+                }
+                if (info.get_file_type() !== Gio.FileType.REGULAR ||
+                    info.get_size() === 0) {
+                    log(`[alienware-suite] skipped ${file.get_path()}`);
+                    continue;
+                }
                 try {
                     theme.load_stylesheet(file);
-                    this._loadedStylesheets.push(file);
+                    // Store the URI, never the GFile: a GFile captured from one
+                    // theme instance must not be reused after a theme reload, and
+                    // a URI is resolved against whatever theme is current.
+                    this._loadedStylesheets.push(file.get_uri());
                     loaded++;
                 } catch (e) {
-                    logError(e, `[alienware-suite] could not load ${file.get_basename()}`);
+                    logError(e, `[alienware-suite] could not load ${file.get_path()}`);
                 }
             }
         } catch (err) {

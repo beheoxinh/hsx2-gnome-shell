@@ -241,11 +241,11 @@
 }
 
 .sm-net-unit-icon-down {
-    /* Ép màu bằng filter hoặc shadow nếu color bị phế */
+    /* Force the color with filter or shadow if color gets overridden */
     color: #0a680a !important;
     icon-shadow: 0 0 1px #0b5a0b;
     -st-icon-style: symbolic;
-    /* Nhắc nó đây là symbolic icon */
+    /* Note: this is a symbolic icon */
 }
 
 .sm-net-unit-icon-up {

@@ -226,6 +226,8 @@ function buildAdwRows(settings, pageDef, context = {}) {
                     } else {
                         row.set_sensitive(true);
                         row.set_subtitle(subtitle ?? '');
+                        if (!row.active)
+                            settings.set_boolean('clock-visible', true);
                     }
                 };
 
@@ -299,7 +301,7 @@ export default class TopbarPreferences extends ExtensionPreferences {
             {
                 id: 'panel-items',
                 title: 'Panel Items',
-                iconName: 'preferences-system-windows-symbolic',
+                iconName: 'window-duplicate-symbolic',
                 buildContent: () => buildAdwRows(settings, TOPBAR_SECTIONS[1]),
             },
             {
@@ -317,7 +319,7 @@ export default class TopbarPreferences extends ExtensionPreferences {
             {
                 id: 'multi-monitor',
                 title: 'Multi-Monitor Clone',
-                iconName: 'video-multi-monitor-symbolic',
+                iconName: 'display-projector-symbolic',
                 buildContent: () => buildAdwRows(settings, TOPBAR_SECTIONS[4]),
             },
             {
@@ -364,7 +366,8 @@ export default class TopbarPreferences extends ExtensionPreferences {
                     const stack = new Adw.ViewStack();
                     pages.forEach((p, idx) => {
                         const title = p.title || `Tab ${idx + 1}`;
-                        stack.add_titled(p, `page-${idx}`, title);
+                        const icon = p.icon_name || 'utilities-system-monitor-symbolic';
+                        stack.add_titled_with_icon(p, `page-${idx}`, title, icon);
                     });
                     const switcher = new Adw.ViewSwitcher({
                         stack,
@@ -397,13 +400,31 @@ export default class TopbarPreferences extends ExtensionPreferences {
                         destroy() {},
                     };
                     appPrefs.fillPreferencesWindow(dummyWin);
+
+                    if (pages.length === 0)
+                        return new Adw.PreferencesPage({title: 'Tray Icons'});
+
+                    // Add a Master Switch at the top of Tray Icons
+                    const masterGroup = new Adw.PreferencesGroup({
+                        title: 'Tray Icons Integration',
+                        description: 'Display AppIndicator and StatusNotifierItem icons in the top bar.',
+                    });
+                    const enableSwitch = new Adw.SwitchRow({
+                        title: 'Enable Tray Icons Applet',
+                        subtitle: 'Capture and display system tray icons from background apps.',
+                    });
+                    settings.bind('enable-indicators', enableSwitch, 'active', FLAGS);
+                    masterGroup.add(enableSwitch);
+                    pages[0].add(masterGroup);
+
                     if (pages.length === 1)
                         return pages[0];
                     if (pages.length > 1) {
                         const stack = new Adw.ViewStack();
                         pages.forEach((p, idx) => {
                             const title = p.title || `Tab ${idx + 1}`;
-                            stack.add_titled(p, `page-${idx}`, title);
+                            const icon = p.icon_name || 'application-x-addon-symbolic';
+                            stack.add_titled_with_icon(p, `page-${idx}`, title, icon);
                         });
                         const switcher = new Adw.ViewSwitcher({
                             stack,
@@ -497,6 +518,6 @@ export default class TopbarPreferences extends ExtensionPreferences {
         });
 
         splitView.attachToWindow(window);
-        window.set_default_size(860, 720);
+        window.set_default_size(1000, 750);
     }
 }

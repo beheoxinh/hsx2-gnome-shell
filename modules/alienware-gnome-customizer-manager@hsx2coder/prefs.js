@@ -5,20 +5,136 @@ import {ExtensionPreferences} from 'resource:///org/gnome/Shell/Extensions/js/ex
 import {SplitPreferencesView} from '../../lib/ui/splitPrefsView.js';
 
 import {addWorkspaceControlPages} from './subsystems/workspace-prefs.js';
+import NotificationConfiguratorPreferences from './subsystems/notification-configurator/prefs.js';
 
 export default class GnomeCustomizerManagerPreferences extends ExtensionPreferences {
     fillPreferencesWindow(window) {
-        SplitPreferencesView.renderFromPages(dummyWin => {
-            const s = new Settings(this.getSettings());
-            window._settingsRef = s;
-            for (const {title, iconName, groups} of Settings.getTabDefs(s)) {
-                const page = new Adw.PreferencesPage({title, icon_name: iconName});
-                groups.forEach(g => page.add(g));
-                dummyWin.add(page);
+        // Set up subpage push/pop shim so subpages (e.g. Pattern Details) open in a modal dialog
+        let currentSubWindow = null;
+        window.push_subpage = (navPage) => {
+            const rootWin = (window && typeof window.get_root === 'function') ? window.get_root() : (window instanceof Gtk.Window ? window : null);
+            currentSubWindow = new Adw.PreferencesWindow({
+                transient_for: rootWin,
+                modal: true,
+                title: navPage.title || 'Details',
+                default_width: 700,
+                default_height: 650,
+            });
+            const child = navPage.get_child();
+            navPage.set_child(null);
+            if (child instanceof Adw.ToolbarView) {
+                const page = child.get_content();
+                child.set_content(null);
+                if (page instanceof Adw.PreferencesPage) {
+                    currentSubWindow.add(page);
+                } else {
+                    currentSubWindow.set_content(child);
+                }
+            } else {
+                currentSubWindow.set_content(child);
             }
+            currentSubWindow.connect('close-request', () => {
+                try {
+                    navPage.emit('hidden');
+                } catch (_) {}
+                return false;
+            });
+            currentSubWindow.present();
+        };
+        window.pop_subpage = () => {
+            if (currentSubWindow) {
+                currentSubWindow.close();
+                currentSubWindow = null;
+            }
+        };
 
-            addWorkspaceControlPages(dummyWin, this.getSettings());
-        }, window, 'Gnome Customizer Manager');
+        const pages = [];
+        const dummyWin = {
+            add(page) {
+                pages.push(page);
+            },
+            set_default_size() {},
+            set_title() {},
+            set_search_enabled() {},
+            connect() {},
+        };
+
+        const s = new Settings(this.getSettings());
+        window._settingsRef = s;
+        for (const {title, iconName, groups} of Settings.getTabDefs(s)) {
+            const page = new Adw.PreferencesPage({title, icon_name: iconName});
+            groups.forEach(g => page.add(g));
+            dummyWin.add(page);
+        }
+
+        addWorkspaceControlPages(dummyWin, this.getSettings());
+
+        const sections = pages.map((page, idx) => ({
+            id: `gcm_${idx}`,
+            title: page.title || `Section ${idx + 1}`,
+            iconName: page.icon_name || 'preferences-system-symbolic',
+            page,
+        }));
+
+        // Add Notification section to left sidebar with 2 sub-tabs (Global and Patterns)
+        sections.push({
+            id: 'notifications',
+            title: 'Notifications',
+            iconName: 'preferences-system-notifications-symbolic',
+            buildContent: () => {
+                const notifMeta = {
+                    uuid: this.uuid,
+                    dir: this.dir,
+                    path: this.path,
+                    metadata: this.metadata,
+                    'settings-schema': 'org.gnome.shell.extensions.notification-configurator',
+                };
+                const notifPrefs = new NotificationConfiguratorPreferences(notifMeta);
+                if (!notifPrefs.gettext) {
+                    notifPrefs.gettext = str => this.gettext ? this.gettext(str) : str;
+                    notifPrefs.ngettext = (str, p, n) => this.ngettext ? this.ngettext(str, p, n) : (n === 1 ? str : p);
+                }
+
+                notifPrefs.settings = this.getSettings('org.gnome.shell.extensions.notification-configurator');
+                notifPrefs.loadData();
+
+                const globalPage = new Adw.PreferencesPage({
+                    title: 'Global',
+                    icon_name: 'preferences-system-symbolic',
+                });
+                notifPrefs.buildGlobalPage(globalPage);
+
+                const patternsPage = new Adw.PreferencesPage({
+                    title: 'Patterns',
+                    icon_name: 'view-list-symbolic',
+                });
+                notifPrefs.buildPatternsPage(window, patternsPage);
+
+                const stack = new Adw.ViewStack();
+                stack.add_titled_with_icon(globalPage, 'notif_global', 'Global', 'preferences-system-symbolic');
+                stack.add_titled_with_icon(patternsPage, 'notif_patterns', 'Patterns', 'view-list-symbolic');
+
+                const switcher = new Adw.ViewSwitcher({
+                    stack,
+                    policy: Adw.ViewSwitcherPolicy.WIDE,
+                });
+
+                const box = new Gtk.Box({
+                    orientation: Gtk.Orientation.VERTICAL,
+                    spacing: 12,
+                });
+                box.append(switcher);
+                box.append(stack);
+                return box;
+            },
+        });
+
+        const split = new SplitPreferencesView({
+            title: 'Gnome Customizer Manager',
+            sections,
+        });
+        split.attachToWindow(window);
+        window.set_default_size(1000, 750);
     }
 }
 
@@ -87,6 +203,11 @@ class Settings {
         this.osd = new Adw.PreferencesGroup({title: 'On-Screen Display (OSD)', description: 'Control the OSD popup visibility and position.'});
 
         // ── Quick Settings ──
+        this.theme = new Adw.SwitchRow({
+            title: 'Custom Shell Theme',
+            subtitle: 'Apply user theme styling to GNOME Shell.',
+        });
+
         this.lookingGlassWidth = new Adw.ComboRow({
             title: 'Looking Glass Width',
             subtitle: 'Width of the Looking Glass debug console (0=default).',

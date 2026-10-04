@@ -78,6 +78,8 @@ export default class GeneralPreferencesPage extends Adw.PreferencesPage {
         action: Gtk.FileChooserAction.SAVE,
         transient_for: this.get_root(),
         modal: true,
+        default_width: 650,
+        default_height: 500,
       });
       dialog.add_button("_Cancel", Gtk.ResponseType.CANCEL);
       dialog.add_button("_Select", Gtk.ResponseType.OK);

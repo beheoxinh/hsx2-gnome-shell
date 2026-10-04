@@ -157,7 +157,11 @@ export default class CommandMenuExtensionPreferences extends ExtensionPreference
     }
 
     function refreshMenuEditorPages() {
-      menuEditorPages.forEach(p => p.destroy());
+      menuEditorPages.forEach(p => {
+        try {
+          if (p && typeof p.destroy === 'function') p.destroy();
+        } catch (_) {}
+      });
       menuEditorPages = menus.map((m, i) => new CommandsUI({
         title: gettext(`Menu ${i + 1}`),
         icon_name: 'document-edit-symbolic',
@@ -186,6 +190,34 @@ export default class CommandMenuExtensionPreferences extends ExtensionPreference
         });
         editBtn.connect('clicked', () => showMenuDialog(i));
         row.add_suffix(editBtn);
+
+        // Delete button for this menu
+        const delBtn = new Gtk.Button({
+          icon_name: 'user-trash-symbolic',
+          valign: Gtk.Align.CENTER,
+          has_frame: false,
+          tooltip_text: gettext('Delete Menu'),
+        });
+        delBtn.add_css_class('destructive-action');
+        delBtn.connect('clicked', () => {
+          if (menus.length <= 1) {
+            // Keep at least one menu or clear contents
+            mutateMenus(m => {
+              m[0] = {
+                title: 'Menu 1',
+                icon: 'utilities-terminal',
+                position: 'left',
+                menu: []
+              };
+            });
+          } else {
+            mutateMenus(m => {
+              m.splice(i, 1);
+            });
+          }
+        });
+        row.add_suffix(delBtn);
+
         menuContextListBox.append(row);
       }
     }
@@ -193,8 +225,9 @@ export default class CommandMenuExtensionPreferences extends ExtensionPreference
     function showMenuDialog(idx) {
       const page = menuEditorPages[idx];
       if (!page) return;
+      const rootWin = (window && typeof window.get_root === 'function') ? window.get_root() : (window instanceof Gtk.Window ? window : null);
       const dialog = new Adw.PreferencesWindow({
-        transient_for: window,
+        transient_for: rootWin,
         modal: true,
         title: `Menu ${idx + 1}`,
         default_width: 650,
@@ -210,8 +243,9 @@ export default class CommandMenuExtensionPreferences extends ExtensionPreference
     }
 
     function showConfigErrorDialog() {
+      const rootWin = (window && typeof window.get_root === 'function') ? window.get_root() : (window instanceof Gtk.Window ? window : null);
       const dialog = new Gtk.MessageDialog({
-        transient_for: window,
+        transient_for: rootWin,
         modal: true,
         buttons: Gtk.ButtonsType.YES_NO,
         message_type: Gtk.MessageType.ERROR,
@@ -226,7 +260,7 @@ export default class CommandMenuExtensionPreferences extends ExtensionPreference
             d.destroy();
             refreshExtension();
             const restartDialog = new Gtk.MessageDialog({
-              transient_for: window,
+              transient_for: rootWin,
               modal: true,
               buttons: Gtk.ButtonsType.OK,
               message_type: Gtk.MessageType.INFO,

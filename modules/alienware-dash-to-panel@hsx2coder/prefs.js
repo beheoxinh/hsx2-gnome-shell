@@ -29,9 +29,22 @@ import GObject from 'gi://GObject'
 import Gtk from 'gi://Gtk'
 import Gdk from 'gi://Gdk'
 
+try {
+  if (typeof imports !== 'undefined' && imports.package && typeof imports.package.initFormat === 'function') {
+    imports.package.initFormat()
+  }
+} catch (e) {
+  // ignore
+}
+
 import * as PanelSettings from './panelSettings.js'
 import * as Pos from './panelPositions.js'
 
+import {buildGeneralPage} from './media/ui/generalPage.js'
+import {buildPopupPage} from './media/ui/popupPage.js'
+import {buildAppearancePage} from './media/ui/appearancePage.js'
+import {buildLyricsPage} from './media/ui/lyricsPage.js'
+import {buildPlayerFilterPage} from './media/ui/playerFilterPage.js'
 
 import {
   ExtensionPreferences,
@@ -149,7 +162,7 @@ function checkHotkeyPrefix(settings) {
 }
 
 const Preferences = class {
-  constructor(window, settings, path) {
+  constructor(window, settings, path, metadata = null) {
     // this._settings = ExtensionUtils.getSettings('org.gnome.shell.extensions.dash-to-panel');
     this._rtl = Gtk.Widget.get_default_direction() == Gtk.TextDirection.RTL
     this._builder = new Gtk.Builder()
@@ -174,8 +187,13 @@ const Preferences = class {
       logError(e, 'Failed to load suite settings')
     }
 
-    this._metadata = ExtensionPreferences.lookupByURL(import.meta.url).metadata
-    this._builder.set_translation_domain(this._metadata['gettext-domain'])
+    try {
+      this._metadata = metadata || ExtensionPreferences.lookupByURL(import.meta.url)?.metadata
+    } catch (_) {
+      this._metadata = metadata
+    }
+    if (this._metadata?.['gettext-domain'])
+      this._builder.set_translation_domain(this._metadata['gettext-domain'])
 
     window.set_search_enabled(true)
 
@@ -206,12 +224,71 @@ const Preferences = class {
     this._builder.add_from_file(this._path + '/ui/BoxIsolateMonitorsOptions.ui')
 
     // pages
+    this._builder.add_from_file(this._path + '/ui/SettingsPosition.ui')
+    let pagePosition = this._builder.get_object('position')
+
+    this._builder.add_from_file(this._path + '/ui/SettingsStyle.ui')
+    let pageStyle = this._builder.get_object('style')
+
+    this._builder.add_from_file(this._path + '/ui/SettingsBehavior.ui')
+    let pageBehavior = this._builder.get_object('behavior')
+
+    this._builder.add_from_file(this._path + '/ui/SettingsAction.ui')
+    let pageAction = this._builder.get_object('action')
+
+    this._builder.add_from_file(this._path + '/ui/SettingsFineTune.ui')
+    let pageFineTune = this._builder.get_object('finetune')
+
     this._builder.add_from_file(this._path + '/ui/SettingsHiddenApps.ui')
     let pageHiddenApps = this._builder.get_object('hidden_apps_page')
 
+    // Media Controller pages integrated from AMC
+    let mcSettings = null
+    try {
+      const GioSSS = Gio.SettingsSchemaSource
+      const schemaDir = GLib.build_filenamev([this._path, 'media', 'schemas'])
+      if (GLib.file_test(schemaDir, GLib.FileTest.IS_DIR)) {
+        const schemaSource = GioSSS.new_from_directory(schemaDir, GioSSS.get_default(), false)
+        const schemaObj = schemaSource.lookup('org.gnome.shell.extensions.advanced-media-controller', true)
+        if (schemaObj)
+          mcSettings = new Gio.Settings({settings_schema: schemaObj})
+      }
+    } catch (e) {
+      logError(e, '[DTP] Failed to load Media Controller settings for tabs')
+    }
+
+    const _createMediaPreferenceWidget = (mcSet) => {
+      const mediaSubPages = [
+        { id: 'media_general', title: _('General'), iconName: 'preferences-system-symbolic', page: buildGeneralPage(mcSet) },
+        { id: 'media_popup', title: _('Popup'), iconName: 'view-paged-symbolic', page: buildPopupPage(mcSet) },
+        { id: 'media_appearance', title: _('Appearance'), iconName: 'applications-graphics-symbolic', page: buildAppearancePage(mcSet) },
+        { id: 'media_lyrics', title: _('Lyrics'), iconName: 'audio-x-generic-symbolic', page: buildLyricsPage(mcSet) },
+        { id: 'media_filter', title: _('Player Filter'), iconName: 'edit-find-symbolic', page: buildPlayerFilterPage(mcSet) },
+      ];
+
+      const stack = new Adw.ViewStack();
+      mediaSubPages.forEach((p) => {
+        const icon = p.iconName || 'audio-x-generic-symbolic';
+        stack.add_titled_with_icon(p.page, p.id, p.title, icon);
+      });
+
+      const switcher = new Adw.ViewSwitcher({
+        stack,
+        policy: Adw.ViewSwitcherPolicy.WIDE,
+      });
+
+      const box = new Gtk.Box({
+        orientation: Gtk.Orientation.VERTICAL,
+        spacing: 12,
+      });
+      box.append(switcher);
+      box.append(stack);
+      return box;
+    };
+
     const dtpPages = [
       { id: 'position', title: _('Position'), iconName: 'view-paged-symbolic', page: pagePosition },
-      { id: 'style', title: _('Style'), iconName: 'preferences-desktop-theme-symbolic', page: pageStyle },
+      { id: 'style', title: _('Style'), iconName: 'applications-graphics-symbolic', page: pageStyle },
       { id: 'behavior', title: _('Behavior'), iconName: 'preferences-system-symbolic', page: pageBehavior },
       { id: 'action', title: _('Action'), iconName: 'input-mouse-symbolic', page: pageAction },
       { id: 'finetune', title: _('Fine-Tune'), iconName: 'applications-engineering-symbolic', page: pageFineTune },
@@ -224,12 +301,21 @@ const Preferences = class {
         page: pageHiddenApps,
       })
     }
+    if (mcSettings) {
+      dtpPages.push({
+        id: 'media_controller',
+        title: _('Media Player'),
+        iconName: 'audio-x-generic-symbolic',
+        buildContent: () => _createMediaPreferenceWidget(mcSettings),
+      })
+    }
 
     try {
       const split = new SplitPreferencesView({
-        title: _('Dash to Panel'),
+        title: _('Bottom Panel Manager'),
         sections: dtpPages,
       })
+      this._splitView = split
       split.attachToWindow(window)
     } catch (e) {
       logError(e, '[DTP] SplitPreferencesView failed, falling back to window.add')
@@ -239,6 +325,13 @@ const Preferences = class {
       window.add(pageAction)
       window.add(pageFineTune)
       if (pageHiddenApps) window.add(pageHiddenApps)
+      if (mcSettings) {
+        window.add(buildGeneralPage(mcSettings))
+        window.add(buildPopupPage(mcSettings))
+        window.add(buildAppearancePage(mcSettings))
+        window.add(buildLyricsPage(mcSettings))
+        window.add(buildPlayerFilterPage(mcSettings))
+      }
     }
 
     let listbox = this._builder.get_object('taskbar_display_listbox')
@@ -635,12 +728,15 @@ const Preferences = class {
   _createPreferencesDialog(title, content, reset_function = null) {
     let dialog
 
+    const rootWin = (this.notebook && typeof this.notebook.get_root === 'function') ? this.notebook.get_root() : (this.notebook instanceof Gtk.Window ? this.notebook : null);
     dialog = new Gtk.Dialog({
       title: title,
-      transient_for: this.notebook.get_root(),
+      transient_for: rootWin,
       use_header_bar: true,
       modal: true,
-    })
+      default_width: 580,
+      default_height: 520,
+    });
 
     // GTK+ leaves positive values for application-defined response ids.
     // Use +1 for the reset action
@@ -739,7 +835,7 @@ const Preferences = class {
     handleIconChange(this._settings.get_string('show-apps-icon-file'))
 
     dialog.show()
-    dialog.set_default_size(1, 1)
+    // dialog.set_default_size(1, 1)
   }
 
   _showDesktopButtonOptions() {
@@ -814,7 +910,7 @@ const Preferences = class {
       })
 
     dialog.show()
-    dialog.set_default_size(1, 1)
+    // dialog.set_default_size(1, 1)
   }
 
   _setMonitorsInfo() {
@@ -1180,7 +1276,7 @@ const Preferences = class {
           })
 
         dialog.show()
-        dialog.set_default_size(1, 1)
+        // dialog.set_default_size(1, 1)
       })
 
     //multi-monitor
@@ -1592,7 +1688,7 @@ const Preferences = class {
         )
 
         dialog.show()
-        dialog.set_default_size(1, 1)
+        // dialog.set_default_size(1, 1)
       })
 
     // Panel border
@@ -2105,7 +2201,7 @@ const Preferences = class {
         )
 
         dialog.show()
-        dialog.set_default_size(1, 1)
+        // dialog.set_default_size(1, 1)
       })
 
     // Behavior panel
@@ -2805,11 +2901,62 @@ const Preferences = class {
       Gio.SettingsBindFlags.DEFAULT,
     )
 
-    // the media controller is its own module now, so its options live in that
-    // module's preferences window instead of behind this button
+    this._settings.bind(
+      'show-media-player',
+      this._builder.get_object('show_media_player_options_button'),
+      'sensitive',
+      Gio.SettingsBindFlags.DEFAULT,
+    )
+
     this._builder
       .get_object('show_media_player_options_button')
-      .set_visible(false)
+      .connect('clicked', () => {
+        try {
+          const GioSSS = Gio.SettingsSchemaSource
+          const schemaDir = GLib.build_filenamev([this._path, 'media', 'schemas'])
+          let mcSettings = null
+          if (GLib.file_test(schemaDir, GLib.FileTest.IS_DIR)) {
+            const schemaSource = GioSSS.new_from_directory(schemaDir, GioSSS.get_default(), false)
+            const schemaObj = schemaSource.lookup('org.gnome.shell.extensions.advanced-media-controller', true)
+            if (schemaObj)
+              mcSettings = new Gio.Settings({settings_schema: schemaObj})
+          }
+          if (!mcSettings) return
+
+          const rootWin = (this.notebook && typeof this.notebook.get_root === 'function') ? this.notebook.get_root() : (this.notebook instanceof Gtk.Window ? this.notebook : null);
+          let win = new Adw.PreferencesWindow({
+            title: _('Media Player'),
+            transient_for: rootWin,
+            modal: true,
+            default_width: 1000,
+            default_height: 750,
+          })
+
+          const mediaPages = [
+            { id: 'media_general', title: _('General'), iconName: 'preferences-system-symbolic', page: buildGeneralPage(mcSettings) },
+            { id: 'media_popup', title: _('Popup'), iconName: 'view-paged-symbolic', page: buildPopupPage(mcSettings) },
+            { id: 'media_appearance', title: _('Appearance'), iconName: 'applications-graphics-symbolic', page: buildAppearancePage(mcSettings) },
+            { id: 'media_lyrics', title: _('Lyrics'), iconName: 'audio-x-generic-symbolic', page: buildLyricsPage(mcSettings) },
+            { id: 'media_filter', title: _('Player Filter'), iconName: 'edit-find-symbolic', page: buildPlayerFilterPage(mcSettings) },
+          ]
+
+          try {
+            const split = new SplitPreferencesView({
+              title: _('Media Player'),
+              sections: mediaPages,
+            })
+            split.attachToWindow(win)
+          } catch (e) {
+            logError(e, '[DTP-Media] SplitPreferencesView failed, falling back to window.add')
+            for (const item of mediaPages)
+              win.add(item.page)
+          }
+
+          win.show()
+        } catch (e) {
+          logError(e, 'Failed to open Media Player settings')
+        }
+      })
 
     this._builder
       .get_object('group_apps_label_font_color_colorbutton')
@@ -4056,9 +4203,10 @@ const Preferences = class {
   }
 
   _showAddHiddenAppDialog() {
+    const rootWin = (this.notebook && typeof this.notebook.get_root === 'function') ? this.notebook.get_root() : (this.notebook instanceof Gtk.Window ? this.notebook : null);
     let dialog = new Gtk.Dialog({
       title: _('Add Hidden Application'),
-      transient_for: this.notebook.get_root(),
+      transient_for: rootWin,
       use_header_bar: true,
       modal: true,
       default_width: 600,
@@ -4181,7 +4329,8 @@ const Preferences = class {
 
     if (filters) fileDialog.set_filters(filters)
 
-    fileDialog[action](this.notebook.get_root(), null, async (self, result) => {
+    const rootWin = (this.notebook && typeof this.notebook.get_root === 'function') ? this.notebook.get_root() : (this.notebook instanceof Gtk.Window ? this.notebook : null);
+    fileDialog[action](rootWin, null, async (self, result) => {
       try {
         const file = self[`${action}_finish`](result)
 
@@ -4284,7 +4433,7 @@ export default class DashToPanelPreferences extends ExtensionPreferences {
     )
 
     // use default width or window
-    window.set_default_size(720, 740)
+    window.set_default_size(1000, 750)
 
     window._settings.set_boolean('prefs-opened', true)
     closeRequestId = window.connect('close-request', () => {
@@ -4292,6 +4441,6 @@ export default class DashToPanelPreferences extends ExtensionPreferences {
       window.disconnect(closeRequestId)
     })
 
-    new Preferences(window, window._settings, this.path)
+    window._dtpPreferences = new Preferences(window, window._settings, this.path, this.metadata)
   }
 }

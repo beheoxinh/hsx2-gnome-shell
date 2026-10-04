@@ -333,9 +333,8 @@ export default class CapsNumTouchpadExtension extends Extension {
     enable() {
         this._settings = this.getSettings();
 
-        // Caps/Num indicator
-        this._capsnumIndicator = new CapsNumIndicator(this._settings);
-        PanelHost.addStatusItem('capsnum-indicator', this._capsnumIndicator, 1, 'right');
+            this._capsnumIndicator = new CapsNumIndicator(this._settings);
+            PanelHost.addStatusItem('capsnum-indicator', this._capsnumIndicator, 1, 'right');
 
         // Touchpad keybinding
         Main.wm.addKeybinding(
@@ -367,11 +366,17 @@ export default class CapsNumTouchpadExtension extends Extension {
         Main.wm.removeKeybinding('toggle-shortcut');
 
         if (this._capsnumIndicator) {
-            this._capsnumIndicator.destroy();
+            try {
+                if (!this._capsnumIndicator._isDestroyed && !this._capsnumIndicator.is_finalized?.())
+                    this._capsnumIndicator.destroy();
+            } catch (_) {}
             this._capsnumIndicator = null;
         }
         if (this._notification) {
-            this._notification.destroy();
+            try {
+                if (!this._notification._isDestroyed && !this._notification.is_finalized?.())
+                    this._notification.destroy();
+            } catch (_) {}
             this._notification = null;
         }
 
@@ -379,11 +384,15 @@ export default class CapsNumTouchpadExtension extends Extension {
         this._disableTouchpadIcon();
 
         if (this._touchpadStateId) {
-            this._touchpadSettings.disconnect(this._touchpadStateId);
+            try {
+                this._touchpadSettings?.disconnect(this._touchpadStateId);
+            } catch (_) {}
             this._touchpadStateId = null;
         }
         if (this._showIndicatorId) {
-            this._settings.disconnect(this._showIndicatorId);
+            try {
+                this._settings?.disconnect(this._showIndicatorId);
+            } catch (_) {}
             this._showIndicatorId = null;
         }
 

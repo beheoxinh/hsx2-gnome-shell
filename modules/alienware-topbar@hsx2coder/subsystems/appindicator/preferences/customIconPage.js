@@ -86,7 +86,7 @@ class AppIndicatorCustomIconPage extends Adw.PreferencesPage {
     _init(settings, settingsKey) {
         super._init({
             title: _('Custom Icons'),
-            icon_name: 'custom-icons-symbolic',
+            icon_name: 'application-x-addon-symbolic',
             name: 'Custom Icons Page',
         });
         this._settings = settings;

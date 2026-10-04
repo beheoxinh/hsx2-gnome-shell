@@ -88,7 +88,8 @@ class PanelHostImpl {
     disable() {
         for (const actor of this.#owned.values()) {
             try {
-                actor.destroy();
+                if (actor && !actor._isDestroyed && !actor.is_finalized?.())
+                    actor.destroy();
             } catch (_) {
                 /* already gone */
             }
@@ -107,14 +108,27 @@ class PanelHostImpl {
      * dash-to-panel override installed on the panel object is still honoured.
      */
     addStatusItem(role, indicator, position = 0, box = 'right') {
-        const target = this.getBox(box);
+        const boxName = typeof box === 'string' ? box : (box === Main.panel?._leftBox ? 'left' : (box === Main.panel?._centerBox ? 'center' : 'right'));
+        const target = this.getBox(boxName);
         if (!target) {
             logError(new Error('no panel'), `[alienware-topbar] cannot add ${role}`);
             return null;
         }
-        this.#owned.get(role)?.destroy();
+        if (Main.panel.statusArea?.[role]) {
+            try {
+                const old = Main.panel.statusArea[role];
+                if (old && !old._isDestroyed && !old.is_finalized?.())
+                    old.destroy();
+            } catch (_) {}
+            delete Main.panel.statusArea[role];
+        }
+        try {
+            const oldOwned = this.#owned.get(role);
+            if (oldOwned && !oldOwned._isDestroyed && !oldOwned.is_finalized?.())
+                oldOwned.destroy();
+        } catch (_) {}
         this.#owned.set(role, indicator);
-        return Main.panel.addToStatusArea(role, indicator, position, target);
+        return Main.panel.addToStatusArea(role, indicator, position, boxName);
     }
 
     /** The actor PanelHost added for this role, or undefined. */
@@ -133,7 +147,11 @@ class PanelHostImpl {
             logError(new Error('no panel'), `[alienware-topbar] cannot add ${role}`);
             return null;
         }
-        this.#owned.get(role)?.destroy();
+        try {
+            const oldOwned = this.#owned.get(role);
+            if (oldOwned && !oldOwned._isDestroyed && !oldOwned.is_finalized?.())
+                oldOwned.destroy();
+        } catch (_) {}
         this.#owned.set(role, actor);
         if (typeof Main.panel._addToPanelBox === 'function')
             return Main.panel._addToPanelBox(role, actor, position, target);
@@ -183,7 +201,10 @@ class PanelHostImpl {
         this.#owned.delete(role);
         if (!actor)
             return false;
-        actor.destroy();
+        try {
+            if (!actor._isDestroyed && !actor.is_finalized?.())
+                actor.destroy();
+        } catch (_) {}
         return true;
     }
 

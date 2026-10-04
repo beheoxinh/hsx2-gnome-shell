@@ -208,7 +208,8 @@ export class IndicatorUIUpdater {
         info.status === "Playing"
           ? "media-playback-pause-symbolic"
           : "media-playback-start-symbolic";
-      this._indicator._panelUI.panelPlayBtn.child.icon_name = playIcon;
+      if (this._indicator._panelUI?.panelPlayBtn?.child)
+        this._indicator._panelUI.panelPlayBtn.child.icon_name = playIcon;
 
       this.updateLabel();
       this.updateTabs();

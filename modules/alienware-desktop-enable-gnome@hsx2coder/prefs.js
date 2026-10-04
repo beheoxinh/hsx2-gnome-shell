@@ -14,11 +14,11 @@ export default class DingPrefs {
         log('[DING] openPreferences called');
 
         const win = new Adw.Window({
-            title: 'Desktop Icons NG',
+            title: 'Desktop, Context Menu',
             transient_for: parent,
             modal: true,
-            default_width: 800,
-            default_height: 700,
+            default_width: 1000,
+            default_height: 750,
         });
         win.set_size_request(600, 400);
 
@@ -54,7 +54,7 @@ export default class DingPrefs {
         });
 
         const split = new SplitPreferencesView({
-            title: 'Desktop Icons NG',
+            title: 'Desktop, Context Menu',
             sections,
         });
         split.attachToWindow(win);
@@ -66,9 +66,9 @@ export default class DingPrefs {
 class Settings {
     static getTabDefs(s) {
         return [
-            {title: 'General',    iconName: 'preferences-system-symbolic', groups: [s.general]},
-            {title: 'Appearance', iconName: 'avatar-default-symbolic',     groups: [s.appearance]},
-            {title: 'Indicator',  iconName: 'input-keyboard-symbolic',    groups: [s.behaviour]},
+            {title: 'General',      iconName: 'preferences-system-symbolic', groups: [s.general]},
+            {title: 'Appearance',   iconName: 'applications-graphics-symbolic', groups: [s.appearance]},
+            {title: 'Context Menu', iconName: 'application-menu-symbolic',   groups: [s.behaviour]},
         ];
     }
 
@@ -157,7 +157,10 @@ class Settings {
     }
 
     #entry(title, subtitle) {
-        return new Adw.EntryRow({title, subtitle});
+        const row = new Adw.EntryRow({title});
+        if (subtitle)
+            row.set_tooltip_text(subtitle);
+        return row;
     }
 
     #connectEnum(row, key, indexMap) {

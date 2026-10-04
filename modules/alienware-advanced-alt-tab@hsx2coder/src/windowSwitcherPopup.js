@@ -773,7 +773,13 @@ export const WindowSwitcherPopup = {
 
         // Make sure the SwitcherList is always destroyed, it may not be
         // a child of the actor at this point.
-        this._switcherList?.destroy();
+        if (this._switcherList) {
+            try {
+                if (!this._switcherList._isDestroyed && !this._switcherList.is_finalized?.())
+                    this._switcherList.destroy();
+            } catch (_) {}
+            this._switcherList = null;
+        }
 
         this._inputHandler?.clean();
         this._inputHandler = null;

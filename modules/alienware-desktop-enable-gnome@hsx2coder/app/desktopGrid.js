@@ -169,7 +169,7 @@ var DesktopGrid = class extends SignalManager.SignalManager {
     }
 
     updateUnscaledHeightWidthMargins() {
-        this._marginTop = this._desktopDescription.marginTop; // Sử dụng giá trị tự động từ GNOME Shell work area thay vì hardcode 36
+        this._marginTop = this._desktopDescription.marginTop; // Use the value GNOME Shell reports for the work area instead of hardcoding 36
         this._marginBottom = this._desktopDescription.marginBottom;
         this._marginLeft = this._desktopDescription.marginLeft;
         this._marginRight = this._desktopDescription.marginRight;

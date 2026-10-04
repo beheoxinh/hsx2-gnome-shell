@@ -146,11 +146,17 @@ export class TopbarCloneSubsystem {
     }
 
     _scheduleRebuild() {
-        if (this._rebuildIdleId)
-            return;
-        this._rebuildIdleId = GLib.timeout_add(GLib.PRIORITY_DEFAULT, 800, () => {
+        if (this._rebuildIdleId) {
+            GLib.source_remove(this._rebuildIdleId);
             this._rebuildIdleId = 0;
-            this._build();
+        }
+        this._rebuildIdleId = GLib.timeout_add(GLib.PRIORITY_DEFAULT, 200, () => {
+            this._rebuildIdleId = 0;
+            if (Main.layoutManager.monitors.length <= 1) {
+                this._teardown();
+            } else {
+                this._build();
+            }
             return GLib.SOURCE_REMOVE;
         });
     }
@@ -436,12 +442,17 @@ class CloneTopBar extends St.BoxLayout {
 
         this._settings = settings;
 
-        this._onOverviewShowing = () => this.add_style_pseudo_class('overview');
-        this._onOverviewHiding = () => this.remove_style_pseudo_class('overview');
+        this._onOverviewShowing = () => {
+            if (!this._isDestroyed)
+                this.add_style_pseudo_class('overview');
+        };
+        this._onOverviewHiding = () => {
+            if (!this._isDestroyed)
+                this.remove_style_pseudo_class('overview');
+        };
         Main.overview.connectObject('showing', this._onOverviewShowing,
                                    'hiding', this._onOverviewHiding, this);
 
-        this._syncClock();
         this._syncClock();
         this._syncTray();
         this._settingId = this._settings
@@ -497,6 +508,9 @@ class CloneTopBar extends St.BoxLayout {
     }
 
     destroy() {
+        if (this._isDestroyed)
+            return;
+        this._isDestroyed = true;
         Main.overview.disconnectObject(this);
         if (this._settingId && this._settings) {
             try { this._settings.disconnect(this._settingId); } catch (_e) { /* already disconnected */ }
@@ -522,6 +536,7 @@ class CloneTopBar extends St.BoxLayout {
         this._wsClone = this._centerClone = this._qsClone = null;
         this._wsButton = this._qsButton = null;
         this._spacerL = this._spacerR = null;
+        this._settings = null;
         super.destroy();
     }
 });

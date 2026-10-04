@@ -195,7 +195,10 @@ export const SwitcherList = GObject.registerClass({
         let maxChildNat = 0;
 
         for (let i = 0; i < this._items.length; i++) {
-            let [childMin, childNat] = this._items[i].get_preferred_height(-1);
+            const item = this._items[i];
+            if (!item || item._isDestroyed || item.is_finalized?.())
+                continue;
+            let [childMin, childNat] = item.get_preferred_height(-1);
             maxChildMin = Math.max(childMin, maxChildMin);
             maxChildNat = Math.max(childNat, maxChildNat);
         }

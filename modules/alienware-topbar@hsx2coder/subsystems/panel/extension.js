@@ -195,8 +195,13 @@ export class PanelExtension {
                 () => a.screenRecordingIndicatorEnable()],
 
             ['clock-visible',
-                (s, f) => (f || s.get_boolean('clock-visible'))
-                    ? a.dateMenuShow() : a.dateMenuHide(),
+                (s, f) => {
+                    // If System Monitor is active, it occupies the center box, so clock must stay hidden
+                    if (!f && s.get_boolean('enable-system-monitor'))
+                        return a.dateMenuHide();
+                    return (f || s.get_boolean('clock-visible'))
+                        ? a.dateMenuShow() : a.dateMenuHide();
+                },
                 () => a.dateMenuShow()],
 
             ['clock-position',

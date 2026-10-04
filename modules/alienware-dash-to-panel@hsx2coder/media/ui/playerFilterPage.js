@@ -9,23 +9,32 @@ import { gettext as _ } from "resource:///org/gnome/Shell/Extensions/js/extensio
  * @param {Gio.Settings} settings
  * @param {function(string, string): Gio.AppInfo|null} findAppInfo
  */
-export function buildPlayerFilterPage(page, settings, findAppInfo) {
+export function buildPlayerFilterPage(pageOrSettings, settings, findAppInfo) {
+  let page = pageOrSettings;
+  let s = settings;
+  if (!s) {
+    s = pageOrSettings;
+    page = new Adw.PreferencesPage({
+      title: _("Player Filter"),
+      icon_name: "edit-find-symbolic",
+    });
+  }
   const _connIds = [];
   const _settingsConnect = (signal, fn) => {
-    _connIds.push(settings.connect(signal, fn));
+    _connIds.push(s.connect(signal, fn));
   };
 
   page.connect("destroy", () => {
     for (const id of _connIds) {
       try {
-        settings.disconnect(id);
+        s.disconnect(id);
       } catch (_) {}
     }
     _connIds.length = 0;
   });
 
   const parseList = () => {
-    const raw = settings.get_string("player-filter-list") || "";
+    const raw = s.get_string("player-filter-list") || "";
     return raw
       .split(",")
       .map((s) => s.trim())
@@ -41,7 +50,7 @@ export function buildPlayerFilterPage(page, settings, findAppInfo) {
     const str = entries
       .map((e) => (e.enabled ? e.name : `~${e.name}`))
       .join(", ");
-    settings.set_string("player-filter-list", str);
+    s.set_string("player-filter-list", str);
   };
 
   const toShort = (busName) =>
@@ -75,24 +84,24 @@ export function buildPlayerFilterPage(page, settings, findAppInfo) {
 
   const filterModeRow = new Adw.ComboRow({
     title: _("Filter Mode"),
-    subtitle: filterModeDescriptions[settings.get_int("player-filter-mode")],
+    subtitle: filterModeDescriptions[s.get_int("player-filter-mode")],
     model: filterModel,
-    selected: settings.get_int("player-filter-mode"),
+    selected: s.get_int("player-filter-mode"),
   });
 
   filterModeRow.connect("notify::selected", () => {
     const idx = filterModeRow.selected;
-    settings.set_int("player-filter-mode", idx);
+    s.set_int("player-filter-mode", idx);
     filterModeRow.subtitle = filterModeDescriptions[idx];
   });
 
-  _settingsConnect("changed::player-filter-mode", () => {
-    const v = settings.get_int("player-filter-mode");
+  const updateModeVisibility = () => {
+    const v = s.get_int("player-filter-mode");
     if (filterModeRow.selected !== v) {
       filterModeRow.selected = v;
       filterModeRow.subtitle = filterModeDescriptions[v];
     }
-  });
+  };
 
   modeGroup.add(filterModeRow);
 
@@ -382,4 +391,6 @@ export function buildPlayerFilterPage(page, settings, findAppInfo) {
     scanPlayers();
     return GLib.SOURCE_REMOVE;
   });
+
+  return page;
 }

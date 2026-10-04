@@ -293,6 +293,18 @@ export const PanelManager = class {
           }
         },
       ],
+      [
+        Main.layoutManager,
+        'monitors-changed',
+        async () => {
+          if (Main.layoutManager.primaryMonitor) {
+            await PanelSettings.setMonitorsInfo(SETTINGS).catch((e) =>
+              console.log(e),
+            )
+            this._scheduleReset()
+          }
+        },
+      ],
     )
 
     Panel.panelBoxes.forEach((c) =>
@@ -734,9 +746,11 @@ export const PanelManager = class {
   }
 
   _scheduleReset() {
-    if (this._resetTimeoutId)
-      return
-    this._resetTimeoutId = GLib.timeout_add(GLib.PRIORITY_DEFAULT, 500, () => {
+    if (this._resetTimeoutId) {
+      GLib.source_remove(this._resetTimeoutId)
+      this._resetTimeoutId = 0
+    }
+    this._resetTimeoutId = GLib.timeout_add(GLib.PRIORITY_DEFAULT, 250, () => {
       this._resetTimeoutId = 0
       this._reset()
       return GLib.SOURCE_REMOVE

@@ -42,8 +42,11 @@ export function addIconToPanel(statusIcon) {
 
     // through the host API, not the raw statusArea dict: dash-to-panel may
     // have rerouted addToStatusArea, and only the host knows what it added
-    if (PanelHost.hasStatusItem(indicatorId))
-        PanelHost.removeStatusItem(indicatorId);
+    if (PanelHost.hasStatusItem(indicatorId)) {
+        try {
+            PanelHost.removeStatusItem(indicatorId);
+        } catch (_) {}
+    }
 
     PanelHost.addStatusItem(indicatorId, statusIcon, 1,
         settings.get_string('tray-pos'));

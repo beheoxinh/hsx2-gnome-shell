@@ -3,7 +3,7 @@ import Gdk from "gi://Gdk";
 import Gio from "gi://Gio";
 import Gtk from "gi://Gtk";
 import { ExtensionPreferences, gettext as _, } from "resource:///org/gnome/Shell/Extensions/js/extensions/prefs.js";
-import {SplitPreferencesView} from "../../lib/ui/splitPrefsView.js";
+import {SplitPreferencesView} from '../../../../lib/ui/splitPrefsView.js';
 import { migrateRegexSchema } from "./migrations/regex.js";
 import { DEFAULT_THEME } from "./utils/constants.js";
 import { SettingsManager } from "./utils/settings.js";
@@ -52,10 +52,12 @@ export default class NotificationConfiguratorPreferences extends ExtensionPrefer
     patterns;
     patternsList;
     fillPreferencesWindow(window) {
-        this.settings = this.getSettings();
+        if (!this.settings) {
+            this.settings = this.getSettings('org.gnome.shell.extensions.notification-configurator');
+        }
         migrateRegexSchema(this.settings);
         this.loadData();
-        window.set_default_size(760, 650);
+        window.set_default_size(1000, 750);
 
         const globalPage = new Adw.PreferencesPage({
             title: _("Global"),
@@ -68,6 +70,45 @@ export default class NotificationConfiguratorPreferences extends ExtensionPrefer
             icon_name: "view-list-symbolic",
         });
         this.buildPatternsPage(window, patternsPage);
+
+        // Provide push_subpage and pop_subpage fallback if running under SplitPreferencesView
+        let currentSubWindow = null;
+        window.push_subpage = (navPage) => {
+            const rootWin = (window && typeof window.get_root === 'function') ? window.get_root() : (window instanceof Gtk.Window ? window : null);
+            currentSubWindow = new Adw.PreferencesWindow({
+                transient_for: rootWin,
+                modal: true,
+                title: navPage.title || _("Pattern Details"),
+                default_width: 700,
+                default_height: 650,
+            });
+            const child = navPage.get_child();
+            navPage.set_child(null);
+            if (child instanceof Adw.ToolbarView) {
+                const page = child.get_content();
+                child.set_content(null);
+                if (page instanceof Adw.PreferencesPage) {
+                    currentSubWindow.add(page);
+                } else {
+                    currentSubWindow.set_content(child);
+                }
+            } else {
+                currentSubWindow.set_content(child);
+            }
+            currentSubWindow.connect('close-request', () => {
+                try {
+                    navPage.emit('hidden');
+                } catch (_) {}
+                return false;
+            });
+            currentSubWindow.present();
+        };
+        window.pop_subpage = () => {
+            if (currentSubWindow) {
+                currentSubWindow.close();
+                currentSubWindow = null;
+            }
+        };
 
         const split = new SplitPreferencesView({
             title: _('Notifications'),

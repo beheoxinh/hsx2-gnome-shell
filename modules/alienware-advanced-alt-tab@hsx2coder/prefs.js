@@ -112,7 +112,7 @@ export default class AATWS extends ExtensionPreferences {
 
         OptionsFactory.AdwPrefs.getFilledWindow(window, this._getPageList());
         window.set_search_enabled(true);
-        window.set_default_size(780, 800);
+        window.set_default_size(1000, 750);
 
         try {
             SplitPreferencesView.renderFromPages(dummyWin => {

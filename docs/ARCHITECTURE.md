@@ -223,7 +223,7 @@ Mỗi module giữ schema ID gốc (từ standalone extension gốc) để tươ
 | Desktop Icons | `org.gnome.shell.extensions.ding` | ding.gschema.xml | `/org/gnome/shell/extensions/ding/` | 22 |
 | AATWS | `org.gnome.shell.extensions.advanced-alt-tab-window-switcher` | advanced-alt-tab-window-switcher.gschema.xml | `/org/gnome/shell/extensions/advanced-alt-tab-window-switcher/` | 111 |
 | Just Perfection | `org.gnome.shell.extensions.just-perfection` | just-perfection.gschema.xml | `/org/gnome/shell/extensions/just-perfection/` | 0 — all keys distributed |
-| Notification Config | `org.gnome.shell.extensions.notification-configurator` | notification-configurator.gschema.xml | `/org/gnome/shell/extensions/notification-configurator/` | 14 |
+| Notification Config (subsystem in GCM) | `org.gnome.shell.extensions.notification-configurator` | notification-configurator.gschema.xml | `/org/gnome/shell/extensions/notification-configurator/` | 14 |
 | **Workspace Control** | đã gộp vào `alienware-gnome-customizer-manager` (schema `…extensions.gnome-customizer-manager`) | workspace-control.gschema.xml | `/org/gnome/shell/extensions/workspace-control/` | 14 |
 | **Gnome Customizer Mgr** | `org.gnome.shell.extensions.gnome-customizer-manager` | gnome-customizer-manager.gschema.xml | `/org/gnome/shell/extensions/gnome-customizer-manager/` | 24 |
 | **Topbar Panel Ctrls** | đã gộp vào `alienware-topbar` (schema `…extensions.alienware-topbar`) | `/org/gnome/shell/extensions/topbar-panel-controls/` | 26 |

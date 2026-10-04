@@ -933,7 +933,7 @@ const TipMenu = class SystemMonitor_TipMenu extends PopupMenu.PopupMenuBase {
             sourceTopLeftY = allocation.y1;
             sourceTopLeftX = allocation.x1;
         }
-        let monitor = Main.layoutManager.findMonitorForActor(this.sourceActor);
+        let monitor = Main.layoutManager.findMonitorForActor(this.sourceActor) || Main.layoutManager.primaryMonitor || { x: 0, y: 0, width: 1920, height: 1080 };
         let [x, y] = [sourceTopLeftX + contentbox.x1,
         sourceTopLeftY + contentbox.y1];
         let [cx, cy] = [sourceTopLeftX + (contentbox.x1 + contentbox.x2) / 2,
@@ -1048,9 +1048,23 @@ const TipBox = class SystemMonitor_TipBox {
         }
     }
     destroy() {
+        if (this._isDestroyed)
+            return;
+        this._isDestroyed = true;
         this.stop_in_timer();
         this.stop_out_timer();
-        this.actor.destroy();
+        if (this.tipmenu) {
+            try {
+                this.tipmenu.destroy();
+            } catch (_) {}
+            this.tipmenu = null;
+        }
+        if (this.actor) {
+            try {
+                if (!this.actor._isDestroyed && !this.actor.is_finalized?.())
+                    this.actor.destroy();
+            } catch (_) {}
+        }
     }
 }
 
@@ -3063,15 +3077,27 @@ export default class SystemMonitorExtension extends Extension {
         this._Schema = this.getSettings();
 
         this._Style = new smStyleManager(this);
-        this._MountsMonitor = new smMountsMonitor(this);
+        try {
+            this._MountsMonitor = new smMountsMonitor();
+        } catch (e) {
+            sm_log('Failed to init smMountsMonitor: ' + e, 'warn');
+            this._MountsMonitor = {
+                get_mounts: () => ['/'],
+                add_listener: () => {},
+                remove_listener: () => {},
+                connect: () => {},
+                disconnect: () => {},
+            };
+        }
 
         this._Background = color_from_string(this._Schema.get_string('background'));
 
         this._menuIsOpen = false;
         this.menuTimeout = null;
 
-
-        this._MountsMonitor.connect();
+        if (this._MountsMonitor) {
+            this._MountsMonitor.connect();
+        }
 
         // Debug
         this.__sm = {
@@ -3108,6 +3134,7 @@ export default class SystemMonitorExtension extends Extension {
         // Hide the original clock on the topbar and place the System Monitor
         // in the center box to replace its position.
         Main.panel.statusArea.dateMenu?.container?.hide();
+        PanelHost.api?.dateMenuHide?.();
         PanelHost.addStatusItem('system-monitor', tray, 0, 'center');
 
         // The spacing adds a distance between the graphs/text on the top bar
@@ -3229,19 +3256,33 @@ export default class SystemMonitorExtension extends Extension {
             this._Style = null;
         }
 
-        for (let eltName in this.__sm.elts) {
-            this.__sm.elts[eltName].destroy();
-        }
-        if (this.__sm.pie) {
-            this.__sm.pie.destroy();
-        }
-        if (this.__sm.bar) {
-            this.__sm.bar.destroy();
+        if (this.__sm) {
+            for (let eltName in this.__sm.elts) {
+                try {
+                    this.__sm.elts[eltName]?.destroy?.();
+                } catch (_) {}
+            }
+            if (this.__sm.pie) {
+                try {
+                    this.__sm.pie?.destroy?.();
+                } catch (_) {}
+            }
+            if (this.__sm.bar) {
+                try {
+                    this.__sm.bar?.destroy?.();
+                } catch (_) {}
+            }
         }
         PanelHost.removeStatusItem('system-monitor');
         this.__sm = null;
 
-        Main.panel.statusArea.dateMenu?.container?.show();
+        try {
+            const topbarSettings = new Gio.Settings({schema_id: 'org.gnome.shell.extensions.alienware-topbar'});
+            if (topbarSettings.get_boolean('clock-visible') !== false) {
+                Main.panel.statusArea.dateMenu?.container?.show();
+                PanelHost.api?.dateMenuShow?.();
+            }
+        } catch (_) {}
 
         sm_log('applet disable');
     }

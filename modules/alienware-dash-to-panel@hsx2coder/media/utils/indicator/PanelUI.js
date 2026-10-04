@@ -293,10 +293,30 @@ export class PanelUI {
   get label() {
     if (!this._labelShim) {
       this._labelShim = {
-        show: () => this._labelContainer.show(),
+        show: () => {
+          if (this._labelContainer && !this._labelContainer.is_finalized?.())
+            this._labelContainer.show();
+        },
         hide: () => {
-          this._labelContainer.hide();
+          if (this._labelContainer && !this._labelContainer.is_finalized?.())
+            this._labelContainer.hide();
           this.stopScrolling();
+        },
+        set_text: (txt) => {
+          this.stopScrolling();
+          if (!txt) {
+            this._labelShim.hide();
+            return;
+          }
+          if (this._labelContainer && !this._labelContainer.is_finalized?.()) {
+            this._labelContainer.remove_all_children();
+            const lbl = new St.Label({
+              text: txt,
+              y_align: Clutter.ActorAlign.CENTER,
+            });
+            this._labelContainer.add_child(lbl);
+            this._labelContainer.show();
+          }
         },
       };
     }
@@ -336,7 +356,8 @@ export class PanelUI {
           this._scrollLabel.destroy();
           this._scrollLabel = null;
         }
-        this._labelContainer.destroy_all_children();
+        if (this._labelContainer)
+          this._labelContainer.remove_all_children();
 
         const lbl = new St.Label({
           text: fullText,
@@ -356,7 +377,8 @@ export class PanelUI {
         if (this._scrollLabel._viewW !== labelW) {
           this._scrollLabel.destroy();
           this._scrollLabel = null;
-          this._labelContainer.destroy_all_children();
+          if (this._labelContainer)
+            this._labelContainer.remove_all_children();
         } else {
           this._scrollLabel.setScrollSpeed(speed);
           this._scrollLabel.setTextStyle(textStyle);
@@ -366,7 +388,8 @@ export class PanelUI {
         }
       }
 
-      this._labelContainer.destroy_all_children();
+      if (this._labelContainer)
+        this._labelContainer.remove_all_children();
       this._scrollLabel = new ScrollingLabel({
         text: fullText,
         viewportWidth: labelW,
@@ -390,7 +413,9 @@ export class PanelUI {
       this._scrollLabel.destroy();
       this._scrollLabel = null;
     }
-    this._labelContainer.destroy_all_children();
+    if (this._labelContainer) {
+      this._labelContainer.remove_all_children();
+    }
     this._settings = null;
     this._lastScrollText = null;
     this._lastScrollStatus = "Stopped";
@@ -435,14 +460,16 @@ export class PanelUI {
     this._currentPlayer = null;
     this._lastIconSource = null;
     this._lastColourGicon = null;
-    if (this._icon)
+    if (this._icon && typeof this._icon.set_gicon === 'function')
       this._icon.gicon = Gio.ThemedIcon.new("audio-x-generic-symbolic");
-    this.panelPlayBtn.child.icon_name = "media-playback-start-symbolic";
-    this.label.set_text("");
-    this._indicator._blockPopup = true;
-    if (this._indicator.menu) this._indicator.menu.close();
-    if (this._indicator._menuItem) this._indicator._menuItem.visible = false;
-    if (this._indicator.menu) this._indicator.menu.close();
+    if (this.panelPlayBtn?.child)
+      this.panelPlayBtn.child.icon_name = "media-playback-start-symbolic";
+    this.label?.set_text?.("");
+    if (this._indicator) {
+      this._indicator._blockPopup = true;
+      if (this._indicator.menu) this._indicator.menu.close();
+      if (this._indicator._menuItem) this._indicator._menuItem.visible = false;
+    }
   }
 
   _refreshIcon() {

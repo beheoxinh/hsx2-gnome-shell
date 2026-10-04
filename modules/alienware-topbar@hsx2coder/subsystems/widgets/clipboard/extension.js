@@ -65,26 +65,42 @@ let SHOW_PREVIEW_BUTTON       = true;
 
 export default class ClipboardIndicatorExtension extends Extension {
     enable () {
-        if (Main.panel.statusArea['clipboardIndicator']) {
-            try { Main.panel.statusArea['clipboardIndicator'].destroy(); } catch (_) {}
+        let current = Main.panel.statusArea['clipboardIndicator'];
+        if (current) {
+            try { current.destroy(); } catch (_) {}
             delete Main.panel.statusArea['clipboardIndicator'];
         }
 
-        this.clipboardIndicator = new ClipboardIndicator({
-            clipboard: St.Clipboard.get_default(),
-            settings: this.getSettings(),
-            openSettings: this.openPreferences,
-            uuid: this.uuid
-        });
+        try {
+            this.clipboardIndicator = new ClipboardIndicator({
+                clipboard: St.Clipboard.get_default(),
+                settings: this.getSettings(),
+                openSettings: this.openPreferences,
+                uuid: this.uuid
+            });
 
-        Main.panel.addToStatusArea('clipboardIndicator', this.clipboardIndicator, 1);
+            this.clipboardIndicator.connect('destroy', () => {
+                if (Main.panel.statusArea['clipboardIndicator'] === this.clipboardIndicator) {
+                    delete Main.panel.statusArea['clipboardIndicator'];
+                }
+            });
+
+            if (Main.panel.statusArea['clipboardIndicator']) {
+                delete Main.panel.statusArea['clipboardIndicator'];
+            }
+
+            Main.panel.addToStatusArea('clipboardIndicator', this.clipboardIndicator, 1);
+        } catch (e) {
+            logError(e, '[alienware-topbar] clipboardIndicator enable failed');
+        }
     }
 
     disable () {
         if (this.clipboardIndicator) {
-            this.clipboardIndicator.destroy();
+            try { this.clipboardIndicator.destroy(); } catch (_) {}
             this.clipboardIndicator = null;
-        } else if (Main.panel.statusArea['clipboardIndicator']) {
+        }
+        if (Main.panel.statusArea['clipboardIndicator']) {
             try { Main.panel.statusArea['clipboardIndicator'].destroy(); } catch (_) {}
             delete Main.panel.statusArea['clipboardIndicator'];
         }

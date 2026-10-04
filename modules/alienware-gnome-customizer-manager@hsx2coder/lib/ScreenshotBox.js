@@ -236,7 +236,11 @@ export class ScreenshotBox
             this.#injectionManager.overrideMethod(areaSelector, 'reset',
                 originalReset => (...args) => {
                     const result = originalReset?.apply(areaSelector, args);
-                    this.#clearSelection(areaSelector);
+                    try {
+                        this.#clearSelection(areaSelector);
+                    } catch (e) {
+                        logError(e, '[ScreenshotBox] clearSelection failed');
+                    }
                     return result;
                 }
             );
@@ -244,8 +248,12 @@ export class ScreenshotBox
 
         this.#origUpdateRect = areaSelector._updateSelectionRect.bind(areaSelector);
         areaSelector._updateSelectionRect = () => {
-            this.#origUpdateRect();
-            this.#updateDimensionLabel(areaSelector);
+            try {
+                this.#origUpdateRect();
+                this.#updateDimensionLabel(areaSelector);
+            } catch (e) {
+                logError(e, '[ScreenshotBox] _updateSelectionRect failed');
+            }
         };
 
         if (this.#removePreselectedBox) {

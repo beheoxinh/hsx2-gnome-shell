@@ -7,7 +7,16 @@ import { gettext as _ } from "resource:///org/gnome/Shell/Extensions/js/extensio
  * @param {Adw.PreferencesPage} page
  * @param {Gio.Settings} settings
  */
-export function buildLyricsPage(page, settings) {
+export function buildLyricsPage(pageOrSettings, settings) {
+  let page = pageOrSettings;
+  let s = settings;
+  if (!s) {
+    s = pageOrSettings;
+    page = new Adw.PreferencesPage({
+      title: _("Lyrics"),
+      icon_name: "audio-x-generic-symbolic",
+    });
+  }
   //  Synced Lyrics
   const enableGroup = new Adw.PreferencesGroup({
     title: _("Synced Lyrics"),
@@ -24,7 +33,7 @@ export function buildLyricsPage(page, settings) {
     ),
     icon_name: "audio-x-generic-symbolic",
   });
-  settings.bind(
+  s.bind(
     "enable-lyrics",
     enableLyricsRow,
     "active",
@@ -43,7 +52,7 @@ export function buildLyricsPage(page, settings) {
 
   let lyricsN = 3;
   try {
-    lyricsN = settings.get_int("lyrics-click-count");
+    lyricsN = s.get_int("lyrics-click-count");
   } catch (_e) {}
   lyricsN = Math.max(1, Math.min(5, lyricsN));
   const clickWord = (n) =>
@@ -111,7 +120,7 @@ export function buildLyricsPage(page, settings) {
   page.add(detailsGroup);
 
   const detailsRow = new Adw.ExpanderRow({
-    title: _("Lyrics details & edge cases"),
+    title: _("Lyrics details &amp; edge cases"),
     subtitle: _("What to expect when the lyrics panel is open"),
     icon_name: "dialog-information-symbolic",
   });
@@ -211,26 +220,26 @@ export function buildLyricsPage(page, settings) {
   };
 
   renderCheatRows(
-    settings.get_int("vinyl-click-count"),
-    settings.get_int("lyrics-click-count"),
+    s.get_int("vinyl-click-count"),
+    s.get_int("lyrics-click-count"),
   );
 
-  const cheatVinylId = settings.connect("changed::vinyl-click-count", () => {
+  const cheatVinylId = s.connect("changed::vinyl-click-count", () => {
     renderCheatRows(
-      settings.get_int("vinyl-click-count"),
-      settings.get_int("lyrics-click-count"),
+      s.get_int("vinyl-click-count"),
+      s.get_int("lyrics-click-count"),
     );
   });
-  const cheatLyricsId = settings.connect("changed::lyrics-click-count", () => {
+  const cheatLyricsId = s.connect("changed::lyrics-click-count", () => {
     renderCheatRows(
-      settings.get_int("vinyl-click-count"),
-      settings.get_int("lyrics-click-count"),
+      s.get_int("vinyl-click-count"),
+      s.get_int("lyrics-click-count"),
     );
   });
 
   page.connect("destroy", () => {
-    settings.disconnect(cheatVinylId);
-    settings.disconnect(cheatLyricsId);
+    s.disconnect(cheatVinylId);
+    s.disconnect(cheatLyricsId);
   });
 
   // Data Source
@@ -283,4 +292,5 @@ export function buildLyricsPage(page, settings) {
     }),
   );
   sourceGroup.add(privacyRow);
+  return page;
 }

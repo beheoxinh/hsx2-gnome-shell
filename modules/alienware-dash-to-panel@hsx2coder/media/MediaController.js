@@ -24,10 +24,13 @@ export default class MediaController {
   _loadDtPSettings() {
     try {
       const GioSSS = Gio.SettingsSchemaSource;
-      // the dash-to-panel schema lives in the sibling module directory
-      const schemaDir = GLib.build_filenamev([
-        this._path, '..', 'alienware-dash-to-panel@hsx2coder', 'schemas'
-      ]);
+      // DtP schema can be found directly in sibling or parent
+      let schemaDir = GLib.build_filenamev([this._path, '..', 'schemas']);
+      if (!GLib.file_test(schemaDir, GLib.FileTest.IS_DIR)) {
+        schemaDir = GLib.build_filenamev([
+          this._path, '..', 'alienware-dash-to-panel@hsx2coder', 'schemas'
+        ]);
+      }
       if (GLib.file_test(schemaDir, GLib.FileTest.IS_DIR)) {
         const schemaSource = GioSSS.new_from_directory(
           schemaDir, GioSSS.get_default(), false
@@ -127,12 +130,11 @@ export default class MediaController {
   _addToPanel() {
     if (global.dashToPanel && global.dashToPanel.panels && global.dashToPanel.panels.length > 0) {
       this._addToDTP();
-    } else if (global.dashToPanel) {
+    }
+    if (global.dashToPanel && !this._dtpPanelsId) {
       this._dtpPanelsId = global.dashToPanel.connect('panels-created', () => {
-        this._dtpPanelsId = 0;
         this._addToDTP();
       });
-      this._indicator.hide();
     }
   }
 
@@ -158,7 +160,7 @@ export default class MediaController {
     const panel = global.dashToPanel.panels[0];
     if (!panel) return;
 
-    const box = panel._rightBox;
+    const box = panel._rightBox || panel._centerBox || panel._leftBox;
     if (!box) return;
 
     const parent = this._indicator.get_parent();
@@ -168,6 +170,7 @@ export default class MediaController {
 
     box.add_child(this._indicator);
     this._addedToDTP = true;
+    this._indicator.show();
   }
 
   _removeFromDTP() {
