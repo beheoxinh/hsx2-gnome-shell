@@ -92,7 +92,7 @@ export class UserShellThemeSubsystem {
                 return;
             }
 
-            log(`[UserShellTheme] loading user theme: ${stylesheet.get_path()}`);
+            log(`[UserShellTheme] loading user theme: ${stylesheet}`);
             Main.setThemeStylesheet(stylesheet);
             try {
                 Main.loadTheme();
