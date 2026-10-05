@@ -251,6 +251,22 @@ var AutoAr = class {
         return this._progressContainer.get_children();
     }
 
+    _updateLegacyWindowVisibility() {
+        /* The bubble carries progress; the legacy centered window only
+         * appears while a password prompt needs keyboard focus. */
+        try {
+            const waiting = this._progressContainer.get_children().some(
+                el => el._waitingForPasswordDialog);
+            if (waiting) {
+                this._progressWindow.show_all();
+                this._progressWindow.present();
+            } else {
+                this._progressWindow.hide();
+            }
+        } catch (e) {
+        }
+    }
+
     addProgress(progressElement, message) {
         this._progressContainer.pack_start(progressElement, false, true, 0);
         if (this._progressElements == 0) {
@@ -259,8 +275,7 @@ var AutoAr = class {
                 message);
         }
         this._progressElements++;
-        this._progressWindow.show_all();
-        this._progressWindow.present();
+        this._updateLegacyWindowVisibility();
         this.emit('progress-elements-changed', this._progressElements);
     }
 };
@@ -273,6 +288,25 @@ const progressDialog = class {
         this._waitingForPassword = false;
         this._currentPassword = null;
         this._buttonPromiseAccept = null;
+        /* Bubble mirror: lightweight external op registered with the
+         * FileProgressManager queue so extract/compress progress shows in
+         * the Nautilus-style bubble alongside copy/paste items. */
+        this._bubbleOp = {
+            _primaryText: message || null,
+            _defaultLabel: () => message || _('File operation…'),
+            _secondaryText: null,
+            _fraction: null,
+            _finished: false,
+            _cancelledByUser: false,
+            _cancellable: null,
+            cancel: () => {
+                this._bubbleOp._cancelledByUser = true;
+                try {
+                    this._cancellable.cancel();
+                } catch (e) {
+                }
+            },
+        };
         this._container = new Gtk.Box({
             spacing: 0,
             halign: Gtk.Align.END,
@@ -307,6 +341,8 @@ const progressDialog = class {
         const passOKfunc = function () {
             this._processBar.show();
             this._passEntry.hide();
+                    this._container._waitingForPasswordDialog = false;
+                    try { this._autoAr._updateLegacyWindowVisibility(); } catch (e) {}
             this._passOkButton.hide();
             this._currentPassword = this._passEntry.get_text();
             if (this._buttonPromiseAccept) {
@@ -346,8 +382,19 @@ const progressDialog = class {
             updateSeparatorVisibility);
 
         this._cancellable = new Gio.Cancellable();
+        this._bubbleOp._cancellable = this._cancellable;
+        this._hookBubbleMirror();
+        this._syncBubble();
+        try {
+            const fp = this._autoAr._desktopManager.fileProgress;
+            if (fp && fp.registerExternal)
+                fp.registerExternal(this._bubbleOp);
+        } catch (e) {
+        }
         this._autoAr.addProgress(this._container, message);
         this._passEntry.hide();
+                    this._container._waitingForPasswordDialog = false;
+                    try { this._autoAr._updateLegacyWindowVisibility(); } catch (e) {}
         this._passOkButton.hide();
     }
 
@@ -439,6 +486,7 @@ const progressDialog = class {
         try {
             await this._autoAr.runToolAsync(extractor, this._cancellable);
 
+            this._finishBubble('done');
             this._autoAr.notify(_('Extraction completed'),
                 _("Extracting '${fullPathFile}' has been completed.").replace(
                     '${fullPathFile}', fullPathFile.get_basename()));
@@ -446,6 +494,7 @@ const progressDialog = class {
             if (e.matches(Gio.IOErrorEnum, Gio.IOErrorEnum.CANCELLED)) {
                 this._cancellable = new Gio.Cancellable();
                 await this._cleanupFile(folder, this._cancellable);
+                this._finishBubble('cancelled');
                 this._autoAr.notify(_('Extraction cancelled'),
                     _("Extracting '${fullPathFile}' has been cancelled by the user.").replace(
                         '${fullPathFile}', fullPathFile.get_basename()));
@@ -454,13 +503,16 @@ const progressDialog = class {
                     this._waitingForPassword = true;
                     this._processBar.hide();
                     this._passEntry.show();
+                    this._container._waitingForPasswordDialog = true;
+                    try { this._autoAr._updateLegacyWindowVisibility(); } catch (e) {}
                     this._passOkButton.show();
                     this._passOkButton.set_receives_default(true);
                     const tmpfile = Gio.File.new_for_path(fullPath);
                     this._processLabel.set_label(_('Passphrase required for ${filename}').replace('${filename}', tmpfile.get_basename()));
                 } else {
                     this._waitingForPassword = false;
-                    this._autoAr.notify(_('Error during extraction'), e.message);
+                    this._finishBubble('error');
+            this._autoAr.notify(_('Error during extraction'), e.message);
                 }
                 await this._cleanupFile(folder, this._cancellable);
             }
@@ -502,23 +554,27 @@ const progressDialog = class {
         try {
             await this._autoAr.runToolAsync(compressor, this._cancellable);
 
+            this._finishBubble('done');
             this._autoAr.notify(_('Compression completed'),
                 _("Compressing files into '${outputFile}' has been completed.").replace(
                     '${outputFile}', output.get_basename()));
         } catch (e) {
             if (e.matches(Gio.IOErrorEnum, Gio.IOErrorEnum.EXISTS)) {
-                this._autoAr.notify(_('Cancelled compression'),
+                this._finishBubble('cancelled');
+            this._autoAr.notify(_('Cancelled compression'),
                     _("The output file '${outputFile}' already exists.").replace(
                         '${outputFile}', output.get_basename()));
             } else {
                 this._cancellable = new Gio.Cancellable();
                 await this._cleanupFile(output, this._cancellable);
                 if (e.matches(Gio.IOErrorEnum, Gio.IOErrorEnum.CANCELLED)) {
-                    this._autoAr.notify(_('Cancelled compression'),
+                    this._finishBubble('cancelled');
+            this._autoAr.notify(_('Cancelled compression'),
                         _("Compressing files into '${outputFile}' has been cancelled by the user.").replace(
                             '${outputFile}', output.get_basename()));
                 } else {
-                    this._autoAr.notify(_('Error during compression'), e.message);
+                    this._finishBubble('error');
+            this._autoAr.notify(_('Error during compression'), e.message);
                 }
             }
         } finally {
@@ -534,7 +590,66 @@ const progressDialog = class {
         }
     }
 
+    _hookBubbleMirror() {
+        /* Mirror local label/bar state into the bubble op. Wrapping the
+         * widget methods once keeps every existing call site in sync
+         * without touching extract/compress logic. */
+        const label = this._processLabel;
+        const bar = this._processBar;
+        const origSetLabel = label.set_label.bind(label);
+        label.set_label = text => {
+            origSetLabel(text);
+            this._bubbleOp._primaryText = text;
+            this._syncBubble();
+        };
+        const origSetFraction = bar.set_fraction.bind(bar);
+        bar.set_fraction = f => {
+            origSetFraction(f);
+            this._bubbleOp._fraction = f;
+            this._syncBubble();
+        };
+        const origPulse = bar.pulse.bind(bar);
+        bar.pulse = () => {
+            origPulse();
+            this._bubbleOp._fraction = null;
+            this._syncBubble();
+        };
+    }
+
+    _syncBubble() {
+        try {
+            const fp = this._autoAr._desktopManager.fileProgress;
+            if (!fp || !fp._syncUI)
+                return;
+            try {
+                fp._syncUI();
+            } catch (e) {
+            }
+        } catch (e) {
+        }
+    }
+
+    _finishBubble(state) {
+        /* state: 'done' | 'error' | 'cancelled'. Paint final header, then
+         * auto-hide via the manager timer (same as copy/paste items). */
+        this._bubbleOp._finished = true;
+        this._bubbleOp._fraction = state === 'done' ? 1.0 : 0;
+        this._syncBubble();
+        try {
+            const fp = this._autoAr._desktopManager.fileProgress;
+            if (fp && fp.unregisterExternal)
+                fp.unregisterExternal(this._bubbleOp);
+        } catch (e) {
+        }
+    }
+
     _destroy() {
+        try {
+            const fp = this._autoAr._desktopManager.fileProgress;
+            if (fp && fp.unregisterExternal)
+                fp.unregisterExternal(this._bubbleOp);
+        } catch (e) {
+        }
         this._autoAr.disconnect(this._elementsChangedId);
         this._cancellable.cancel();
         this._container.destroy();

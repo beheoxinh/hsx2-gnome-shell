@@ -37,7 +37,106 @@ window.testwindow {
     background-color: rgba(0, 0, 0, 100);
 }
 
-/* ===== File Progress Popup Window ===== */
+/* ===== File Transfer Bubble (Nautilus-style floating bar) ===== */
+/* Bottom-left overlay pill above the Bottom Panel. Old centered
+ * .file-progress-popup-* rules kept for back-compat. */
+.ding-transfer-revealer {
+    background-color: transparent;
+    border: none;
+}
+
+.ding-transfer-pill {
+    background-color: #1e1e22;
+    border: 1px solid rgba(255, 255, 255, 0.14);
+    border-radius: 12px;
+    min-width: 300px;
+}
+
+.ding-transfer-box {
+    padding: 10px 12px;
+}
+
+.ding-transfer-labels {
+    padding: 0;
+}
+
+.ding-transfer-primary {
+    font-size: 13px;
+    color: #ffffff;
+    font-weight: 600;
+}
+
+.ding-transfer-details {
+    font-size: 11px;
+    color: rgba(255, 255, 255, 0.65);
+    font-weight: 400;
+}
+
+.ding-transfer-bar {
+    min-height: 4px;
+    border: none;
+    background-color: transparent;
+    padding: 0;
+    margin: 6px 0 0 0;
+}
+
+.ding-transfer-bar trough {
+    border: none;
+    border-radius: 2px;
+    background-color: rgba(255, 255, 255, 0.18);
+    min-height: 4px;
+}
+
+.ding-transfer-bar trough progress {
+    border: none;
+    border-radius: 2px;
+    background-color: @theme_selected_bg_color;
+    min-height: 4px;
+}
+
+.ding-transfer-spinner {
+    color: #ffffff;
+    min-width: 24px;
+    min-height: 24px;
+}
+
+button.ding-transfer-stop {
+    min-width: 32px;
+    min-height: 32px;
+    padding: 4px;
+    color: rgba(255, 255, 255, 0.9);
+    background-color: rgba(255, 255, 255, 0.08);
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    border-radius: 16px;
+}
+
+button.ding-transfer-stop:hover {
+    color: #ffffff;
+    background-color: rgba(255, 255, 255, 0.2);
+}
+
+.ding-transfer-queue {
+    background-color: #1e1e22;
+    border: 1px solid rgba(255, 255, 255, 0.14);
+    border-radius: 12px;
+    min-width: 320px;
+}
+
+.ding-transfer-queue-list {
+    background-color: transparent;
+    padding: 6px;
+}
+
+.ding-transfer-queue-row {
+    padding: 8px 10px;
+    border-radius: 8px;
+}
+
+.ding-transfer-queue-row:hover {
+    background-color: rgba(255, 255, 255, 0.06);
+}
+
+/* ===== File Progress Popup Window (legacy, kept for back-compat) ===== */
 .file-progress-popup-box {
     padding: 8px 10px;
 }
