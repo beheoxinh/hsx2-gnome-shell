@@ -384,13 +384,9 @@ const progressDialog = class {
         this._cancellable = new Gio.Cancellable();
         this._bubbleOp._cancellable = this._cancellable;
         this._hookBubbleMirror();
-        this._syncBubble();
-        try {
-            const fp = this._autoAr._desktopManager.fileProgress;
-            if (fp && fp.registerExternal)
-                fp.registerExternal(this._bubbleOp);
-        } catch (e) {
-        }
+        /* Deferred register: card appears only when real work starts
+         * (first label/fraction notify after password resolved), never
+         * while waiting for password input. _syncBubble registers lazily. */
         this._autoAr.addProgress(this._container, message);
         this._passEntry.hide();
                     this._container._waitingForPasswordDialog = false;
@@ -617,6 +613,17 @@ const progressDialog = class {
     }
 
     _syncBubble() {
+        /* Lazy register on first real progress signal. While the dialog is
+         * still waiting for password input there is no work yet, so no card:
+         * showing one would be the same premature ghost as delete-confirm. */
+        if (this._waitingForPassword)
+            return;
+        try {
+            const fp = this._autoAr._desktopManager.fileProgress;
+            if (fp && fp.registerExternal)
+                fp.registerExternal(this._bubbleOp);
+        } catch (e) {
+        }
         try {
             const fp = this._autoAr._desktopManager.fileProgress;
             if (!fp || !fp._syncUI)

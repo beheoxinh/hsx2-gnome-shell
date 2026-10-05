@@ -50,6 +50,7 @@ window.testwindow {
     border: 1px solid rgba(255, 255, 255, 0.14);
     border-radius: 12px;
     min-width: 300px;
+    transition: opacity 150ms ease-out;
 }
 
 .ding-transfer-box {

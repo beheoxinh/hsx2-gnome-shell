@@ -182,6 +182,8 @@ var FileProgressManager = class {
      * {_primaryText|_defaultLabel(), _fraction|undefined, _finished,
      *  _cancellable?, cancel?(), _cancelledByUser}. */
     registerExternal(op) {
+        if (!op || this._queue.includes(op))
+            return;
         this._ensureBubbles();
         /* Plain-object externals (AutoAr) get the same immediate-cancel path
          * as internal items so every card paints terminal state on click. */
@@ -383,6 +385,28 @@ var FileProgressManager = class {
         }
     }
 
+    /* Indeterminate bars only animate on pulse() calls, and rebuilds
+     * happen on notify/idle — not on a clock. While any visible card is
+     * unfinished and fractionless, keep a 100ms pulse timer (Nautilus
+     * spinners/bars animate continuously, never freeze between notifies). */
+    _armPulseTimer() {
+        const need = this._queue.some(op => !op._finished && typeof op._fraction !== 'number');
+        if (need && !this._pulseTimer) {
+            this._pulseTimer = GLib.timeout_add(GLib.PRIORITY_DEFAULT, 100, () => {
+                this._syncUI();
+                const still = this._queue.some(op => !op._finished && typeof op._fraction !== 'number');
+                if (!still) {
+                    this._pulseTimer = null;
+                    return false;
+                }
+                return true;
+            });
+        } else if (!need && this._pulseTimer) {
+            try { GLib.source_remove(this._pulseTimer); } catch (e) {}
+            this._pulseTimer = null;
+        }
+    }
+
     _refreshBubbleVisibility() {
         if (this._queue.length)
             this._showBubbles();
@@ -433,6 +457,7 @@ var FileProgressManager = class {
 
     _syncUI() {
         this._ensureBubbles();
+        this._armPulseTimer();
         /* Card rebuild destroys/recreates rows; coalesce rapid progress
          * updates into one idle paint. */
         if (this._queuePaintIdle)
@@ -727,9 +752,6 @@ var FileProgressItem = class {
         const labels = {
             COPY: _('Copying to Desktop…'),
             MOVE: _('Moving to Desktop…'),
-            TRASH: _('Moving to Trash…'),
-            DELETE: _('Deleting…'),
-            EMPTY_TRASH: _('Emptying Trash…'),
             EXTRACT: _('Extracting files…'),
             COMPRESS: _('Compressing files…'),
         };

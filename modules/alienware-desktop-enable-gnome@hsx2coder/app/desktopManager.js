@@ -1316,6 +1316,21 @@ var DesktopManager = class {
         try {
             const count = this._clipboardFiles.length;
             const opType = this._isCut ? 'MOVE' : 'COPY';
+
+            /* Overwrite confirm BEFORE any card: scan dest for collisions.
+             * Nautilus-parity: Replace blocks the whole op until confirmed;
+             * silent OVERWRITE would destroy data without asking. */
+            const conflicts = this._clipboardFiles.map(uri =>
+                Gio.File.new_for_uri(uri).get_basename()).filter(name => {
+                try {
+                    return Gio.File.new_for_uri(desktopDir).get_child(name).query_exists(null);
+                } catch (_e) {
+                    return false;
+                }
+            });
+            if (conflicts.length && !(await this._confirmOverwrite(conflicts)))
+                return;
+
             const opLabel = this._isCut
                 ? _('Moving %d item(s) to Desktop\u2026')
                 : _('Copying %d item(s) to Desktop\u2026');
@@ -1363,6 +1378,34 @@ var DesktopManager = class {
                 progressItem.setError(e.message);
             print(`Error during paste operation: ${e.message}\n${e.stack}`);
         }
+    }
+
+    _confirmOverwrite(conflicts) {
+        /* Modal overwrite confirm, Nautilus conflict-dialog parity
+         * (Replace / Cancel). Resolves true only on Replace. */
+        return new Promise(resolve => {
+            const names = conflicts.slice(0, 5).join('\n');
+            const extra = conflicts.length > 5
+                ? _('%d more…').replace('%d', String(conflicts.length - 5))
+                : '';
+            const dialog = new Gtk.MessageDialog({
+                modal: true,
+                message_type: Gtk.MessageType.QUESTION,
+                buttons: Gtk.ButtonsType.NONE,
+                text: conflicts.length > 1
+                    ? _('Replace %d existing files?').replace('%d', String(conflicts.length))
+                    : _('Replace existing file “%s”?').replace('%s', conflicts[0]),
+                secondary_text: names + (extra ? '\n' + extra : ''),
+            });
+            dialog.add_button(_('Cancel'), Gtk.ResponseType.CANCEL);
+            const replaceBtn = dialog.add_button(_('Replace'), Gtk.ResponseType.YES);
+            replaceBtn.get_style_context().add_class('destructive-action');
+            dialog.connect('response', (d, id) => {
+                d.destroy();
+                resolve(id === Gtk.ResponseType.YES);
+            });
+            dialog.show();
+        });
     }
 
     _parseClipboardText(text) {
@@ -1841,23 +1884,14 @@ var DesktopManager = class {
         if (!selection.length)
             return;
 
-        if (Prefs.desktopSettings.get_boolean('use-native-progress')) {
-            DBusUtils.RemoteFileOperations.TrashURIsRemote(selection);
-            return;
-        }
-
-        const progressItem = this.fileProgress.addOperation(
-            `trash_${Date.now()}`, 'TRASH', selection.length);
-
+        /* Remote ops are owned end-to-end by Nautilus (confirm dialog,
+         * progress, cancel, errors). DING shows no card: the DBus method
+         * returns at dispatch, so a local card would be a ghost during
+         * confirm and a fiction afterwards. */
         DBusUtils.RemoteFileOperations.TrashURIsRemote(selection, (result, error) => {
-            if (error) {
-                progressItem.setError(error.message);
-            } else {
-                progressItem.setCompleted();
-                this._updateDesktop().catch(e => {
-                    print(`Exception updating desktop after trash: ${e.message}`);
-                });
-            }
+            this._updateDesktop().catch(e => {
+                print(`Exception updating desktop after trash: ${e.message}`);
+            });
         });
     }
 
@@ -1872,44 +1906,26 @@ var DesktopManager = class {
             return;
         }
 
-        if (Prefs.desktopSettings.get_boolean('use-native-progress')) {
-            DBusUtils.RemoteFileOperations.DeleteURIsRemote(toDelete);
-            return;
-        }
-
-        const progressItem = this.fileProgress.addOperation(
-            `delete_${Date.now()}`, 'DELETE', toDelete.length);
-
+        /* Remote ops are owned end-to-end by Nautilus (confirm dialog,
+         * progress, cancel, errors). DING shows no card: the DBus method
+         * returns at dispatch, so a local card would be a ghost during
+         * confirm and a fiction afterwards. */
         DBusUtils.RemoteFileOperations.DeleteURIsRemote(toDelete, (result, error) => {
-            if (error) {
-                progressItem.setError(error.message);
-            } else {
-                progressItem.setCompleted();
-                this._updateDesktop().catch(e => {
-                    print(`Exception updating desktop after delete: ${e.message}`);
-                });
-            }
+            this._updateDesktop().catch(e => {
+                print(`Exception updating desktop after delete: ${e.message}`);
+            });
         });
     }
 
     doEmptyTrash(askConfirmation = true) {
-        if (Prefs.desktopSettings.get_boolean('use-native-progress')) {
-            DBusUtils.RemoteFileOperations.EmptyTrashRemote(askConfirmation);
-            return;
-        }
-
-        const progressItem = this.fileProgress.addOperation(
-            `emptytrash_${Date.now()}`, 'EMPTY_TRASH', 1);
-
+        /* Remote ops are owned end-to-end by Nautilus (confirm dialog,
+         * progress, cancel, errors). DING shows no card: the DBus method
+         * returns at dispatch, so a local card would be a ghost during
+         * confirm and a fiction afterwards. */
         DBusUtils.RemoteFileOperations.EmptyTrashRemote(askConfirmation, (result, error) => {
-            if (error) {
-                progressItem.setError(error.message);
-            } else {
-                progressItem.setCompleted();
-                this._updateDesktop().catch(e => {
-                    print(`Exception updating desktop after empty trash: ${e.message}`);
-                });
-            }
+            this._updateDesktop().catch(e => {
+                print(`Exception updating desktop after empty trash: ${e.message}`);
+            });
         });
     }
 

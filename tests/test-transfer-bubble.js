@@ -9,11 +9,12 @@ function readFile(path) {
     return new TextDecoder().decode(bytes);
 }
 
-const FPM = 'modules/alienware-desktop-enable-gnome@hsx2coder/app/fileProgressManager.js';
+const DM = 'modules/alienware-desktop-enable-gnome@hsx2coder/app/desktopManager.js';
 const AAR = 'modules/alienware-desktop-enable-gnome@hsx2coder/app/autoAr.js';
+const FPM = 'modules/alienware-desktop-enable-gnome@hsx2coder/app/fileProgressManager.js';
 const CSS = 'modules/alienware-desktop-enable-gnome@hsx2coder/app/stylesheet.css';
 
-export const tests = [
+export default [
     ['fpm keeps legacy FileProgressItem API', () => {
         const s = readFile(FPM);
         for (const m of ['setLabel(', 'setSecondaryLabel(', 'setProgress(',
@@ -138,6 +139,50 @@ export const tests = [
         const s = readFile(FPM);
         if (!s.includes('this._totalItems > 1'))
             throw new Error('meaningless 0/1 guard missing');
+    }],
+    ['remote ops delegate to Nautilus: no DING card, refresh after dispatch', () => {
+        const s = readFile(DM);
+        for (const m of ['Remote ops are owned end-to-end by Nautilus', '_updateDesktop().catch']) {
+            if (!s.includes(m))
+                throw new Error(`missing remote-delegate invariant: ${m}`);
+        }
+        // doTrash/doDelete/doEmptyTrash must not create cards anymore
+        const dmBody = s.slice(s.indexOf('    doTrash()'), s.indexOf('    checkIfSpecialFilesAreSelected'));
+        if (dmBody.includes('addOperation'))
+            throw new Error('remote delete/trash still creates a premature card');
+        // stale TRASH/DELETE labels must be gone from FPM defaults
+        const fpm = readFile(FPM);
+        for (const m of ["TRASH: _('Moving to Trash", "DELETE: _('Deleting", 'EMPTY_TRASH:']) {
+            if (fpm.includes(m))
+                throw new Error(`stale remote label still present: ${m}`);
+        }
+    }],
+    ['local paste confirms overwrite before card (no silent OVERWRITE)', () => {
+        const s = readFile(DM);
+        for (const m of ['_confirmOverwrite(conflicts)', 'query_exists(null)',
+            'Replace %d existing files', 'destructive-action']) {
+            if (!s.includes(m))
+                throw new Error(`missing overwrite-confirm invariant: ${m}`);
+        }
+        // confirm must run BEFORE addOperation in _doPaste
+        const paste = s.slice(s.indexOf('async _doPaste()'), s.indexOf('_parseClipboardText'));
+        if (paste.indexOf('_confirmOverwrite') > paste.indexOf('addOperation'))
+            throw new Error('overwrite confirm runs after card creation');
+    }],
+    ['autoAr bubble registers lazily after password + first progress', () => {
+        const s = readFile(AAR);
+        if (!s.includes('Deferred register'))
+            throw new Error('autoAr eager register back');
+        if (!s.includes('if (this._waitingForPassword)\n            return;'))
+            throw new Error('password gate missing in _syncBubble');
+        const fpm = readFile(FPM);
+        if (!fpm.includes('if (!op || this._queue.includes(op))'))
+            throw new Error('registerExternal not idempotent');
+    }],
+    ['indeterminate bars pulse on a timer (never freeze)', () => {
+        const s = readFile(FPM);
+        if (!s.includes('_armPulseTimer'))
+            throw new Error('pulse timer missing');
     }],
     ['transfer prefs wiring: schema keys + FPM config + prefs tab', () => {
         const schema = readFile('modules/alienware-desktop-enable-gnome@hsx2coder/schemas/org.gnome.shell.extensions.ding.gschema.xml');
