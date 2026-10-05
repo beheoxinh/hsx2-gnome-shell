@@ -79,14 +79,14 @@ export class UserShellThemeSubsystem {
                     return false;
                 }
             });
-            stylesheet = found ? Gio.File.new_for_path(found) : null;
+            stylesheet = found ?? null;
 
             if (!stylesheet) {
                 log('[UserShellTheme] stylesheet not resolved yet, skip loadTheme');
                 return;
             }
 
-            log(`[UserShellTheme] loading user theme: ${stylesheet.get_path()}`);
+            log(`[UserShellTheme] loading user theme: ${stylesheet}`);
             Main.setThemeStylesheet(stylesheet);
             try {
                 Main.loadTheme();
