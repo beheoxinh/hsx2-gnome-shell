@@ -24,7 +24,7 @@ export function addShellThemePages(dummyWin, gcmSettings) {
 
     const page = new Adw.PreferencesPage({
         title: 'Shell Theme',
-        icon_name: 'preferences-desktop-theme-symbolic',
+        icon_name: 'applications-graphics-symbolic',
     });
     const group = new Adw.PreferencesGroup({
         title: 'User Shell Theme',

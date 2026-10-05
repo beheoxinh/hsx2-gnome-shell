@@ -73,8 +73,9 @@ export class UserShellThemeSubsystem {
                 return;
 
             const stylesheetPaths = getThemeDirs()
-                .map(dir => `${dir}/${themeName}.css`)
-                .concat(getModeThemeDirs().map(dir => `${dir}/${themeName}.css`));
+                .map(dir => `${dir}/${themeName}/gnome-shell/gnome-shell.css`);
+            stylesheetPaths.push(...getModeThemeDirs()
+                .map(dir => `${dir}/${themeName}.css`));
 
             const found = stylesheetPaths.find(path => {
                 try {
