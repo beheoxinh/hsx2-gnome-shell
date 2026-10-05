@@ -130,5 +130,45 @@
         <summary>Use Nautilus-style progress</summary>
         <description>If true, file operations show Nautilus progress dialogs instead of the desktop progress popup. Requires Nautilus running.</description>
     </key>
+    <key type="b" name="transfer-show-detail">
+        <default>true</default>
+        <summary>Show transfer details</summary>
+        <description>If true, transfer cards show bytes, time left and rate. If false, only the file name and progress bar are shown.</description>
+    </key>
+    <key type="b" name="transfer-show-rate">
+        <default>true</default>
+        <summary>Show transfer rate</summary>
+        <description>If true, the detail line includes the transfer rate. Requires transfer details to be enabled.</description>
+    </key>
+    <key type="b" name="transfer-show-elapsed">
+        <default>true</default>
+        <summary>Show elapsed time in tooltip</summary>
+        <description>If true, hovering a transfer card shows elapsed and remaining time in the tooltip.</description>
+    </key>
+    <key type="s" name="transfer-position">
+        <default>'bottom-left'</default>
+        <summary>Transfer stack position</summary>
+        <description>Corner of the desktop where transfer cards appear: bottom-left, bottom-right, top-left or top-right.</description>
+    </key>
+    <key type="i" name="transfer-margin">
+        <default>12</default>
+        <summary>Transfer stack margin</summary>
+        <description>Distance in pixels between the transfer cards and the screen edges (0 to 64).</description>
+    </key>
+    <key type="i" name="transfer-card-width">
+        <default>320</default>
+        <summary>Transfer card width</summary>
+        <description>Width of each transfer card in pixels (240 to 520).</description>
+    </key>
+    <key type="i" name="transfer-hide-delay">
+        <default>1500</default>
+        <summary>Auto-hide delay</summary>
+        <description>Milliseconds a finished transfer card stays visible before fading out (0 to 15000).</description>
+    </key>
+    <key type="b" name="transfer-animation">
+        <default>true</default>
+        <summary>Animate transfer cards</summary>
+        <description>If true, transfer cards slide in. If false, they appear instantly.</description>
+    </key>
     </schema>
 </schemalist>

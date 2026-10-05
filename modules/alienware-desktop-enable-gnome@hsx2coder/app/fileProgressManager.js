@@ -51,6 +51,46 @@ const _ = Gettext.gettext;
  * itself already ends above the Bottom Panel via work-area margins. */
 const BUBBLE_MARGIN_START = 12;
 const BUBBLE_MARGIN_BOTTOM = 8;
+/* GSettings keys for the Transfers tab (prefs.js). Read defensively: tests and
+ * old hosts may run without Prefs.desktopSettings, so every read falls back
+ * to the compiled-in default above. */
+const TRANSFER_SETTINGS_ID = 'org.gnome.shell.extensions.ding';
+const TRANSFER_POSITIONS = ['bottom-left', 'bottom-right', 'top-left', 'top-right'];
+const TRANSFER_DEFAULTS = {
+    'transfer-show-detail': true,
+    'transfer-show-rate': true,
+    'transfer-show-elapsed': true,
+    'transfer-animation': true,
+    'transfer-position': 'bottom-left',
+    'transfer-margin': 12,
+    'transfer-card-width': 320,
+    'transfer-hide-delay': 1500,
+};
+
+function _transferSettings() {
+    try {
+        const Prefs = imports.preferences;
+        if (Prefs && Prefs.desktopSettings)
+            return Prefs.desktopSettings;
+    } catch (e) { /* no preferences module on this host */ }
+    return null;
+}
+
+function _transferGet(key) {
+    const settings = _transferSettings();
+    if (!settings)
+        return TRANSFER_DEFAULTS[key];
+    try {
+        const dflt = TRANSFER_DEFAULTS[key];
+        if (typeof dflt === 'boolean')
+            return settings.get_boolean(key);
+        if (typeof dflt === 'number')
+            return settings.get_int(key);
+        return settings.get_string(key);
+    } catch (e) {
+        return TRANSFER_DEFAULTS[key];
+    }
+}
 /* Slide animation duration (ms), matching Adw/Gtk revealer defaults. */
 const REVEAL_MS = 250;
 /* Auto-hide delay after completion/error/cancel (ms). Nautilus keeps the bar
@@ -62,6 +102,38 @@ const AUTOHIDE_CANCELLED_MS = 1500;
 const PULSE_MS = 250;
 
 var FileProgressManager = class {
+    /* Snapshot of transfer prefs. Re-read on every paint so Settings changes
+     * apply live; clamps keep hand-edited dconf values sane. */
+    _bubbleConfig() {
+        const margin = _transferGet('transfer-margin');
+        const width = _transferGet('transfer-card-width');
+        const pos = _transferGet('transfer-position');
+        return {
+            margin: Math.max(0, Math.min(64, margin)),
+            cardWidth: Math.max(240, Math.min(520, width)),
+            hideDelay: Math.max(0, Math.min(15000, _transferGet('transfer-hide-delay'))),
+            position: TRANSFER_POSITIONS.includes(pos) ? pos : 'bottom-left',
+            showDetail: _transferGet('transfer-show-detail'),
+            showRate: _transferGet('transfer-show-rate'),
+            showElapsed: _transferGet('transfer-show-elapsed'),
+            animate: _transferGet('transfer-animation'),
+        };
+    }
+
+    /* Apply position + margins + animation to an existing revealer. Called on
+     * creation and on every paint so live pref changes move the stack. */
+    _applyBubbleLayout(revealer, cfg) {
+        const left = cfg.position.endsWith('left');
+        const top = cfg.position.startsWith('top');
+        revealer.halign = left ? Gtk.Align.START : Gtk.Align.END;
+        revealer.valign = top ? Gtk.Align.START : Gtk.Align.END;
+        revealer.margin_start = cfg.margin;
+        revealer.margin_end = cfg.margin;
+        revealer.margin_top = cfg.margin;
+        revealer.margin_bottom = cfg.margin;
+        revealer.transition_duration = cfg.animate ? REVEAL_MS : 0;
+    }
+
     constructor(desktopManager) {
         this._desktopManager = desktopManager;
         this._item = null;
@@ -187,6 +259,8 @@ var FileProgressManager = class {
             || op._secondaryText || '';
         if (detail && detail !== primary)
             bits.push(detail);
+        if (!this._bubbleConfig().showElapsed)
+            return bits.join('\n');
         let start = 0;
         try {
             if (typeof op._startMono === 'number')
@@ -265,15 +339,15 @@ var FileProgressManager = class {
         }
         /* One vertical stack per grid: one card per op, bottom-left above
          * the Bottom Panel, slide-up reveal. */
+        const _cfg0 = this._bubbleConfig();
         const revealer = new Gtk.Revealer({
             halign: Gtk.Align.START,
             valign: Gtk.Align.END,
-            margin_start: BUBBLE_MARGIN_START,
-            margin_bottom: BUBBLE_MARGIN_BOTTOM,
             transition_type: Gtk.RevealerTransitionType.SLIDE_UP,
-            transition_duration: REVEAL_MS,
+            transition_duration: _cfg0.animate ? REVEAL_MS : 0,
             reveal_child: false,
         });
+        this._applyBubbleLayout(revealer, _cfg0);
         revealer.get_style_context().add_class('ding-transfer-revealer');
         const list = new Gtk.Box({
             orientation: Gtk.Orientation.VERTICAL,
@@ -332,11 +406,16 @@ var FileProgressManager = class {
             return;
         this._clearHideTimer();
         const last = this._allOps()[this._allOps().length - 1];
+        const _cfgHide = this._bubbleConfig().hideDelay;
         const delay = last._endState === 'error'
-            ? AUTOHIDE_ERROR_MS
+            ? Math.max(AUTOHIDE_ERROR_MS, _cfgHide)
             : last._endState === 'cancelled'
-                ? AUTOHIDE_CANCELLED_MS
-                : AUTOHIDE_COMPLETED_MS;
+                ? Math.max(AUTOHIDE_CANCELLED_MS, _cfgHide)
+                : _cfgHide;
+        /* hideDelay=0 keeps finished cards until dismissed. */
+        if (!delay)
+            return;
+
         this._hideTimer = GLib.timeout_add(GLib.PRIORITY_DEFAULT, delay, () => {
             this._hideTimer = null;
             /* Drop finished ops that never unregistered (defensive). */
@@ -374,6 +453,8 @@ var FileProgressManager = class {
      * (bytes x/y — time left (rate)), progress bar, cancel while running,
      * dimmed status label when finished. */
     _paintStack(b) {
+        const _cfg = this._bubbleConfig();
+        this._applyBubbleLayout(b.revealer, _cfg);
         for (let child of b.list.get_children())
             child.destroy();
         const seen = new Set();
@@ -389,6 +470,7 @@ var FileProgressManager = class {
 
     _buildCard(op) {
         const card = new Gtk.EventBox();
+        card.set_size_request(this._bubbleConfig().cardWidth, -1);
         card.get_style_context().add_class('ding-transfer-pill');
         card.set_visible_window(true);
         card.set_above_child(false);
@@ -447,7 +529,9 @@ var FileProgressManager = class {
         const autoDetail = (typeof op._detailText === 'function' && op._detailText()) || '';
         if (autoDetail && autoDetail !== op._secondaryText)
             detailParts.push(autoDetail);
-        const detailText = detailParts.join(' — ');
+        const _cfgCard = this._bubbleConfig();
+        const showRate = _cfgCard.showDetail && _cfgCard.showRate;
+        const detailText = _cfgCard.showDetail ? detailParts.join(' — ') : '';
         const detail = new Gtk.Label({
             label: detailText,
             halign: Gtk.Align.START,
@@ -591,7 +675,7 @@ var FileProgressItem = class {
     /* Nautilus file-operations detail format: "x / y — T left (R files/s)".
      * Falls back to item counts ("3 / 10") when byte totals are unknown,
      * mirroring nautilus-file-operations.c progress callback. */
-    _detailText() {
+    _detailText(showRate = true) {
         if (this._finished) {
             if (this._endState === 'cancelled')
                 return _('Cancelled');
@@ -622,7 +706,7 @@ var FileProgressItem = class {
                 ? (this._totalBytes - this._doneBytes) / Math.max(rate, 1)
                 : 0;
             return _('%s left').replace('%s', this._formatDuration(left)) +
-                ' (%s/s)'.replace('%s', GLib.format_size(Math.round(rate)));
+                showRate ? ' (%s/s)'.replace('%s', GLib.format_size(Math.round(rate))) : '';
         } catch (e) {
             return null;
         }

@@ -117,7 +117,7 @@ button.ding-transfer-stop:hover {
 
 .ding-transfer-stack {
     background-color: transparent;
-    min-width: 320px;
+    min-width: 240px; /* floor; card-width pref sets actual size_request */
 }
 
 .ding-transfer-pill.ding-transfer-done .ding-transfer-primary {

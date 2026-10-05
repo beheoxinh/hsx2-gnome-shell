@@ -69,6 +69,7 @@ class Settings {
             {title: 'General',      iconName: 'preferences-system-symbolic', groups: [s.general]},
             {title: 'Appearance',   iconName: 'applications-graphics-symbolic', groups: [s.appearance]},
             {title: 'Context Menu', iconName: 'application-menu-symbolic',   groups: [s.behaviour]},
+            {title: 'Transfers',      iconName: 'transfer-progress-symbolic', groups: [s.transfers]},
         ];
     }
 
@@ -105,6 +106,17 @@ class Settings {
         this.customMenuCommand = this.#entry('Menu Entry Command', 'Command to run when the custom menu entry is clicked.');
         this.behaviour = new Adw.PreferencesGroup({title: 'Behaviour', description: 'Icon arrangement, file manager, terminal, and context menu settings.'});
 
+        // ── Transfers ──
+        this.transferPosition = this.#combo('Card Position', 'Corner of the desktop where transfer cards appear.', ['Bottom-Left', 'Bottom-Right', 'Top-Left', 'Top-Right']);
+        this.transferMargin = this.#spin('Edge Margin', 'Distance in pixels between cards and screen edges.', 0, 64, 1);
+        this.transferCardWidth = this.#spin('Card Width', 'Width of each transfer card in pixels.', 240, 520, 10);
+        this.transferHideDelay = this.#spin('Auto-Hide Delay', 'Milliseconds a finished card stays visible (0 keeps cards until dismissed).', 0, 15000, 100);
+        this.transferShowDetail = this.#sw('Show Details', 'Show bytes, time left and rate on each transfer card.');
+        this.transferShowRate = this.#sw('Show Rate', 'Include the transfer rate in the detail line.');
+        this.transferShowElapsed = this.#sw('Show Elapsed in Tooltip', 'Hovering a card shows elapsed and remaining time.');
+        this.transferAnimation = this.#sw('Animate Cards', 'Slide transfer cards in. Off shows them instantly.');
+        this.transfers = new Adw.PreferencesGroup({title: 'Transfers', description: 'File transfer cards: position, size, details and auto-hide.'});
+
         // ── Assemble ──
         for (const w of [this.showHome, this.showTrash, this.showVolumes, this.showNetworkVolumes, this.addVolumesOpposite, this.showDropPlace])
             this.general.add(w);
@@ -114,6 +126,9 @@ class Settings {
 
         for (const w of [this.startCorner, this.keepArranged, this.arrangeOrder, this.keepStacked, this.sortSpecialFolders, this.useNemo, this.useNativeProgress, this.checkX11Wayland, this.terminalCommand, this.customMenuEnabled, this.customMenuLabel, this.customMenuCommand])
             this.behaviour.add(w);
+
+        for (const w of [this.transferPosition, this.transferMargin, this.transferCardWidth, this.transferHideDelay, this.transferShowDetail, this.transferShowRate, this.transferShowElapsed, this.transferAnimation])
+            this.transfers.add(w);
 
         // ── Bind (bools + strings) ──
         this.schema.bind('show-home', this.showHome, 'active', Gio.SettingsBindFlags.DEFAULT);
@@ -132,6 +147,10 @@ class Settings {
         this.schema.bind('use-native-progress', this.useNativeProgress, 'active', Gio.SettingsBindFlags.DEFAULT);
         this.schema.bind('check-x11wayland', this.checkX11Wayland, 'active', Gio.SettingsBindFlags.DEFAULT);
         this.schema.bind('terminal-command', this.terminalCommand, 'text', Gio.SettingsBindFlags.DEFAULT);
+        this.schema.bind('transfer-show-detail', this.transferShowDetail, 'active', Gio.SettingsBindFlags.DEFAULT);
+        this.schema.bind('transfer-show-rate', this.transferShowRate, 'active', Gio.SettingsBindFlags.DEFAULT);
+        this.schema.bind('transfer-show-elapsed', this.transferShowElapsed, 'active', Gio.SettingsBindFlags.DEFAULT);
+        this.schema.bind('transfer-animation', this.transferAnimation, 'active', Gio.SettingsBindFlags.DEFAULT);
         this.schema.bind('open-with-label', this.customMenuLabel, 'text', Gio.SettingsBindFlags.DEFAULT);
         this.schema.bind('open-with-command', this.customMenuCommand, 'text', Gio.SettingsBindFlags.DEFAULT);
 
@@ -144,6 +163,10 @@ class Settings {
 
         // arrangeorder: NAME(1), DESCENDINGNAME(2), MODIFIEDTIME(3), KIND(4), SIZE(5)
         this.#connectEnum(this.arrangeOrder, 'arrangeorder', [1, 2, 3, 4, 5]);
+        this.#connectInt(this.transferMargin, 'transfer-margin', 0, 64);
+        this.#connectInt(this.transferCardWidth, 'transfer-card-width', 240, 520);
+        this.#connectInt(this.transferHideDelay, 'transfer-hide-delay', 0, 15000);
+        this.#connectPosition(this.transferPosition, 'transfer-position');
     }
 
     #sw(title, subtitle) {
@@ -161,6 +184,47 @@ class Settings {
         if (subtitle)
             row.set_tooltip_text(subtitle);
         return row;
+    }
+
+    #spin(title, subtitle, min, max, step) {
+        const adj = new Gtk.Adjustment({lower: min, upper: max, step_increment: step, page_increment: step * 10});
+        return new Adw.SpinRow({title, subtitle, adjustment: adj, climb_rate: step, digits: 0});
+    }
+
+    #connectInt(row, key, min, max) {
+        let syncing = false;
+        const clamp = v => Math.max(min, Math.min(max, Math.round(v)));
+        row.set_value(clamp(this.schema.get_int(key)));
+        row.connect('notify::value', () => {
+            if (syncing)
+                return;
+            this.schema.set_int(key, clamp(row.get_value()));
+        });
+        this.schema.connect(`changed::${key}`, () => {
+            syncing = true;
+            row.set_value(clamp(this.schema.get_int(key)));
+            syncing = false;
+        });
+    }
+
+    #connectPosition(row, key) {
+        const ids = ['bottom-left', 'bottom-right', 'top-left', 'top-right'];
+        let syncing = false;
+        const sync = () => {
+            const idx = ids.indexOf(this.schema.get_string(key));
+            if (idx >= 0 && row.get_selected() !== idx) {
+                syncing = true;
+                row.set_selected(idx);
+                syncing = false;
+            }
+        };
+        sync();
+        row.connect('notify::selected', () => {
+            if (syncing)
+                return;
+            this.schema.set_string(key, ids[row.get_selected()] ?? 'bottom-left');
+        });
+        this.schema.connect(`changed::${key}`, sync);
     }
 
     #connectEnum(row, key, indexMap) {

@@ -139,4 +139,26 @@ export const tests = [
         if (!s.includes('this._totalItems > 1'))
             throw new Error('meaningless 0/1 guard missing');
     }],
+    ['transfer prefs wiring: schema keys + FPM config + prefs tab', () => {
+        const schema = readFile('modules/alienware-desktop-enable-gnome@hsx2coder/schemas/org.gnome.shell.extensions.ding.gschema.xml');
+        for (const k of ['transfer-show-detail', 'transfer-show-rate',
+            'transfer-show-elapsed', 'transfer-position', 'transfer-margin',
+            'transfer-card-width', 'transfer-hide-delay', 'transfer-animation']) {
+            if (!schema.includes(`name="${k}"`))
+                throw new Error(`schema key missing: ${k}`);
+        }
+        const s = readFile(FPM);
+        for (const m of ['_bubbleConfig', '_applyBubbleLayout', '_transferGet',
+            'TRANSFER_POSITIONS', 'showRate = true', 'cardWidth']) {
+            if (!s.includes(m))
+                throw new Error(`missing FPM prefs invariant: ${m}`);
+        }
+        const prefs = readFile('modules/alienware-desktop-enable-gnome@hsx2coder/prefs.js');
+        for (const m of ["title: 'Transfers'", 'transferPosition', 'transferMargin',
+            'transferCardWidth', 'transferHideDelay', '#spin', '#connectInt',
+            '#connectPosition', 'transfer-progress-symbolic']) {
+            if (!prefs.includes(m))
+                throw new Error(`missing prefs tab invariant: ${m}`);
+        }
+    }],
 ];
