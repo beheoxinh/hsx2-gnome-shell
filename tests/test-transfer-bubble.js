@@ -63,51 +63,42 @@ export const tests = [
             !s.includes('_updateLegacyWindowVisibility'))
             throw new Error('legacy window still presented unconditionally');
     }],
-    ['stylesheet has transfer pill classes', () => {
+    ['stylesheet has transfer card classes', () => {
         const s = readFile(CSS);
         for (const m of ['.ding-transfer-pill', '.ding-transfer-bar',
-            '.ding-transfer-queue', '.ding-transfer-stop',
-            '.ding-transfer-spinner']) {
+            '.ding-transfer-stack', '.ding-transfer-stop',
+            '.ding-transfer-done']) {
             if (!s.includes(m))
-                throw new Error(`missing CSS class: ${m}`);
+                throw new Error(`missing stylesheet piece: ${m}`);
         }
-        // pill + queue must be opaque (no rgba see-through over desktop)
-        if (s.includes('.ding-transfer-pill') && /ding-transfer-pill\s*{[^}]*rgba/.test(s))
-            throw new Error('pill background must be opaque');
+        // dead popover styles must be gone
+        for (const m of ['.ding-transfer-queue', '.ding-transfer-row-v']) {
+            if (s.includes(m))
+                throw new Error(`dead popover style still present: ${m}`);
+        }
+        // opaque card background, no translucent pill
+        if (!s.includes('background-color: #1e1e22'))
+            throw new Error('card background is not opaque');
     }],
-    ['multi-op queue + auto open-close invariants', () => {
+    ['card stack: one card per op, no popover', () => {
         const s = readFile(FPM);
-        for (const m of ['_allOps()', '%d file operations', 'row.get_style_context().add_class',
-            'ding-transfer-done', 'setCancelled(message)',
-            'Terminal state: collapse the queue card now']) {
+        for (const m of ['_paintStack(b)', '_buildCard(op)',
+            'ding-transfer-stack', 'requestCancel()']) {
             if (!s.includes(m))
                 throw new Error(`missing invariant: ${m}`);
         }
-        // single-slot kill must be gone: addOperation must not destroy prior item
-        if (s.includes('this._item._destroy()'))
-            throw new Error('addOperation still destroys prior op (no multi-op)');
-        // progress guards must be multi-aware
-        if (!s.includes('!mgr._queue.includes(this)'))
-            throw new Error('setProgress still single-slot gated');
-    }],
-    ['bubble input + geometry invariants', () => {
-        const s = readFile(FPM);
-        for (const m of ['set_visible_window(true)', 'set_overlay_pass_through(revealer, true)',
-            'BUBBLE_MARGIN_START = 12', 'BUBBLE_MARGIN_BOTTOM = 8',
-            '_queuePaintIdle', 'GLib.idle_add']) {
-            if (!s.includes(m))
-                throw new Error(`missing invariant: ${m}`);
+        // no expand/popover machinery may remain
+        for (const m of ['_toggleExpanded', '_expanded', '_paintQueueCard',
+            'queueCard', '_pointerInCard', 'Terminal state: collapse']) {
+            if (s.includes(m))
+                throw new Error(`popover remnant still present: ${m}`);
         }
     }],
     ['cancel paints terminal state immediately (no async wait)', () => {
         const s = readFile(FPM);
-        for (const m of ['requestCancel()', "_('Cancelling…')",
-            '_pointerInCard', 'enter-notify-event', 'leave-notify-event']) {
+        for (const m of ['requestCancel()', "_('Cancelling…')"]) {
             if (!s.includes(m))
                 throw new Error(`missing invariant: ${m}`);
         }
-        // card must survive terminal state until the hide timer fires
-        if (s.includes('Terminal state: collapse the queue card now'))
-            throw new Error('card still collapses early on terminal state');
     }],
 ];

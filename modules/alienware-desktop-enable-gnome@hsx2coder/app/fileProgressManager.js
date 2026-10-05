@@ -67,19 +67,19 @@ var FileProgressManager = class {
         this._item = null;
         this._inhibitCookie = null;
         this._pulseTimer = null;
-        /* Per-grid bubble widgets: [{grid, overlay, revealer, pill, ...}]. */
+        /* Per-grid card stacks: [{grid, window, overlay, revealer, list}].
+         * Each running op gets its own card, always fully visible —
+         * no summary pill, no expandable popover. */
         this._bubbles = [];
-        this._expanded = false;
-        this._pointerInCard = false;
-        this._hideTimer = null;
         this._queue = [];
+        this._hideTimer = null;
+        this._queuePaintIdle = false;
     }
 
     addOperation(id, type, totalItems, message) {
         this._ensureBubbles();
         /* Multi-op: prior _item stays tracked — the ctor registers every
-         * item in _queue, so _allOps() sees them all like the Nautilus
-         * operations list. */
+         * item in _queue, so _allOps() sees them all, one card each. */
         this._item = new FileProgressItem(this, id, type, totalItems, message);
         this._syncUI();
         this._startPulse();
@@ -87,7 +87,7 @@ var FileProgressManager = class {
         if (!this._inhibitCookie) {
             this._inhibitCookie = this._desktopManager.mainApp.inhibit(null,
                 Gtk.ApplicationInhibitFlags.LOGOUT | Gtk.ApplicationInhibitFlags.SUSPEND,
-                message || _('File operation in progress'));
+                _('File operation in progress'));
         }
         return this._item;
     }
@@ -105,14 +105,14 @@ var FileProgressManager = class {
         }
     }
 
-    /* External ops (e.g. AutoAr extract/compress dialogs) join the bubble
-     * queue without displacing the active copy/paste item. op shape:
+    /* External ops (e.g. AutoAr extract/compress dialogs) join the card stack
+     * without displacing the active copy/paste item. op shape:
      * {_primaryText|_defaultLabel(), _fraction|undefined, _finished,
      *  _cancellable?, cancel?(), _cancelledByUser}. */
     registerExternal(op) {
         this._ensureBubbles();
         /* Plain-object externals (AutoAr) get the same immediate-cancel path
-         * as internal items so every row paints terminal state on click. */
+         * as internal items so every card paints terminal state on click. */
         if (op && typeof op.requestCancel !== 'function') {
             op.requestCancel = () => {
                 if (op._finished)
@@ -155,18 +155,12 @@ var FileProgressManager = class {
         this._refreshBubbleVisibility();
     }
 
-    _refreshBubbleVisibility() {
-        if (this._item || this._queue.length)
-            this._showBubbles();
-        else
-            this._hideBubbles();
+    /* Every tracked op in creation order. The ctor registers each item
+     * in _queue (internal + external alike); _item is just the newest. */
+    _allOps() {
+        return [...this._queue];
     }
 
-    /* Attach (or re-attach) a Nautilus-style bubble to every desktop grid
-     * window. Each DesktopGrid owns its own Gtk.ApplicationWindow holding an
-     * EventBox > Gtk.Fixed tree, so wrap the EventBox in a Gtk.Overlay once
-     * and pin a Revealer pill bottom-left. Safe to call repeatedly (menus,
-     * geometry updates, grid rebuilds). */
     _ensureBubbles() {
         const grids = this._desktopManager._desktops || [];
         const alive = [];
@@ -176,7 +170,8 @@ var FileProgressManager = class {
                     continue;
                 let bubble = null;
                 for (let b of this._bubbles) {
-                    if (b.grid === grid && b.window === grid._window) {
+                    if (b.grid === grid &&
+                        b.window === grid._window) {
                         bubble = b;
                         break;
                     }
@@ -186,7 +181,6 @@ var FileProgressManager = class {
                 if (bubble)
                     alive.push(bubble);
             } catch (e) {
-                print(`FileProgress bubble attach failed: ${e.message}`);
             }
         }
         this._bubbles = alive;
@@ -194,11 +188,13 @@ var FileProgressManager = class {
 
     _buildBubble(grid) {
         const eventBox = grid._eventBox;
-        let overlay = null;
         const parent = eventBox.get_parent();
-        if (parent instanceof Gtk.Overlay)
+        if (!parent)
+            return null;
+        let overlay = null;
+        if (parent instanceof Gtk.Overlay) {
             overlay = parent;
-        if (!overlay) {
+        } else {
             overlay = new Gtk.Overlay();
             overlay.show();
             /* Re-parent the EventBox under the overlay, keeping position. */
@@ -207,6 +203,8 @@ var FileProgressManager = class {
             parent.add(overlay);
             overlay.show_all();
         }
+        /* One vertical stack per grid: one card per op, bottom-left above
+         * the Bottom Panel, slide-up reveal. */
         const revealer = new Gtk.Revealer({
             halign: Gtk.Align.START,
             valign: Gtk.Align.END,
@@ -217,255 +215,18 @@ var FileProgressManager = class {
             reveal_child: false,
         });
         revealer.get_style_context().add_class('ding-transfer-revealer');
-
-        /* EventBox gives the pill its own GdkWindow: opaque bg paint + reliable
-         * button/hover input (plain Gtk.Box has no window by default). */
-        const pill = new Gtk.EventBox();
-        pill.get_style_context().add_class('ding-transfer-pill');
-        pill.set_visible_window(true);
-        pill.set_above_child(false);
-        pill.add_events(Gdk.EventMask.BUTTON_PRESS_MASK | Gdk.EventMask.ENTER_NOTIFY_MASK | Gdk.EventMask.LEAVE_NOTIFY_MASK);
-
-        const box = new Gtk.Box({
-            orientation: Gtk.Orientation.HORIZONTAL,
-            spacing: 10,
-        });
-        box.get_style_context().add_class('ding-transfer-box');
-        pill.add(box);
-
-        const spinner = new Gtk.Spinner({ active: false });
-        spinner.get_style_context().add_class('ding-transfer-spinner');
-        box.pack_start(spinner, false, false, 0);
-
-        const labels = new Gtk.Box({
+        const list = new Gtk.Box({
             orientation: Gtk.Orientation.VERTICAL,
-            spacing: 0,
+            spacing: 8,
         });
-        labels.get_style_context().add_class('ding-transfer-labels');
-        box.pack_start(labels, true, true, 0);
-
-        const primary = new Gtk.Label({
-            label: '',
-            halign: Gtk.Align.START,
-            xalign: 0,
-            hexpand: true,
-            ellipsize: 2, /* PANGO_ELLIPSIZE_MIDDLE, like Nautilus */
-            max_width_chars: 40,
-            single_line_mode: true,
-        });
-        primary.get_style_context().add_class('ding-transfer-primary');
-        labels.pack_start(primary, false, true, 0);
-
-        const details = new Gtk.Label({
-            label: '',
-            halign: Gtk.Align.START,
-            xalign: 0,
-            hexpand: true,
-            ellipsize: 2,
-            max_width_chars: 40,
-            single_line_mode: true,
-            no_show_all: true,
-        });
-        details.get_style_context().add_class('ding-transfer-details');
-        labels.pack_start(details, false, true, 0);
-
-        const bar = new Gtk.ProgressBar();
-        bar.get_style_context().add_class('ding-transfer-bar');
-        bar.set_show_text(false);
-        bar.set_fraction(0);
-        labels.pack_start(bar, false, true, 0);
-
-        const stopBtn = new Gtk.Button({
-            image: new Gtk.Image({ icon_name: 'process-stop-symbolic' }),
-        });
-        stopBtn.get_style_context().add_class('ding-transfer-stop');
-        stopBtn.get_style_context().add_class('circular');
-        stopBtn.get_style_context().add_class('flat');
-        stopBtn.set_valign(Gtk.Align.CENTER);
-        stopBtn.set_tooltip_text(_('Cancel'));
-        stopBtn.connect('clicked', () => {
-            const ops = this._allOps().filter(o => !o._finished);
-            const target = ops[ops.length - 1];
-            if (target && typeof target.requestCancel === 'function')
-                target.requestCancel();
-            else if (target) {
-                /* External op without the method: best-effort cancel flags. */
-                try {
-                    target._cancelledByUser = true;
-                } catch (e) {
-                }
-                try {
-                    if (target._cancellable)
-                        target._cancellable.cancel();
-                } catch (e) {
-                }
-                if (typeof target.cancel === 'function') {
-                    try {
-                        target.cancel();
-                    } catch (e) {
-                    }
-                }
-                this._syncUI();
-            }
-        });
-        box.pack_start(stopBtn, false, false, 0);
-
-        /* Click-only expansion (Nautilus parity): the operations popover
-         * opens on left-click, never on hover. Hover only pauses auto-hide. */
-        pill.connect('button-press-event', (widget, event) => {
-            try {
-                const [, button] = event.get_button();
-                if (button !== 1)
-                    return false;
-            } catch (e) {
-            }
-            this._toggleExpanded();
-            return true;
-        });
-        /* Hover pauses auto-hide, like Nautilus floating-bar hover tracking. */
-        pill.connect('enter-notify-event', () => {
-            this._clearHideTimer();
-            return false;
-        });
-        pill.connect('leave-notify-event', () => {
-            /* Moving onto the queue card is not "leaving": keep it open
-             * while the pointer is over pill OR card. */
-            if (!this._pointerInCard)
-                this._armHideTimerIfDone();
-            return false;
-        });
-
-        revealer.add(pill);
+        list.get_style_context().add_class('ding-transfer-stack');
+        revealer.add(list);
         overlay.add_overlay(revealer);
         overlay.set_overlay_pass_through(revealer, true);
         revealer.show_all();
-        details.hide();
         revealer.reveal_child = false;
-
-        try {
-            if (!grid._window._dingEscHooked) {
-                grid._window._dingEscHooked = true;
-                grid._window.connect('key-press-event', (w, event) => {
-                    try {
-                        const [, keyval] = event.get_keyval();
-                        if (keyval === Gdk.KEY_Escape && this._expanded) {
-                            this._toggleExpanded();
-                            return true;
-                        }
-                    } catch (e) {
-                    }
-                    return false;
-                });
-            }
-        } catch (e) {
-        }
-        const bubble = {
-            grid, window: grid._window, overlay, revealer, pill,
-            spinner, primary, details, bar, stopBtn,
-            queueCard: null, queueList: null,
-        };
-        if (this._item)
-            this._paintBubble(bubble);
+        const bubble = { grid, window: grid._window, overlay, revealer, list };
         return bubble;
-    }
-
-    _paintBubble(b) {
-        /* Multi-op header (Nautilus parity): newest unfinished op is the
-         * headline; when >1 running, pill shows "Copying 2 Folders…" style
-         * summary + aggregate bar. Finished-only state shows last. */
-        const active = this._allOps().filter(o => !o._finished);
-        const item = active[active.length - 1] || this._allOps()[this._allOps().length - 1];
-        if (!item)
-            return;
-        if (active.length > 1) {
-            /* Nautilus shows the running op count against the verb, e.g.
-             * "Copying 2 Folders". Verb comes from the newest op type. */
-            const verbs = {
-                COPY: [_('Copying %d File'), _('Copying %d Files')],
-                MOVE: [_('Moving %d File'), _('Moving %d Files')],
-                TRASH: [_('Moving %d File to Trash'), _('Moving %d Files to Trash')],
-                DELETE: [_('Deleting %d File'), _('Deleting %d Files')],
-                EMPTY_TRASH: [_('Emptying Trash'), _('Emptying Trash')],
-                EXTRACT: [_('Extracting %d File'), _('Extracting %d Files')],
-                COMPRESS: [_('Compressing %d File'), _('Compressing %d Files')],
-            };
-            const pair = verbs[item._type] || [_('Copying %d File'), _('Copying %d Files')];
-            const nOps = active.length;
-            const tmpl = nOps === 1 ? pair[0] : pair[1];
-            const summary = tmpl.includes('%d') ? tmpl.replace('%d', String(nOps)) : tmpl;
-            b.primary.set_label(summary);
-            let sum = 0, n = 0;
-            for (let o of active) {
-                if (typeof o._fraction === 'number') {
-                    sum += o._fraction;
-                    n++;
-                }
-            }
-            if (n === active.length && n > 0) {
-                b.bar.set_fraction(sum / n);
-                b.spinner.stop();
-            } else {
-                b.spinner.start();
-            }
-            const headlineDetail = (typeof item._detailText === 'function' && item._detailText()) || item._secondaryText || '';
-            if (headlineDetail) {
-                b.details.set_label(headlineDetail);
-                b.details.show();
-            } else {
-                b.details.set_label('');
-                b.details.hide();
-            }
-        } else {
-            const primary = item._primaryText || item._defaultLabel();
-            b.primary.set_label(primary);
-            const detailText = (typeof item._detailText === 'function' && item._detailText()) || item._secondaryText || '';
-            if (detailText) {
-                b.details.set_label(detailText);
-                b.details.show();
-            } else {
-                b.details.set_label('');
-                b.details.hide();
-            }
-            if (typeof item._fraction === 'number') {
-                b.bar.set_fraction(item._fraction);
-                b.spinner.stop();
-            } else {
-                b.spinner.start();
-            }
-        }
-        b.stopBtn.set_sensitive(!item._finished);
-        if (this._expanded && !this._queuePaintIdle) {
-            this._queuePaintIdle = true;
-            GLib.idle_add(GLib.PRIORITY_DEFAULT_IDLE, () => {
-                this._queuePaintIdle = false;
-                try {
-                    for (let bb of this._bubbles)
-                        this._paintQueueCard(bb);
-                } catch (e) {
-                }
-                return false;
-            });
-        }
-    }
-
-    _syncUI() {
-        this._ensureBubbles();
-        for (let b of this._bubbles)
-            this._paintBubble(b);
-        /* Queue card rebuild is expensive (destroys/recreates rows); coalesce
-         * rapid progress updates into one idle paint. */
-        if (this._expanded && !this._queuePaintIdle) {
-            this._queuePaintIdle = true;
-            GLib.idle_add(GLib.PRIORITY_DEFAULT_IDLE, () => {
-                this._queuePaintIdle = false;
-                try {
-                    for (let b of this._bubbles)
-                        this._paintQueueCard(b);
-                } catch (e) {
-                }
-                return false;
-            });
-        }
     }
 
     _showBubbles() {
@@ -486,7 +247,13 @@ var FileProgressManager = class {
             } catch (e) {
             }
         }
-        this._expanded = false;
+    }
+
+    _refreshBubbleVisibility() {
+        if (this._queue.length)
+            this._showBubbles();
+        else
+            this._hideBubbles();
     }
 
     _clearHideTimer() {
@@ -497,181 +264,171 @@ var FileProgressManager = class {
     }
 
     _armHideTimerIfDone() {
-        /* Auto open/close (Nautilus parity):
-         * - any unfinished op -> pill stays, card stays as the user left it
-         * - all finished -> card STAYS open through the hide delay so terminal
-         *   states (Completed/Cancelled/Error per row) remain readable, then
-         *   the timer collapses + hides everything together. */
+        /* Auto-hide: while any op runs, stay. When all finished, keep every
+         * card readable through the delay, then hide all at once. */
         if (this._allOps().some(o => !o._finished))
             return;
-        if (!this._item || !this._item._finished) {
-            if (this._queue.length)
-                return;
-            if (!this._item)
-                return;
-        }
+        if (!this._allOps().length)
+            return;
         this._clearHideTimer();
-        const delay = this._item._endState === 'error'
+        const last = this._allOps()[this._allOps().length - 1];
+        const delay = last._endState === 'error'
             ? AUTOHIDE_ERROR_MS
-            : this._item._endState === 'cancelled'
+            : last._endState === 'cancelled'
                 ? AUTOHIDE_CANCELLED_MS
                 : AUTOHIDE_COMPLETED_MS;
-        const finishedItem = this._item;
         this._hideTimer = GLib.timeout_add(GLib.PRIORITY_DEFAULT, delay, () => {
             this._hideTimer = null;
-            /* Drop finished ops that never unregistered (defensive); then if
-             * nothing is left running, collapse the queue card first so the
-             * popover can never strand open on a finished op. */
+            /* Drop finished ops that never unregistered (defensive). */
             for (let i = this._queue.length - 1; i >= 0; i--) {
                 if (this._queue[i]._finished)
                     this._queue.splice(i, 1);
             }
-            if (!this._item || this._item === finishedItem)
-                this.removeOperation();
-            else
+            if (this._queue.length)
                 this._refreshBubbleVisibility();
+            else
+                this.removeOperation();
             return false;
         });
     }
 
-    /* Every tracked op in creation order. The ctor registers each item
-     * in _queue (internal + external alike); _item is just the newest. */
-    _allOps() {
-        return [...this._queue];
-    }
-
-    _toggleExpanded() {
-        this._expanded = !this._expanded;
-        for (let b of this._bubbles)
-            this._paintQueueCard(b);
-        /* Collapsing re-arms auto-hide; expanding pins while user inspects. */
-        if (!this._expanded)
-            this._armHideTimerIfDone();
-        else
-            this._clearHideTimer();
-    }
-
-    /* Expanded queue card: one row per queued operation with its own label,
-     * progress bar and cancel button — the overlay-popover equivalent of
-     * Nautilus operations ListBox. Single active item today; queue grows as
-     * extract/compress bridges register. */
-    _paintQueueCard(b) {
-        if (!this._expanded) {
-            if (b.queueCard) {
-                b.queueCard.destroy();
-                b.queueCard = null;
-                b.queueList = null;
-            }
+    _syncUI() {
+        this._ensureBubbles();
+        /* Card rebuild destroys/recreates rows; coalesce rapid progress
+         * updates into one idle paint. */
+        if (this._queuePaintIdle)
             return;
-        }
-        if (!b.queueCard) {
-            const card = new Gtk.Frame();
-            card.get_style_context().add_class('ding-transfer-queue');
-            card.set_halign(Gtk.Align.START);
-            card.set_valign(Gtk.Align.END);
-            card.set_margin_start(BUBBLE_MARGIN_START);
-            card.set_margin_bottom(BUBBLE_MARGIN_BOTTOM + 56);
-            const list = new Gtk.ListBox();
-            list.get_style_context().add_class('ding-transfer-queue-list');
-            list.set_selection_mode(Gtk.SelectionMode.NONE);
-            card.add(list);
-            card.add_events(Gdk.EventMask.ENTER_NOTIFY_MASK | Gdk.EventMask.LEAVE_NOTIFY_MASK);
-            card.connect('enter-notify-event', () => {
-                this._pointerInCard = true;
-                this._clearHideTimer();
-                return false;
-            });
-            card.connect('leave-notify-event', () => {
-                this._pointerInCard = false;
-                this._armHideTimerIfDone();
-                return false;
-            });
-            b.overlay.add_overlay(card);
-            b.overlay.set_overlay_pass_through(card, true);
-            card.show_all();
-            b.queueCard = card;
-            b.queueList = list;
-        }
-        const list = b.queueList;
-        for (let row of list.get_children())
-            row.destroy();
+        this._queuePaintIdle = true;
+        GLib.idle_add(GLib.PRIORITY_DEFAULT_IDLE, () => {
+            this._queuePaintIdle = false;
+            try {
+                for (let b of this._bubbles)
+                    this._paintStack(b);
+            } catch (e) {
+            }
+            return false;
+        });
+    }
+
+    /* One card per op, always fully visible: status line, detail line
+     * (bytes x/y — time left (rate)), progress bar, cancel while running,
+     * dimmed status label when finished. */
+    _paintStack(b) {
+        for (let child of b.list.get_children())
+            child.destroy();
         const seen = new Set();
-        const rows = [];
-        /* Queue rows: newest op first, every op (internal + external) gets
-         * its own row with label/bar/cancel — mirrors Nautilus ops list. */
-        for (let op of this._allOps().slice().reverse()) {
+        for (let op of this._allOps()) {
             if (seen.has(op))
                 continue;
             seen.add(op);
-            rows.push(op);
+            b.list.add(this._buildCard(op));
         }
-        for (let op of rows) {
-            const row = new Gtk.ListBoxRow();
-            row.get_style_context().add_class('ding-transfer-queue-row');
-            if (op._finished)
-                row.get_style_context().add_class('ding-transfer-done');
-            const v = new Gtk.Box({ orientation: Gtk.Orientation.VERTICAL, spacing: 2 });
-            v.get_style_context().add_class('ding-transfer-row-v');
-            const h = new Gtk.Box({ orientation: Gtk.Orientation.HORIZONTAL, spacing: 8 });
-            const lab = new Gtk.Label({
-                label: op._primaryText || (op._defaultLabel && op._defaultLabel()) || '',
-                halign: Gtk.Align.START, xalign: 0, hexpand: true,
-                ellipsize: 2, max_width_chars: 32, single_line_mode: true,
+        // ponytail: full rebuild per paint; ops stay <10 so O(n) is trivial.
+        b.list.show_all();
+    }
+
+    _buildCard(op) {
+        const card = new Gtk.EventBox();
+        card.get_style_context().add_class('ding-transfer-pill');
+        card.set_visible_window(true);
+        card.set_above_child(false);
+        const box = new Gtk.Box({
+            orientation: Gtk.Orientation.HORIZONTAL,
+            spacing: 10,
+        });
+        box.get_style_context().add_class('ding-transfer-box');
+        card.add(box);
+        const spinner = new Gtk.Spinner();
+        spinner.get_style_context().add_class('ding-transfer-spinner');
+        spinner.set_valign(Gtk.Align.CENTER);
+        box.pack_start(spinner, false, false, 0);
+        const labels = new Gtk.Box({
+            orientation: Gtk.Orientation.VERTICAL,
+            spacing: 0,
+        });
+        labels.get_style_context().add_class('ding-transfer-labels');
+        box.pack_start(labels, true, true, 0);
+        const primary = new Gtk.Label({
+            label: op._primaryText || (typeof op._defaultLabel === 'function' && op._defaultLabel()) || '',
+            halign: Gtk.Align.START,
+            xalign: 0,
+            hexpand: true,
+            ellipsize: 2, /* PANGO_ELLIPSIZE_MIDDLE, like Nautilus */
+            max_width_chars: 40,
+            single_line_mode: true,
+        });
+        primary.get_style_context().add_class('ding-transfer-primary');
+        labels.pack_start(primary, false, true, 0);
+        const detailText = (typeof op._detailText === 'function' && op._detailText()) || op._secondaryText || '';
+        const detail = new Gtk.Label({
+            label: detailText,
+            halign: Gtk.Align.START,
+            xalign: 0,
+            hexpand: true,
+            ellipsize: 2,
+            max_width_chars: 40,
+            single_line_mode: true,
+            no_show_all: !detailText,
+        });
+        detail.get_style_context().add_class('ding-transfer-details');
+        labels.pack_start(detail, false, true, 0);
+        const bar = new Gtk.ProgressBar();
+        bar.get_style_context().add_class('ding-transfer-bar');
+        bar.set_show_text(false);
+        bar.set_fraction(typeof op._fraction === 'number' ? op._fraction : 0);
+        bar.set_hexpand(true);
+        labels.pack_start(bar, false, true, 0);
+        if (typeof op._fraction === 'number')
+            spinner.stop();
+        else if (!op._finished)
+            spinner.start();
+        else
+            spinner.stop();
+        if (!op._finished) {
+            const stopBtn = new Gtk.Button({
+                image: new Gtk.Image({ icon_name: 'process-stop-symbolic' }),
             });
-            h.pack_start(lab, true, true, 0);
-            const pbar = new Gtk.ProgressBar();
-            pbar.get_style_context().add_class('ding-transfer-bar');
-            pbar.set_show_text(false);
-            pbar.set_fraction(typeof op._fraction === 'number' ? op._fraction : 0);
-            pbar.set_hexpand(true);
-            h.pack_start(pbar, true, true, 0);
-            if (op._finished) {
-                const st = new Gtk.Label({
-                    label: (typeof op._detailText === 'function' && op._detailText()) || '',
-                    halign: Gtk.Align.END,
-                });
-                st.get_style_context().add_class('ding-transfer-row-status');
-                h.pack_start(st, false, false, 0);
-            }
-            if (!op._finished) {
-                const cancel = new Gtk.Button({
-                    image: new Gtk.Image({ icon_name: 'process-stop-symbolic' }),
-                });
-                cancel.get_style_context().add_class('ding-transfer-stop');
-                cancel.get_style_context().add_class('circular');
-                cancel.get_style_context().add_class('flat');
-                const target = op;
-                cancel.connect('clicked', () => {
-                    if (typeof target.requestCancel === 'function')
-                        target.requestCancel();
-                    else {
-                        target._cancelledByUser = true;
-                        try {
-                            target._cancellable.cancel();
-                        } catch (e) {
-                        }
-                        if (target.cancel)
-                            target.cancel();
-                        this._syncUI();
+            stopBtn.get_style_context().add_class('ding-transfer-stop');
+            stopBtn.get_style_context().add_class('circular');
+            stopBtn.get_style_context().add_class('flat');
+            stopBtn.set_valign(Gtk.Align.CENTER);
+            stopBtn.set_tooltip_text(_('Cancel'));
+            const target = op;
+            stopBtn.connect('clicked', () => {
+                if (typeof target.requestCancel === 'function')
+                    target.requestCancel();
+                else {
+                    target._cancelledByUser = true;
+                    try {
+                        target._cancellable.cancel();
+                    } catch (e) {
                     }
-                });
-                h.pack_start(cancel, false, false, 0);
-            }
-            const detail = new Gtk.Label({
-                label: (typeof op._detailText === 'function' ? op._detailText() : '') || '',
-                halign: Gtk.Align.START,
-                xalign: 0,
-                ellipsize: 2,
-                max_width_chars: 40,
-                single_line_mode: true,
+                    if (target.cancel)
+                        target.cancel();
+                    this._syncUI();
+                }
             });
-            detail.get_style_context().add_class('ding-transfer-row-detail');
-            v.pack_start(h, false, false, 0);
-            v.pack_start(detail, false, false, 0);
-            row.add(v);
-            list.add(row);
+            box.pack_start(stopBtn, false, false, 0);
+        } else {
+            const st = new Gtk.Label({
+                label: (typeof op._detailText === 'function' && op._detailText()) || '',
+                halign: Gtk.Align.END,
+            });
+            st.get_style_context().add_class('ding-transfer-row-status');
+            box.pack_start(st, false, false, 0);
+            card.get_style_context().add_class('ding-transfer-done');
         }
-        list.show_all();
+        /* Hover pauses auto-hide, like Nautilus floating-bar hover tracking. */
+        card.add_events(Gdk.EventMask.ENTER_NOTIFY_MASK | Gdk.EventMask.LEAVE_NOTIFY_MASK);
+        card.connect('enter-notify-event', () => {
+            this._clearHideTimer();
+            return false;
+        });
+        card.connect('leave-notify-event', () => {
+            this._armHideTimerIfDone();
+            return false;
+        });
+        return card;
     }
 
     _startPulse() {
