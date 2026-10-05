@@ -221,12 +221,12 @@ class CustomizerManager {
     // --- Window ---
     #applyWinDemandFocus(f) {
         const a = this.#a(); if (!a) return;
-        f || this.#settings.get_boolean('window-demands-attention-focus')
+        !f && this.#settings.get_boolean('window-demands-attention-focus')
             ? a.windowDemandsAttentionFocusEnable() : a.windowDemandsAttentionFocusDisable();
     }
     #applyWinMaxOnCreate(f) {
         const a = this.#a(); if (!a) return;
-        f || this.#settings.get_boolean('window-maximized-on-create')
+        !f && this.#settings.get_boolean('window-maximized-on-create')
             ? a.windowMaximizedOnCreateEnable() : a.windowMaximizedOnCreateDisable();
     }
     #applyWinPickerIcon(f) {

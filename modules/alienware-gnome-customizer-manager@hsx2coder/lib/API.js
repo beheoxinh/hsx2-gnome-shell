@@ -184,6 +184,8 @@ export class API
         }
 
         this.UIStyleClassRemove(this.#getAPIClassname('shell-version'));
+        this.windowMaximizedOnCreateDisable();
+        this.windowDemandsAttentionFocusDisable();
         this.#computeWorkspacesBoxForStateSetDefault();
         this.#altTabSizesSetDefault();
         this.#unregisterLookingGlassSignals();
