@@ -60,7 +60,9 @@ export function addShellThemePages(dummyWin, gcmSettings) {
         }
     };
 
+    let syncing = false;
     const refreshThemes = () => {
+        syncing = true;
         try {
             const list = collectThemeNames(
                 [...getThemeDirs(), ...getModeThemeDirs()], scanDir);
@@ -69,18 +71,14 @@ export function addShellThemePages(dummyWin, gcmSettings) {
                 model.append(themeNameToRowLabel(n));
             themeRow.model = model;
             const current = settings.get_string(SETTINGS_KEY);
-            syncing = true;
-            try {
-                themeRow.selected = selectedIndexForTheme(list, current);
-            } finally {
-                syncing = false;
-            }
+            themeRow.selected = selectedIndexForTheme(list, current);
         } catch (e) {
             logError(e, '[ShellThemePrefs] refresh failed');
+        } finally {
+            syncing = false;
         }
     };
 
-    let syncing = false;
     themeRow.connect('notify::selected', () => {
         if (syncing)
             return;
