@@ -69,13 +69,21 @@ export function addShellThemePages(dummyWin, gcmSettings) {
                 model.append(themeNameToRowLabel(n));
             themeRow.model = model;
             const current = settings.get_string(SETTINGS_KEY);
-            themeRow.selected = selectedIndexForTheme(list, current);
+            syncing = true;
+            try {
+                themeRow.selected = selectedIndexForTheme(list, current);
+            } finally {
+                syncing = false;
+            }
         } catch (e) {
             logError(e, '[ShellThemePrefs] refresh failed');
         }
     };
 
+    let syncing = false;
     themeRow.connect('notify::selected', () => {
+        if (syncing)
+            return;
         try {
             const idx = themeRow.selected;
             const item = themeRow.model?.get_item(idx);

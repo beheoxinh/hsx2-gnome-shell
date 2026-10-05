@@ -958,11 +958,12 @@ export class PanelApi
      *
      * @returns {void}
      */
-    chromeAdd(element)
+    chromeAdd(element, params = {})
     {
         this._main.layoutManager.addChrome(element, {
             affectsStruts : false,
             trackFullscreen : true,
+            ...params,
         });
     }
 

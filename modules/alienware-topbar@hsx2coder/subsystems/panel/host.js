@@ -164,14 +164,15 @@ class PanelHostImpl {
      * @param {Clutter.Actor} actor
      * @param {object} params trackFullscreen, affectsStruts, affectsInputRegion
      */
-    addChrome(actor, params) {
+    addChrome(actor, params = {}) {
         try {
             if (this.#api) {
-                this.#api.chromeAdd(actor);
+                this.#api.chromeAdd(actor, params);
             } else {
                 Main.layoutManager.addChrome(actor, {
                     affectsStruts: false,
                     trackFullscreen: true,
+                    ...params,
                 });
             }
         } catch (e) {

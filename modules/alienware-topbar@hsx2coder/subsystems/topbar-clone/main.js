@@ -560,7 +560,7 @@ class ClonePanelBox {
 
         PanelHost.addChrome(this.panelBox, {
             trackFullscreen: true,
-            affectsStruts: false,
+            affectsStruts: true,
         });
 
         Main.ctrlAltTabManager.addGroup(this.panel, 'Top Bar',
@@ -629,6 +629,7 @@ class ClonePanelBox {
         if (!this._needsUpdate()) return;
         this.panelBox.set_position(this._monitor.x, this._monitor.y);
         this.panelBox.set_size(this._monitor.width, this._height);
+        Main.layoutManager._queueUpdateRegions?.();
     }
 
     updateMonitor(monitor) {
@@ -661,6 +662,7 @@ class ClonePanelBox {
             PanelHost.removeChrome(this.panelBox);
             try { this.panelBox.destroy(); } catch (_e) {}
             this.panelBox = null;
+            Main.layoutManager._queueUpdateRegions?.();
         }
         this._monitor = null;
     }
