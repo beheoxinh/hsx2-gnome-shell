@@ -37,12 +37,6 @@ export class UserShellThemeSubsystem {
                 this._changedId = 0;
             }
             this._settings = null;
-            try {
-                Main.setThemeStylesheet(null);
-                Main.loadTheme();
-            } catch (e) {
-                log(`[UserShellTheme] restore default theme skipped: ${e.message}`);
-            }
         } catch (e) {
             logError(e, '[UserShellTheme] stop failed');
         }
@@ -85,14 +79,14 @@ export class UserShellThemeSubsystem {
                     return false;
                 }
             });
-            stylesheet = found ?? null;
+            stylesheet = found ? Gio.File.new_for_path(found) : null;
 
             if (!stylesheet) {
                 log('[UserShellTheme] stylesheet not resolved yet, skip loadTheme');
                 return;
             }
 
-            log(`[UserShellTheme] loading user theme: ${stylesheet}`);
+            log(`[UserShellTheme] loading user theme: ${stylesheet.get_path()}`);
             Main.setThemeStylesheet(stylesheet);
             try {
                 Main.loadTheme();
