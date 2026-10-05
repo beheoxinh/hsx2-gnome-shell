@@ -76,8 +76,9 @@ var FileProgressManager = class {
 
     addOperation(id, type, totalItems, message) {
         this._ensureBubbles();
-        if (this._item)
-            this._item._destroy();
+        /* Multi-op: prior _item stays tracked — the ctor registers every
+         * item in _queue, so _allOps() sees them all like the Nautilus
+         * operations list. */
         this._item = new FileProgressItem(this, id, type, totalItems, message);
         this._syncUI();
         this._startPulse();
@@ -293,25 +294,54 @@ var FileProgressManager = class {
     }
 
     _paintBubble(b) {
-        /* Header shows the active copy/paste item; when none, fall back to
-         * the first unfinished external op (e.g. AutoAr extract/compress). */
-        const item = this._item || this._queue.find(o => !o._finished) || this._queue[0];
+        /* Multi-op header (Nautilus parity): newest unfinished op is the
+         * headline; when >1 unfinished, pill shows "N file operations"
+         * style summary + aggregate bar. Finished-only state shows last. */
+        const active = this._allOps().filter(o => !o._finished);
+        const item = active[active.length - 1] || this._allOps()[this._allOps().length - 1];
         if (!item)
             return;
-        const primary = item._primaryText || item._defaultLabel();
-        b.primary.set_label(primary);
-        if (item._secondaryText) {
-            b.details.set_label(item._secondaryText);
-            b.details.show();
+        if (active.length > 1) {
+            /* workers: ngettext not wired in DING; plural via simple branch. */
+            const nOps = active.length;
+            const summary = nOps === 1 ? _('1 file operation') : _('%d file operations').replace('%d', String(nOps));
+            b.primary.set_label(summary);
+            let sum = 0, n = 0;
+            for (let o of active) {
+                if (typeof o._fraction === 'number') {
+                    sum += o._fraction;
+                    n++;
+                }
+            }
+            if (n === active.length && n > 0) {
+                b.bar.set_fraction(sum / n);
+                b.spinner.stop();
+            } else {
+                b.spinner.start();
+            }
+            if (item._secondaryText) {
+                b.details.set_label(item._secondaryText);
+                b.details.show();
+            } else {
+                b.details.set_label('');
+                b.details.hide();
+            }
         } else {
-            b.details.set_label('');
-            b.details.hide();
-        }
-        if (typeof item._fraction === 'number') {
-            b.bar.set_fraction(item._fraction);
-            b.spinner.stop();
-        } else {
-            b.spinner.start();
+            const primary = item._primaryText || item._defaultLabel();
+            b.primary.set_label(primary);
+            if (item._secondaryText) {
+                b.details.set_label(item._secondaryText);
+                b.details.show();
+            } else {
+                b.details.set_label('');
+                b.details.hide();
+            }
+            if (typeof item._fraction === 'number') {
+                b.bar.set_fraction(item._fraction);
+                b.spinner.stop();
+            } else {
+                b.spinner.start();
+            }
         }
         b.stopBtn.set_sensitive(!item._finished);
         if (this._expanded && !this._queuePaintIdle) {
@@ -377,13 +407,30 @@ var FileProgressManager = class {
     }
 
     _armHideTimerIfDone() {
-        if (this._queue.some(o => !o._finished))
+        /* Auto open/close (Nautilus parity):
+         * - any unfinished op -> stay open, collapse the queue card
+         * - all finished -> collapse card, start hide timer, never strand
+         *   an expanded empty popover (the stuck-open popup bug). */
+        if (this._allOps().some(o => !o._finished)) {
+            if (this._expanded) {
+                this._expanded = false;
+                for (let b of this._bubbles)
+                    this._paintQueueCard(b);
+            }
             return;
+        }
         if (!this._item || !this._item._finished) {
             if (this._queue.length)
                 return;
             if (!this._item)
                 return;
+        }
+        /* Terminal state: collapse the queue card now so the pill headline
+         * (Completed/Cancelled/Error) is what fades — never a stranded card. */
+        if (this._expanded) {
+            this._expanded = false;
+            for (let b of this._bubbles)
+                this._paintQueueCard(b);
         }
         this._clearHideTimer();
         const delay = this._item._endState === 'error'
@@ -394,7 +441,9 @@ var FileProgressManager = class {
         const finishedItem = this._item;
         this._hideTimer = GLib.timeout_add(GLib.PRIORITY_DEFAULT, delay, () => {
             this._hideTimer = null;
-            /* Drop finished externals that never unregistered (defensive). */
+            /* Drop finished ops that never unregistered (defensive); then if
+             * nothing is left running, collapse the queue card first so the
+             * popover can never strand open on a finished op. */
             for (let i = this._queue.length - 1; i >= 0; i--) {
                 if (this._queue[i]._finished)
                     this._queue.splice(i, 1);
@@ -407,10 +456,21 @@ var FileProgressManager = class {
         });
     }
 
+    /* Every tracked op in creation order. The ctor registers each item
+     * in _queue (internal + external alike); _item is just the newest. */
+    _allOps() {
+        return [...this._queue];
+    }
+
     _toggleExpanded() {
         this._expanded = !this._expanded;
         for (let b of this._bubbles)
             this._paintQueueCard(b);
+        /* Collapsing re-arms auto-hide; expanding pins while user inspects. */
+        if (!this._expanded)
+            this._armHideTimerIfDone();
+        else
+            this._clearHideTimer();
     }
 
     /* Expanded queue card: one row per queued operation with its own label,
@@ -448,7 +508,9 @@ var FileProgressManager = class {
             row.destroy();
         const seen = new Set();
         const rows = [];
-        for (let op of this._queue.concat(this._item ? [this._item] : [])) {
+        /* Queue rows: newest op first, every op (internal + external) gets
+         * its own row with label/bar/cancel — mirrors Nautilus ops list. */
+        for (let op of this._allOps().slice().reverse()) {
             if (seen.has(op))
                 continue;
             seen.add(op);
@@ -457,6 +519,8 @@ var FileProgressManager = class {
         for (let op of rows) {
             const row = new Gtk.ListBoxRow();
             row.get_style_context().add_class('ding-transfer-queue-row');
+            if (op._finished)
+                row.get_style_context().add_class('ding-transfer-done');
             const h = new Gtk.Box({ orientation: Gtk.Orientation.HORIZONTAL, spacing: 8 });
             const lab = new Gtk.Label({
                 label: op._primaryText || (op._defaultLabel && op._defaultLabel()) || '',
@@ -568,7 +632,7 @@ var FileProgressItem = class {
     setProgress(currentBytes, totalBytes) {
         if (this._destroyed) return;
         const mgr = this._manager;
-        if (mgr._item !== this) return;
+        if (mgr._item !== this && !mgr._queue.includes(this)) return;
         mgr._stopPulse();
         const fraction = totalBytes > 0 ? Math.min(currentBytes / totalBytes, 1.0) : 0;
         this._fraction = fraction;
@@ -598,10 +662,18 @@ var FileProgressItem = class {
         mgr._armHideTimerIfDone();
     }
 
-    setCancelled() {
+    setCancelled(message) {
         if (this._destroyed) return;
-        this._cancelled = true;
         const mgr = this._manager;
+        this._cancelled = true;
+        /* Nautilus parity: a cancelled op flips to a brief "Cancelled" state
+         * (bar freezes, spinner stops) then auto-hides via the same fade
+         * path as completed — never a stuck pill. */
+        this._fraction = null;
+        this._finished = true;
+        this._endState = 'cancelled';
+        this._primaryText = message || _('Cancelled');
+        mgr._stopPulse();
         mgr._stopPulse();
         this._fraction = 0;
         this._finished = true;
@@ -613,7 +685,7 @@ var FileProgressItem = class {
 
     _syncLabel() {
         const mgr = this._manager;
-        if (mgr._item === this)
+        if (mgr._item === this || mgr._queue.includes(this))
             mgr._syncUI();
     }
 

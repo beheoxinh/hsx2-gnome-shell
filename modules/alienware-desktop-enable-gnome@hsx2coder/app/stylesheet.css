@@ -197,3 +197,23 @@ button.file-progress-popup-cancel:active {
 .desktopmenu menuitem {
     padding-left: 5px;
 }
+
+/* Cancelled/finished row state: dimmed label, frozen bar (Nautilus parity). */
+.ding-transfer-queue-row.ding-transfer-done .ding-transfer-row-primary {
+    color: rgba(255, 255, 255, 0.55);
+}
+
+.ding-transfer-queue-row.ding-transfer-done .ding-transfer-row-bar trough {
+    background-color: rgba(255, 255, 255, 0.12);
+}
+
+.ding-transfer-queue-row.ding-transfer-done .ding-transfer-row-bar progress {
+    background-color: rgba(255, 255, 255, 0.35);
+}
+
+/* Stop button press feedback: instant dim so the cancel tap feels answered
+ * before the async op actually unwinds. */
+button.ding-transfer-stop:active {
+    color: #ffffff;
+    background-color: rgba(255, 255, 255, 0.28);
+}

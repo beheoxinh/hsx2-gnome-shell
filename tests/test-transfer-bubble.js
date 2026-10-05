@@ -75,6 +75,21 @@ export const tests = [
         if (s.includes('.ding-transfer-pill') && /ding-transfer-pill\s*{[^}]*rgba/.test(s))
             throw new Error('pill background must be opaque');
     }],
+    ['multi-op queue + auto open-close invariants', () => {
+        const s = readFile(FPM);
+        for (const m of ['_allOps()', '%d file operations', 'row.get_style_context().add_class',
+            'ding-transfer-done', 'setCancelled(message)',
+            'Terminal state: collapse the queue card now']) {
+            if (!s.includes(m))
+                throw new Error(`missing invariant: ${m}`);
+        }
+        // single-slot kill must be gone: addOperation must not destroy prior item
+        if (s.includes('this._item._destroy()'))
+            throw new Error('addOperation still destroys prior op (no multi-op)');
+        // progress guards must be multi-aware
+        if (!s.includes('!mgr._queue.includes(this)'))
+            throw new Error('setProgress still single-slot gated');
+    }],
     ['bubble input + geometry invariants', () => {
         const s = readFile(FPM);
         for (const m of ['set_visible_window(true)', 'set_overlay_pass_through(revealer, true)',
