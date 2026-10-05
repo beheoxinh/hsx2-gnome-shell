@@ -155,6 +155,66 @@ var FileProgressManager = class {
         this._refreshBubbleVisibility();
     }
 
+    /* Dismiss a terminal card immediately (X button). Removes the op from
+     * the stack now instead of waiting for the auto-hide timer. */
+    _dismissOp(op) {
+        if (!op || !op._finished)
+            return;
+        try {
+            if (typeof op._destroy === 'function' && !op._destroyed)
+                op._destroy();
+        } catch (e) {
+        }
+        const i = this._queue.indexOf(op);
+        if (i >= 0)
+            this._queue.splice(i, 1);
+        if (this._item === op)
+            this._item = null;
+        this._syncUI();
+        this._refreshBubbleVisibility();
+    }
+
+    /* Tooltip: primary + detail + elapsed, so long ellipsized lines and
+     * "running how long" stay reachable on hover. */
+    _tooltipText(op) {
+        const bits = [];
+        const primary = op._primaryText
+            || (typeof op._defaultLabel === 'function' && op._defaultLabel())
+            || '';
+        if (primary)
+            bits.push(primary);
+        const detail = (typeof op._detailText === 'function' && op._detailText())
+            || op._secondaryText || '';
+        if (detail && detail !== primary)
+            bits.push(detail);
+        let start = 0;
+        try {
+            if (typeof op._startMono === 'number')
+                start = op._startMono;
+            else if (typeof op._startTime === 'number')
+                start = op._startTime;
+        } catch (e) {
+        }
+        if (start > 0) {
+            try {
+                const secs = Math.max(0, (GLib.get_monotonic_time() - start) / 1000000);
+                bits.push(_('Elapsed: %s').replace('%s', this._fmtElapsed(secs)));
+            } catch (e) {
+            }
+        }
+        return bits.join('\n');
+    }
+
+    _fmtElapsed(secs) {
+        const s = Math.max(Math.round(secs), 0);
+        if (s < 60)
+            return _('%d second').replace('%d', String(s));
+        const m = Math.floor(s / 60);
+        if (m < 60)
+            return _('%d minute').replace('%d', String(m));
+        return _('%d hour').replace('%d', String(Math.floor(m / 60)));
+    }
+
     /* Every tracked op in creation order. The ctor registers each item
      * in _queue (internal + external alike); _item is just the newest. */
     _allOps() {
@@ -338,10 +398,30 @@ var FileProgressManager = class {
         });
         box.get_style_context().add_class('ding-transfer-box');
         card.add(box);
-        const spinner = new Gtk.Spinner();
-        spinner.get_style_context().add_class('ding-transfer-spinner');
-        spinner.set_valign(Gtk.Align.CENTER);
-        box.pack_start(spinner, false, false, 0);
+        /* Status icon per state (Nautilus operations popover parity):
+         * running = spinner, done = green check, cancelled = dim stop,
+         * error = red error mark. */
+        let statusIcon = null;
+        if (!op._finished) {
+            statusIcon = new Gtk.Spinner();
+            statusIcon.start();
+        } else {
+            const iconName = op._endState === 'error'
+                ? 'dialog-error-symbolic'
+                : op._endState === 'cancelled'
+                    ? 'process-stop-symbolic'
+                    : 'emblem-ok-symbolic';
+            statusIcon = new Gtk.Image({ icon_name: iconName });
+            statusIcon.get_style_context().add_class('ding-transfer-status-icon');
+            if (op._endState === 'error')
+                statusIcon.get_style_context().add_class('ding-transfer-status-error');
+            else if (op._endState === 'cancelled')
+                statusIcon.get_style_context().add_class('ding-transfer-status-cancelled');
+            else
+                statusIcon.get_style_context().add_class('ding-transfer-status-done');
+        }
+        statusIcon.set_valign(Gtk.Align.CENTER);
+        box.pack_start(statusIcon, false, false, 0);
         const labels = new Gtk.Box({
             orientation: Gtk.Orientation.VERTICAL,
             spacing: 0,
@@ -391,12 +471,6 @@ var FileProgressManager = class {
             bar.set_fraction(0);
         bar.set_hexpand(true);
         labels.pack_start(bar, false, true, 0);
-        if (typeof op._fraction === 'number')
-            spinner.stop();
-        else if (!op._finished)
-            spinner.start();
-        else
-            spinner.stop();
         if (!op._finished) {
             const stopBtn = new Gtk.Button({
                 image: new Gtk.Image({ icon_name: 'process-stop-symbolic' }),
@@ -428,6 +502,26 @@ var FileProgressManager = class {
             card.get_style_context().add_class('ding-transfer-done');
             if (op._endState === 'error')
                 card.get_style_context().add_class('ding-transfer-error');
+            const dismiss = new Gtk.Button({
+                image: new Gtk.Image({ icon_name: 'window-close-symbolic' }),
+            });
+            dismiss.get_style_context().add_class('ding-transfer-stop');
+            dismiss.get_style_context().add_class('circular');
+            dismiss.get_style_context().add_class('flat');
+            dismiss.set_valign(Gtk.Align.CENTER);
+            dismiss.set_tooltip_text(_('Dismiss'));
+            const gone = op;
+            dismiss.connect('clicked', () => {
+                this._dismissOp(gone);
+            });
+            box.pack_start(dismiss, false, false, 0);
+        }
+        /* Tooltip carries elapsed + full text (Nautilus "running how long"). */
+        try {
+            const tip = this._tooltipText(op);
+            if (tip)
+                card.set_tooltip_text(tip);
+        } catch (e) {
         }
         /* Hover pauses auto-hide, like Nautilus floating-bar hover tracking. */
         card.add_events(Gdk.EventMask.ENTER_NOTIFY_MASK | Gdk.EventMask.LEAVE_NOTIFY_MASK);
@@ -511,7 +605,7 @@ var FileProgressItem = class {
             const extra = this._etaText();
             return extra ? '%s / %s \u2014 %s'.replace('%s', done).replace('%s', total).replace('%s', extra) : '%s / %s'.replace('%s', done).replace('%s', total);
         }
-        if (this._totalItems > 0 && this._completedItems >= 0)
+        if (this._totalItems > 1 && this._completedItems >= 0)
             return '%d / %d'.replace('%d', String(this._completedItems)).replace('%d', String(this._totalItems));
         return this._secondaryText || '';
     }

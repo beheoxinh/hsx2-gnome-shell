@@ -123,4 +123,20 @@ export const tests = [
         if (!s.includes('still honor the'))
             throw new Error('late cancel message not honored');
     }],
+    ['status icon per state + dismiss + tooltip', () => {
+        const s = readFile(FPM);
+        for (const m of ['emblem-ok-symbolic', 'dialog-error-symbolic',
+            '_dismissOp', '_tooltipText', 'set_tooltip_text',
+            'ding-transfer-status-icon', "_('Dismiss')"]) {
+            if (!s.includes(m))
+                throw new Error(`missing invariant: ${m}`);
+        }
+        if (s.includes('buildQueueRow') || s.includes('queueCard'))
+            throw new Error('popover remnant back');
+    }],
+    ['single-item ops never show bare counts', () => {
+        const s = readFile(FPM);
+        if (!s.includes('this._totalItems > 1'))
+            throw new Error('meaningless 0/1 guard missing');
+    }],
 ];
