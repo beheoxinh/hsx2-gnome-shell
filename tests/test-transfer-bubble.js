@@ -101,4 +101,26 @@ export const tests = [
                 throw new Error(`missing invariant: ${m}`);
         }
     }],
+    ['error cards styled distinctly, no duplicate status label', () => {
+        const s = readFile(FPM);
+        if (!s.includes("add_class('ding-transfer-error')"))
+            throw new Error('error card class missing');
+        if (s.includes("add_class('ding-transfer-row-status')"))
+            throw new Error('duplicate finished status label still present');
+        const css = readFile(CSS);
+        if (!css.includes('.ding-transfer-pill.ding-transfer-error'))
+            throw new Error('error CSS missing');
+    }],
+    ['detail merges filename + bytes/time/rate', () => {
+        const s = readFile(FPM);
+        if (!s.includes("detailParts.join(' — ')"))
+            throw new Error('secondary label no longer merged into detail');
+    }],
+    ['setCancelled single body, honors late message', () => {
+        const s = readFile(FPM);
+        if (s.includes('mgr._stopPulse();\n        mgr._stopPulse();'))
+            throw new Error('duplicate stopPulse still present');
+        if (!s.includes('still honor the'))
+            throw new Error('late cancel message not honored');
+    }],
 ];

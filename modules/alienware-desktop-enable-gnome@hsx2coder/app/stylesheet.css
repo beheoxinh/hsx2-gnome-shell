@@ -124,6 +124,19 @@ button.ding-transfer-stop:hover {
     color: rgba(255, 255, 255, 0.55);
 }
 
+/* Error cards read distinctly from success (G3): red bar + status text. */
+.ding-transfer-pill.ding-transfer-error {
+    border-color: rgba(255, 90, 90, 0.55);
+}
+
+.ding-transfer-pill.ding-transfer-error .ding-transfer-bar progress {
+    background-color: #e05c5c;
+}
+
+.ding-transfer-pill.ding-transfer-error .ding-transfer-details {
+    color: #ff9d9d;
+}
+
 .ding-transfer-row-status {
     font-size: 11px;
     font-weight: 600;

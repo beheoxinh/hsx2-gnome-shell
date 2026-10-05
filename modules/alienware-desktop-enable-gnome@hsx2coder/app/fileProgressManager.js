@@ -359,7 +359,15 @@ var FileProgressManager = class {
         });
         primary.get_style_context().add_class('ding-transfer-primary');
         labels.pack_start(primary, false, true, 0);
-        const detailText = (typeof op._detailText === 'function' && op._detailText()) || op._secondaryText || '';
+        /* Secondary label (current filename from localFileOps) is merged with
+         * the byte/time/rate detail — both visible on one ellipsized line. */
+        const detailParts = [];
+        if (op._secondaryText)
+            detailParts.push(op._secondaryText);
+        const autoDetail = (typeof op._detailText === 'function' && op._detailText()) || '';
+        if (autoDetail && autoDetail !== op._secondaryText)
+            detailParts.push(autoDetail);
+        const detailText = detailParts.join(' — ');
         const detail = new Gtk.Label({
             label: detailText,
             halign: Gtk.Align.START,
@@ -375,7 +383,12 @@ var FileProgressManager = class {
         const bar = new Gtk.ProgressBar();
         bar.get_style_context().add_class('ding-transfer-bar');
         bar.set_show_text(false);
-        bar.set_fraction(typeof op._fraction === 'number' ? op._fraction : 0);
+        if (typeof op._fraction === 'number')
+            bar.set_fraction(op._fraction);
+        else if (!op._finished)
+            bar.pulse();
+        else
+            bar.set_fraction(0);
         bar.set_hexpand(true);
         labels.pack_start(bar, false, true, 0);
         if (typeof op._fraction === 'number')
@@ -410,13 +423,11 @@ var FileProgressManager = class {
             });
             box.pack_start(stopBtn, false, false, 0);
         } else {
-            const st = new Gtk.Label({
-                label: (typeof op._detailText === 'function' && op._detailText()) || '',
-                halign: Gtk.Align.END,
-            });
-            st.get_style_context().add_class('ding-transfer-row-status');
-            box.pack_start(st, false, false, 0);
+            /* Finished: status text already shows in the detail line —
+             * dim the card, no duplicate label (G2). */
             card.get_style_context().add_class('ding-transfer-done');
+            if (op._endState === 'error')
+                card.get_style_context().add_class('ding-transfer-error');
         }
         /* Hover pauses auto-hide, like Nautilus floating-bar hover tracking. */
         card.add_events(Gdk.EventMask.ENTER_NOTIFY_MASK | Gdk.EventMask.LEAVE_NOTIFY_MASK);
@@ -438,7 +449,9 @@ var FileProgressManager = class {
                 this._stopPulse();
                 return false;
             }
-            /* Indeterminate: keep spinners turning; bars stay pulsing. */
+            /* Indeterminate (G4): pulse every bar without a byte fraction
+             * so "Preparing…" cards animate instead of sitting at 0. */
+            this._syncUI();
             return true;
         });
     }
@@ -626,17 +639,22 @@ var FileProgressItem = class {
         this._cancelled = true;
         /* Nautilus parity: a cancelled op flips to a brief "Cancelled" state
          * (bar freezes, spinner stops) then auto-hides via the same fade
-         * path as completed — never a stuck pill. */
-        this._fraction = null;
+         * path as completed — never a stuck pill. Idempotent with
+         * requestCancel(): whichever runs first wins. */
+        if (this._finished && this._endState === 'cancelled') {
+            /* requestCancel() already flipped state; still honor the
+             * caller's final message, then repaint. */
+            if (message && this._primaryText !== message) {
+                this._primaryText = message;
+                mgr._syncUI();
+            }
+            return;
+        }
+        this._fraction = 0;
         this._finished = true;
         this._endState = 'cancelled';
         this._primaryText = message || _('Cancelled');
         mgr._stopPulse();
-        mgr._stopPulse();
-        this._fraction = 0;
-        this._finished = true;
-        this._endState = 'cancelled';
-        this._primaryText = _('Cancelled');
         mgr._syncUI();
         mgr._armHideTimerIfDone();
     }
