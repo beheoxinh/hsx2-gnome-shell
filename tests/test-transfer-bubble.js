@@ -99,4 +99,15 @@ export const tests = [
                 throw new Error(`missing invariant: ${m}`);
         }
     }],
+    ['cancel paints terminal state immediately (no async wait)', () => {
+        const s = readFile(FPM);
+        for (const m of ['requestCancel()', "_('Cancelling…')",
+            '_pointerInCard', 'enter-notify-event', 'leave-notify-event']) {
+            if (!s.includes(m))
+                throw new Error(`missing invariant: ${m}`);
+        }
+        // card must survive terminal state until the hide timer fires
+        if (s.includes('Terminal state: collapse the queue card now'))
+            throw new Error('card still collapses early on terminal state');
+    }],
 ];

@@ -70,6 +70,7 @@ var FileProgressManager = class {
         /* Per-grid bubble widgets: [{grid, overlay, revealer, pill, ...}]. */
         this._bubbles = [];
         this._expanded = false;
+        this._pointerInCard = false;
         this._hideTimer = null;
         this._queue = [];
     }
@@ -110,6 +111,36 @@ var FileProgressManager = class {
      *  _cancellable?, cancel?(), _cancelledByUser}. */
     registerExternal(op) {
         this._ensureBubbles();
+        /* Plain-object externals (AutoAr) get the same immediate-cancel path
+         * as internal items so every row paints terminal state on click. */
+        if (op && typeof op.requestCancel !== 'function') {
+            op.requestCancel = () => {
+                if (op._finished)
+                    return;
+                op._cancelledByUser = true;
+                try {
+                    if (op._cancellable)
+                        op._cancellable.cancel();
+                } catch (e) {
+                }
+                if (typeof op.cancel === 'function') {
+                    try {
+                        op.cancel();
+                    } catch (e) {
+                    }
+                }
+                if (typeof op._fraction !== 'number')
+                    op._fraction = 0;
+                op._finished = true;
+                op._endState = 'cancelled';
+                try {
+                    op._primaryText = _('Cancelling…');
+                } catch (e) {
+                }
+                this._syncUI();
+                this._armHideTimerIfDone();
+            };
+        }
         if (!this._queue.includes(op))
             this._queue.push(op);
         this._syncUI();
@@ -253,16 +284,41 @@ var FileProgressManager = class {
         stopBtn.set_valign(Gtk.Align.CENTER);
         stopBtn.set_tooltip_text(_('Cancel'));
         stopBtn.connect('clicked', () => {
-            if (this._item) {
-                this._item._cancelledByUser = true;
-                this._item._cancellable.cancel();
+            const ops = this._allOps().filter(o => !o._finished);
+            const target = ops[ops.length - 1];
+            if (target && typeof target.requestCancel === 'function')
+                target.requestCancel();
+            else if (target) {
+                /* External op without the method: best-effort cancel flags. */
+                try {
+                    target._cancelledByUser = true;
+                } catch (e) {
+                }
+                try {
+                    if (target._cancellable)
+                        target._cancellable.cancel();
+                } catch (e) {
+                }
+                if (typeof target.cancel === 'function') {
+                    try {
+                        target.cancel();
+                    } catch (e) {
+                    }
+                }
+                this._syncUI();
             }
         });
         box.pack_start(stopBtn, false, false, 0);
 
-        /* Click on the pill toggles the expanded queue card, like clicking
-         * the Nautilus progress indicator opens the operations popover. */
-        pill.connect('button-press-event', () => {
+        /* Click-only expansion (Nautilus parity): the operations popover
+         * opens on left-click, never on hover. Hover only pauses auto-hide. */
+        pill.connect('button-press-event', (widget, event) => {
+            try {
+                const [, button] = event.get_button();
+                if (button !== 1)
+                    return false;
+            } catch (e) {
+            }
             this._toggleExpanded();
             return true;
         });
@@ -272,7 +328,10 @@ var FileProgressManager = class {
             return false;
         });
         pill.connect('leave-notify-event', () => {
-            this._armHideTimerIfDone();
+            /* Moving onto the queue card is not "leaving": keep it open
+             * while the pointer is over pill OR card. */
+            if (!this._pointerInCard)
+                this._armHideTimerIfDone();
             return false;
         });
 
@@ -283,6 +342,23 @@ var FileProgressManager = class {
         details.hide();
         revealer.reveal_child = false;
 
+        try {
+            if (!grid._window._dingEscHooked) {
+                grid._window._dingEscHooked = true;
+                grid._window.connect('key-press-event', (w, event) => {
+                    try {
+                        const [, keyval] = event.get_keyval();
+                        if (keyval === Gdk.KEY_Escape && this._expanded) {
+                            this._toggleExpanded();
+                            return true;
+                        }
+                    } catch (e) {
+                    }
+                    return false;
+                });
+            }
+        } catch (e) {
+        }
         const bubble = {
             grid, window: grid._window, overlay, revealer, pill,
             spinner, primary, details, bar, stopBtn,
@@ -295,16 +371,28 @@ var FileProgressManager = class {
 
     _paintBubble(b) {
         /* Multi-op header (Nautilus parity): newest unfinished op is the
-         * headline; when >1 unfinished, pill shows "N file operations"
-         * style summary + aggregate bar. Finished-only state shows last. */
+         * headline; when >1 running, pill shows "Copying 2 Folders…" style
+         * summary + aggregate bar. Finished-only state shows last. */
         const active = this._allOps().filter(o => !o._finished);
         const item = active[active.length - 1] || this._allOps()[this._allOps().length - 1];
         if (!item)
             return;
         if (active.length > 1) {
-            /* workers: ngettext not wired in DING; plural via simple branch. */
+            /* Nautilus shows the running op count against the verb, e.g.
+             * "Copying 2 Folders". Verb comes from the newest op type. */
+            const verbs = {
+                COPY: [_('Copying %d File'), _('Copying %d Files')],
+                MOVE: [_('Moving %d File'), _('Moving %d Files')],
+                TRASH: [_('Moving %d File to Trash'), _('Moving %d Files to Trash')],
+                DELETE: [_('Deleting %d File'), _('Deleting %d Files')],
+                EMPTY_TRASH: [_('Emptying Trash'), _('Emptying Trash')],
+                EXTRACT: [_('Extracting %d File'), _('Extracting %d Files')],
+                COMPRESS: [_('Compressing %d File'), _('Compressing %d Files')],
+            };
+            const pair = verbs[item._type] || [_('Copying %d File'), _('Copying %d Files')];
             const nOps = active.length;
-            const summary = nOps === 1 ? _('1 file operation') : _('%d file operations').replace('%d', String(nOps));
+            const tmpl = nOps === 1 ? pair[0] : pair[1];
+            const summary = tmpl.includes('%d') ? tmpl.replace('%d', String(nOps)) : tmpl;
             b.primary.set_label(summary);
             let sum = 0, n = 0;
             for (let o of active) {
@@ -319,8 +407,9 @@ var FileProgressManager = class {
             } else {
                 b.spinner.start();
             }
-            if (item._secondaryText) {
-                b.details.set_label(item._secondaryText);
+            const headlineDetail = (typeof item._detailText === 'function' && item._detailText()) || item._secondaryText || '';
+            if (headlineDetail) {
+                b.details.set_label(headlineDetail);
                 b.details.show();
             } else {
                 b.details.set_label('');
@@ -329,8 +418,9 @@ var FileProgressManager = class {
         } else {
             const primary = item._primaryText || item._defaultLabel();
             b.primary.set_label(primary);
-            if (item._secondaryText) {
-                b.details.set_label(item._secondaryText);
+            const detailText = (typeof item._detailText === 'function' && item._detailText()) || item._secondaryText || '';
+            if (detailText) {
+                b.details.set_label(detailText);
                 b.details.show();
             } else {
                 b.details.set_label('');
@@ -408,29 +498,17 @@ var FileProgressManager = class {
 
     _armHideTimerIfDone() {
         /* Auto open/close (Nautilus parity):
-         * - any unfinished op -> stay open, collapse the queue card
-         * - all finished -> collapse card, start hide timer, never strand
-         *   an expanded empty popover (the stuck-open popup bug). */
-        if (this._allOps().some(o => !o._finished)) {
-            if (this._expanded) {
-                this._expanded = false;
-                for (let b of this._bubbles)
-                    this._paintQueueCard(b);
-            }
+         * - any unfinished op -> pill stays, card stays as the user left it
+         * - all finished -> card STAYS open through the hide delay so terminal
+         *   states (Completed/Cancelled/Error per row) remain readable, then
+         *   the timer collapses + hides everything together. */
+        if (this._allOps().some(o => !o._finished))
             return;
-        }
         if (!this._item || !this._item._finished) {
             if (this._queue.length)
                 return;
             if (!this._item)
                 return;
-        }
-        /* Terminal state: collapse the queue card now so the pill headline
-         * (Completed/Cancelled/Error) is what fades — never a stranded card. */
-        if (this._expanded) {
-            this._expanded = false;
-            for (let b of this._bubbles)
-                this._paintQueueCard(b);
         }
         this._clearHideTimer();
         const delay = this._item._endState === 'error'
@@ -497,6 +575,17 @@ var FileProgressManager = class {
             list.get_style_context().add_class('ding-transfer-queue-list');
             list.set_selection_mode(Gtk.SelectionMode.NONE);
             card.add(list);
+            card.add_events(Gdk.EventMask.ENTER_NOTIFY_MASK | Gdk.EventMask.LEAVE_NOTIFY_MASK);
+            card.connect('enter-notify-event', () => {
+                this._pointerInCard = true;
+                this._clearHideTimer();
+                return false;
+            });
+            card.connect('leave-notify-event', () => {
+                this._pointerInCard = false;
+                this._armHideTimerIfDone();
+                return false;
+            });
             b.overlay.add_overlay(card);
             b.overlay.set_overlay_pass_through(card, true);
             card.show_all();
@@ -521,6 +610,8 @@ var FileProgressManager = class {
             row.get_style_context().add_class('ding-transfer-queue-row');
             if (op._finished)
                 row.get_style_context().add_class('ding-transfer-done');
+            const v = new Gtk.Box({ orientation: Gtk.Orientation.VERTICAL, spacing: 2 });
+            v.get_style_context().add_class('ding-transfer-row-v');
             const h = new Gtk.Box({ orientation: Gtk.Orientation.HORIZONTAL, spacing: 8 });
             const lab = new Gtk.Label({
                 label: op._primaryText || (op._defaultLabel && op._defaultLabel()) || '',
@@ -534,6 +625,14 @@ var FileProgressManager = class {
             pbar.set_fraction(typeof op._fraction === 'number' ? op._fraction : 0);
             pbar.set_hexpand(true);
             h.pack_start(pbar, true, true, 0);
+            if (op._finished) {
+                const st = new Gtk.Label({
+                    label: (typeof op._detailText === 'function' && op._detailText()) || '',
+                    halign: Gtk.Align.END,
+                });
+                st.get_style_context().add_class('ding-transfer-row-status');
+                h.pack_start(st, false, false, 0);
+            }
             if (!op._finished) {
                 const cancel = new Gtk.Button({
                     image: new Gtk.Image({ icon_name: 'process-stop-symbolic' }),
@@ -543,17 +642,33 @@ var FileProgressManager = class {
                 cancel.get_style_context().add_class('flat');
                 const target = op;
                 cancel.connect('clicked', () => {
-                    target._cancelledByUser = true;
-                    try {
-                        target._cancellable.cancel();
-                    } catch (e) {
+                    if (typeof target.requestCancel === 'function')
+                        target.requestCancel();
+                    else {
+                        target._cancelledByUser = true;
+                        try {
+                            target._cancellable.cancel();
+                        } catch (e) {
+                        }
+                        if (target.cancel)
+                            target.cancel();
+                        this._syncUI();
                     }
-                    if (target.cancel)
-                        target.cancel();
                 });
                 h.pack_start(cancel, false, false, 0);
             }
-            row.add(h);
+            const detail = new Gtk.Label({
+                label: (typeof op._detailText === 'function' ? op._detailText() : '') || '',
+                halign: Gtk.Align.START,
+                xalign: 0,
+                ellipsize: 2,
+                max_width_chars: 40,
+                single_line_mode: true,
+            });
+            detail.get_style_context().add_class('ding-transfer-row-detail');
+            v.pack_start(h, false, false, 0);
+            v.pack_start(detail, false, false, 0);
+            row.add(v);
             list.add(row);
         }
         list.show_all();
@@ -600,8 +715,64 @@ var FileProgressItem = class {
         this._fraction = null;
         this._finished = false;
         this._endState = null;
+        /* Detail tracking (Nautilus file-operations parity): byte counters +
+         * monotonic start so each row can show "x / y — T left (R/s)". */
+        this._doneBytes = 0;
+        this._totalBytes = 0;
+        this._startMono = GLib.get_monotonic_time();
         if (!this._manager._queue.includes(this))
             this._manager._queue.push(this);
+    }
+
+    /* Nautilus file-operations detail format: "x / y — T left (R files/s)".
+     * Falls back to item counts ("3 / 10") when byte totals are unknown,
+     * mirroring nautilus-file-operations.c progress callback. */
+    _detailText() {
+        if (this._finished) {
+            if (this._endState === 'cancelled')
+                return _('Cancelled');
+            if (this._endState === 'error')
+                return this._primaryText || _('Error');
+            return _('Completed');
+        }
+        if (this._totalBytes > 0 && this._doneBytes >= 0) {
+            const done = GLib.format_size(this._doneBytes);
+            const total = GLib.format_size(this._totalBytes);
+            const extra = this._etaText();
+            return extra ? '%s / %s \u2014 %s'.replace('%s', done).replace('%s', total).replace('%s', extra) : '%s / %s'.replace('%s', done).replace('%s', total);
+        }
+        if (this._totalItems > 0 && this._completedItems >= 0)
+            return '%d / %d'.replace('%d', String(this._completedItems)).replace('%d', String(this._totalItems));
+        return this._secondaryText || '';
+    }
+
+    _etaText() {
+        try {
+            const now = GLib.get_monotonic_time();
+            const elapsed = Math.max((now - this._startMono) / 1000000, 0.001);
+            /* Nautilus waits for a reliable rate before showing ETA. */
+            if (elapsed < 2 || this._doneBytes <= 0)
+                return null;
+            const rate = this._doneBytes / elapsed;
+            const left = this._totalBytes > this._doneBytes
+                ? (this._totalBytes - this._doneBytes) / Math.max(rate, 1)
+                : 0;
+            return _('%s left').replace('%s', this._formatDuration(left)) +
+                ' (%s/s)'.replace('%s', GLib.format_size(Math.round(rate)));
+        } catch (e) {
+            return null;
+        }
+    }
+
+    _formatDuration(secs) {
+        const s = Math.max(Math.round(secs), 0);
+        if (s < 60)
+            return _('%d second').replace('%d', String(s));
+        const m = Math.floor(s / 60);
+        if (m < 60)
+            return _('%d minute').replace('%d', String(m));
+        const h = Math.floor(m / 60);
+        return _('%d hour').replace('%d', String(h));
     }
 
     _defaultLabel() {
@@ -636,6 +807,8 @@ var FileProgressItem = class {
         mgr._stopPulse();
         const fraction = totalBytes > 0 ? Math.min(currentBytes / totalBytes, 1.0) : 0;
         this._fraction = fraction;
+        this._doneBytes = Math.max(currentBytes, 0);
+        this._totalBytes = Math.max(totalBytes, 0);
         mgr._syncUI();
     }
 
@@ -658,6 +831,34 @@ var FileProgressItem = class {
         this._finished = true;
         this._endState = 'error';
         this._primaryText = message || _('Error');
+        mgr._syncUI();
+        mgr._armHideTimerIfDone();
+    }
+
+    /* Immediate cancel feedback (Nautilus parity): freeze the bar and flip
+     * the row/pill to a terminal "Cancelling…" state the moment the user hits
+     * cancel — never spin until the async op happens to unwind. Idempotent:
+     * the caller's later setCancelled()/setError() finalizes it. */
+    requestCancel() {
+        if (this._finished)
+            return;
+        const mgr = this._manager;
+        mgr._stopPulse();
+        this._cancelledByUser = true;
+        try {
+            this._cancellable.cancel();
+        } catch (e) {
+        }
+        if (typeof this.cancel === 'function') {
+            try {
+                this.cancel();
+            } catch (e) {
+            }
+        }
+        this._fraction = typeof this._fraction === 'number' ? this._fraction : 0;
+        this._finished = true;
+        this._endState = 'cancelled';
+        this._primaryText = _('Cancelling…');
         mgr._syncUI();
         mgr._armHideTimerIfDone();
     }

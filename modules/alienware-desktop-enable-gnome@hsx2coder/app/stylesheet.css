@@ -217,3 +217,24 @@ button.ding-transfer-stop:active {
     color: #ffffff;
     background-color: rgba(255, 255, 255, 0.28);
 }
+
+/* Queue row: vertical stack like NautilusProgressInfoWidget (status over
+ * details), cancel button only while running, status label when done. */
+.ding-transfer-row-v {
+    padding: 2px 0;
+}
+
+.ding-transfer-row-detail {
+    font-size: 11px;
+    color: rgba(255, 255, 255, 0.65);
+}
+
+.ding-transfer-queue-row.ding-transfer-done .ding-transfer-row-detail {
+    color: rgba(255, 255, 255, 0.4);
+}
+
+.ding-transfer-row-status {
+    font-size: 11px;
+    font-weight: 600;
+    color: rgba(255, 255, 255, 0.75);
+}
