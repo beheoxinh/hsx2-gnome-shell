@@ -119,3 +119,13 @@ button.ding-transfer-stop:hover {
     background-color: transparent;
     min-width: 320px;
 }
+
+.ding-transfer-pill.ding-transfer-done .ding-transfer-primary {
+    color: rgba(255, 255, 255, 0.55);
+}
+
+.ding-transfer-row-status {
+    font-size: 11px;
+    font-weight: 600;
+    color: rgba(255, 255, 255, 0.75);
+}
