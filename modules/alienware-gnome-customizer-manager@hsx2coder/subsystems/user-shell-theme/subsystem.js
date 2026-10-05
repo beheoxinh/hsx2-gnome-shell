@@ -60,9 +60,9 @@ export class UserShellThemeSubsystem {
     }
 
     _changeTheme() {
+        let stylesheet = null;
+        const themeName = this._settings.get_string(SETTINGS_KEY);
         try {
-            let stylesheet = null;
-            const themeName = this._settings?.get_string(SETTINGS_KEY);
             if (!themeName)
                 return;
 
@@ -73,7 +73,7 @@ export class UserShellThemeSubsystem {
 
             const found = stylesheetPaths.find(path => {
                 try {
-                    const file = Gio.file_new_for_path(path);
+                    const file = Gio.File.new_for_path(path);
                     return file.query_exists(null);
                 } catch {
                     return false;
@@ -86,15 +86,24 @@ export class UserShellThemeSubsystem {
                 return;
             }
 
-            log(`[UserShellTheme] loading user theme: ${stylesheet}`);
-            Main.setThemeStylesheet(stylesheet);
-            try {
-                Main.loadTheme();
-            } catch (e) {
-                log(`[UserShellTheme] loadTheme failed, will retry on next change: ${e.message}`);
-            }
+            log(`[UserShellTheme] loading user theme: ${stylesheet.get_path()}`);
+            if (Main._stylesheetTheme)
+                Main.setThemeStylesheet(stylesheet);
+            else
+                Main.loadTheme(stylesheet, this._getDefaultStylesheet());
         } catch (e) {
-            logError(e, '[UserShellTheme] _changeTheme failed');
+            log(`[UserShellTheme] _changeTheme failed: ${e.message}`);
         }
+    }
+
+    _getDefaultStylesheet() {
+        try {
+            const sessionMode = Main.sessionMode;
+            if (sessionMode?.stylesheet)
+                return sessionMode.stylesheet;
+        } catch (e) {
+            log(`[UserShellTheme] _getDefaultStylesheet failed: ${e.message}`);
+        }
+        return null;
     }
 }
