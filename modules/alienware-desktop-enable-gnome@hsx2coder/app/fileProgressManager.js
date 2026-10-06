@@ -530,11 +530,14 @@ var FileProgressManager = class {
             card._dingOp = op;
             b.list.add(card);
         }
+        /* show_all first (new cards need it), then re-apply per-card
+         * visibility: show_all would otherwise re-show the hidden
+         * dismiss button / finished-state icon on running cards. */
+        b.list.show_all();
         for (let child of b.list.get_children()) {
             if (child._dingOp && live.has(child._dingOp))
                 this._updateCard(child, child._dingOp);
         }
-        b.list.show_all();
     }
 
     _buildCard(op) {
