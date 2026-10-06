@@ -560,6 +560,9 @@ var FileProgressManager = class {
         const statusSlot = new Gtk.Box({ orientation: Gtk.Orientation.HORIZONTAL, spacing: 0 });
         statusSlot.set_valign(Gtk.Align.CENTER);
         const spinner = new Gtk.Spinner();
+        /* Spinner: _updateCard owns visibility (running vs finished icon), so
+         * ancestor show_all() must never flip it. */
+        spinner.set_no_show_all(true);
         spinner.start();
         statusSlot.pack_start(spinner, false, false, 0);
         let statusIcon = new Gtk.Image({ icon_name: 'emblem-ok-symbolic' });
@@ -645,6 +648,9 @@ var FileProgressManager = class {
             const stopBtn = new Gtk.Button({
                 image: new Gtk.Image({ icon_name: 'process-stop-symbolic' }),
             });
+            /* Visibility is owned by _updateCard: any ancestor show_all()
+             * (desktop grid refresh etc.) must not flip these widgets. */
+            stopBtn.set_no_show_all(true);
             stopBtn.get_style_context().add_class('ding-transfer-stop');
             stopBtn.get_style_context().add_class('circular');
             stopBtn.get_style_context().add_class('flat');
@@ -679,6 +685,7 @@ var FileProgressManager = class {
             const dismiss = new Gtk.Button({
                 image: new Gtk.Image({ icon_name: 'window-close-symbolic' }),
             });
+            dismiss.set_no_show_all(true);
             dismiss.get_style_context().add_class('ding-transfer-stop');
             dismiss.get_style_context().add_class('circular');
             dismiss.get_style_context().add_class('flat');
