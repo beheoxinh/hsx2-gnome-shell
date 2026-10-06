@@ -10,6 +10,7 @@ function readFile(path) {
 }
 
 const DM = 'modules/alienware-desktop-enable-gnome@hsx2coder/app/desktopManager.js';
+const LFO = 'modules/alienware-desktop-enable-gnome@hsx2coder/app/localFileOps.js';
 const AAR = 'modules/alienware-desktop-enable-gnome@hsx2coder/app/autoAr.js';
 const FPM = 'modules/alienware-desktop-enable-gnome@hsx2coder/app/fileProgressManager.js';
 const CSS = 'modules/alienware-desktop-enable-gnome@hsx2coder/app/stylesheet.css';
@@ -204,6 +205,39 @@ export default [
             '#connectPosition', 'transfer-progress-symbolic']) {
             if (!prefs.includes(m))
                 throw new Error(`missing prefs tab invariant: ${m}`);
+        }
+    }],
+    ['cut+paste uses fast rename path, copy fallback preserves Moving label', () => {
+        const s = readFile(LFO);
+        if (!s.includes('moveItemsWithProgress'))
+            throw new Error('moveItemsWithProgress missing in localFileOps');
+        if (!s.includes('move_async_promise'))
+            throw new Error('same-disk Gio.move fast path missing');
+        // the MOVE branch must route to the rename path, not the Copy painter
+        const dm = readFile(DM);
+        const mvStart = dm.indexOf('if (this._isCut) {');
+        const mvElse = dm.indexOf('} else {', mvStart);
+        const mvBranch = dm.slice(mvStart, mvElse);
+        if (!mvBranch.includes('LocalFileOps.moveItemsWithProgress'))
+            throw new Error('MOVE branch does not use moveItemsWithProgress');
+        if (mvBranch.includes('copyItemsWithProgress'))
+            throw new Error('MOVE branch still routes to copy painter');
+        // source-delete failure must surface an error card, not silent print
+        if (!s.includes('could not remove the source'))
+            throw new Error('partial-move error message missing');
+        if (dm.includes('Error deleting source after move'))
+            throw new Error('silent print loop still in _doPaste');
+    }],
+    ['dead transfer CSS removed (no orphan classes)', () => {
+        const s = readFile(FPM);
+        for (const dead of ['ding-transfer-row-status', 'ding-transfer-spinner']) {
+            if (s.includes(dead))
+                throw new Error(`JS still references dead class ${dead}`);
+        }
+        const css = readFile(CSS);
+        for (const dead of ['.ding-transfer-row-status', '.ding-transfer-spinner']) {
+            if (css.includes(dead))
+                throw new Error(`CSS still defines dead class ${dead}`);
         }
     }],
 ];

@@ -78,6 +78,71 @@ async function _calculateDirSize(dir, cancellable) {
     return totalBytes;
 }
 
+async function moveItemsWithProgress(uriList, destDirUri, progressItem) {
+    /* Same-disk rename fast path (Nautilus parity: instant move, no byte
+     * copy): try Gio.move per item first. Fall back to copy+delete only
+     * when move fails (cross-device). progressItem label must stay
+     * "Moving" — copyItemsWithProgress would paint "Copying". */
+    const destDir = Gio.File.new_for_uri(destDirUri);
+    const cancellable = progressItem.cancellable;
+
+    progressItem.setLabel(
+        _('Moving %d item(s)…').replace('%d', String(uriList.length)));
+
+    let completedItems = 0;
+    for (let i = 0; i < uriList.length; i++) {
+        if (cancellable.is_cancelled()) {
+            progressItem.setCancelled();
+            return false;
+        }
+        const sourceFile = Gio.File.new_for_uri(uriList[i]);
+        const destFile = destDir.get_child(sourceFile.get_basename());
+        progressItem.setSecondaryLabel(
+            _('[%d/%d] %s').replace('%d', String(i + 1)).replace('%d', String(uriList.length))
+                .replace('%s', sourceFile.get_basename()));
+        try {
+            await sourceFile.move_async_promise(destFile,
+                Gio.FileCopyFlags.OVERWRITE | Gio.FileCopyFlags.ALLOW_METADATA_COPY,
+                GLib.PRIORITY_DEFAULT, cancellable, null);
+        } catch (e) {
+            if (e.matches(Gio.IOErrorEnum, Gio.IOErrorEnum.CANCELLED)) {
+                progressItem.setCancelled();
+                return false;
+            }
+            /* Cross-device or unsupported: fall back to copy+delete for
+             * this one item only, keeping the "Moving" headline.
+             * copyItemsWithProgress repaints "Copying…" — restore "Moving"
+             * right after so the card never lies mid-op. */
+            const oneOk = await copyItemsWithProgress([uriList[i]], destDirUri, progressItem);
+            progressItem.setLabel(
+                _('Moving %d item(s)…').replace('%d', String(uriList.length)));
+            if (!oneOk)
+                return false;
+            try {
+                await _deleteSourceTree(sourceFile, cancellable);
+            } catch (delErr) {
+                throw new Error(_('Moved %s but could not remove the source: %s')
+                    .replace('%s', sourceFile.get_basename())
+                    .replace('%s', delErr.message));
+            }
+        }
+        completedItems++;
+        progressItem.incrementCompleted();
+        progressItem.setProgress(completedItems, uriList.length);
+    }
+    return true;
+}
+
+async function _deleteSourceTree(sourceFile, cancellable) {
+    const info = await sourceFile.query_info_async_promise(
+        Gio.FILE_ATTRIBUTE_STANDARD_TYPE,
+        Gio.FileQueryInfoFlags.NONE, GLib.PRIORITY_DEFAULT, cancellable);
+    if (info.get_file_type() === Gio.FileType.DIRECTORY)
+        await FileUtils.recursivelyDeleteDir(sourceFile, true, cancellable);
+    else
+        await sourceFile.delete_async_promise(GLib.PRIORITY_DEFAULT, cancellable);
+}
+
 async function copyItemsWithProgress(uriList, destDirUri, progressItem) {
     const destDir = Gio.File.new_for_uri(destDirUri);
     const cancellable = progressItem.cancellable;

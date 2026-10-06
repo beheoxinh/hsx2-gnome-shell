@@ -1341,25 +1341,8 @@ var DesktopManager = class {
 
             let success;
             if (this._isCut) {
-                success = await LocalFileOps.copyItemsWithProgress(
+                success = await LocalFileOps.moveItemsWithProgress(
                     this._clipboardFiles, desktopDir, progressItem);
-                if (success) {
-                    for (const uri of this._clipboardFiles) {
-                        const file = Gio.File.new_for_uri(uri);
-                        try {
-                            const info = await file.query_info_async_promise(
-                                Gio.FILE_ATTRIBUTE_STANDARD_TYPE,
-                                Gio.FileQueryInfoFlags.NONE, GLib.PRIORITY_DEFAULT, null);
-                            if (info.get_file_type() === Gio.FileType.DIRECTORY)
-                                await FileUtils.recursivelyDeleteDir(file, true, null);
-                            else
-                                await file.delete_async_promise(GLib.PRIORITY_DEFAULT, null);
-                        } catch (e) {
-                            if (!e.matches(Gio.IOErrorEnum, Gio.IOErrorEnum.NOT_FOUND))
-                                print(`Error deleting source after move: ${e.message}`);
-                        }
-                    }
-                }
             } else {
                 success = await LocalFileOps.copyItemsWithProgress(
                     this._clipboardFiles, desktopDir, progressItem);
