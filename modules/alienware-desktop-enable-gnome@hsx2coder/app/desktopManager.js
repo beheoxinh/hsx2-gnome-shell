@@ -1867,15 +1867,10 @@ var DesktopManager = class {
         if (!selection.length)
             return;
 
-        /* Remote ops are owned end-to-end by Nautilus (confirm dialog,
-         * progress, cancel, errors). DING shows no card: the DBus method
-         * returns at dispatch, so a local card would be a ghost during
-         * confirm and a fiction afterwards. */
-        DBusUtils.RemoteFileOperations.TrashURIsRemote(selection, (result, error) => {
-            this._updateDesktop().catch(e => {
-                print(`Exception updating desktop after trash: ${e.message}`);
-            });
-        });
+        /* Local Gio trash with a real progress card: per-item trash_async,
+         * cancellable, honest completion. No Nautilus DBus round-trip — that
+         * path returns at dispatch and cannot report progress. */
+        this._removeLocalWithCard(selection, 'trash');
     }
 
     doDeletePermanently() {
@@ -1889,26 +1884,25 @@ var DesktopManager = class {
             return;
         }
 
-        /* Remote ops are owned end-to-end by Nautilus (confirm dialog,
-         * progress, cancel, errors). DING shows no card: the DBus method
-         * returns at dispatch, so a local card would be a ghost during
-         * confirm and a fiction afterwards. */
-        DBusUtils.RemoteFileOperations.DeleteURIsRemote(toDelete, (result, error) => {
-            this._updateDesktop().catch(e => {
-                print(`Exception updating desktop after delete: ${e.message}`);
-            });
+        /* Confirm BEFORE the card exists (Nautilus confirm_delete_directly
+         * parity); a card shown during a modal would be a ghost. */
+        this._confirmDeleteDirectly(toDelete).then(ok => {
+            if (ok)
+                this._removeLocalWithCard(toDelete, 'delete');
         });
     }
 
     doEmptyTrash(askConfirmation = true) {
-        /* Remote ops are owned end-to-end by Nautilus (confirm dialog,
-         * progress, cancel, errors). DING shows no card: the DBus method
-         * returns at dispatch, so a local card would be a ghost during
-         * confirm and a fiction afterwards. */
-        DBusUtils.RemoteFileOperations.EmptyTrashRemote(askConfirmation, (result, error) => {
-            this._updateDesktop().catch(e => {
-                print(`Exception updating desktop after empty trash: ${e.message}`);
-            });
+        const proceed = () => {
+            this._emptyTrashWithCard();
+        };
+        if (!askConfirmation) {
+            proceed();
+            return;
+        }
+        this._confirmEmptyTrash().then(ok => {
+            if (ok)
+                proceed();
         });
     }
 
@@ -1919,6 +1913,134 @@ var DesktopManager = class {
             }
         }
         return false;
+    }
+
+    _removeLocalWithCard(uriList, mode) {
+        const opType = mode === 'trash' ? 'TRASH' : 'DELETE';
+        const verb = mode === 'trash'
+            ? _('Moving %d item(s) to Trash')
+            : _('Deleting %d item(s)');
+        const progressItem = this.fileProgress.addOperation(
+            `${mode === 'trash' ? 'trash' : 'delete'}_${Date.now()}`,
+            opType, uriList.length,
+            verb.replace('%d', String(uriList.length)));
+        LocalFileOps.removeItemsWithProgress(uriList, mode, progressItem)
+            .then(success => {
+                /* false = helper already setCancelled(); never overwrite. */
+                if (success)
+                    progressItem.setCompleted();
+                this._refreshAfterOp(mode === 'trash' ? 'trash' : 'delete');
+            })
+            .catch(e => {
+                if (progressItem._endState === 'cancelled')
+                    return;
+                progressItem.setError(e.message || String(e));
+                this._refreshAfterOp(mode === 'trash' ? 'trash' : 'delete');
+            });
+    }
+
+    _confirmDeleteDirectly(toDelete) {
+        const names = toDelete.slice(0, 5).join('\n');
+        const extra = toDelete.length > 5 ? _('\n%d more…').replace('%d', String(toDelete.length - 5)) : '';
+        return new Promise(resolve => {
+            const dialog = new Gtk.MessageDialog({
+                modal: true,
+                message_type: Gtk.MessageType.WARNING,
+                buttons: Gtk.ButtonsType.NONE,
+                text: _('Delete these %d items permanently?').replace('%d', String(toDelete.length)),
+                secondary_text: `${names}${extra}`,
+            });
+            dialog.add_button(_('Cancel'), Gtk.ResponseType.NO);
+            const delBtn = dialog.add_button(_('Delete'), Gtk.ResponseType.YES);
+            delBtn.get_style_context().add_class('destructive-action');
+            dialog.connect('response', (d, id) => {
+                d.destroy();
+                resolve(id === Gtk.ResponseType.YES);
+            });
+            dialog.show_all();
+        });
+    }
+
+    _confirmEmptyTrash() {
+        return new Promise(resolve => {
+            const dialog = new Gtk.MessageDialog({
+                modal: true,
+                message_type: Gtk.MessageType.WARNING,
+                buttons: Gtk.ButtonsType.NONE,
+                text: _('Empty Trash?'),
+                secondary_text: _('All items in the Trash will be deleted permanently.'),
+            });
+            dialog.add_button(_('Cancel'), Gtk.ResponseType.NO);
+            const emptyBtn = dialog.add_button(_('Empty Trash'), Gtk.ResponseType.YES);
+            emptyBtn.get_style_context().add_class('destructive-action');
+            dialog.connect('response', (d, id) => {
+                d.destroy();
+                resolve(id === Gtk.ResponseType.YES);
+            });
+            dialog.show_all();
+        });
+    }
+
+    _emptyTrashWithCard() {
+        /* Enumerate trash dirs (one per mount) and remove each file/dir
+         * directly. Progress is per top-level entry: percent is honest,
+         * cancel aborts between items (a mid-entry cancel is impossible for
+         * a single trash_async/delete_async, same as Nautilus). */
+        const itemUris = [];
+        /* trash:/// is the GVFS trash backend: one listing across every
+         * mount; child delete is the real "remove from trash" operation. */
+        const trashRoot = Gio.File.new_for_uri('trash:///');
+        let enumerator = null;
+        try {
+            enumerator = trashRoot.enumerate_children(
+                Gio.FILE_ATTRIBUTE_STANDARD_NAME, Gio.FileQueryInfoFlags.NONE, null);
+        } catch (e) {
+            /* fallback: user trash dir only */
+            const userTrash = Gio.File.new_for_path(`${GLib.get_user_data_dir()}/Trash/files`);
+            try {
+                enumerator = userTrash.enumerate_children(
+                    Gio.FILE_ATTRIBUTE_STANDARD_NAME, Gio.FileQueryInfoFlags.NONE, null);
+            } catch (e2) {
+                enumerator = null;
+            }
+        }
+        if (enumerator) {
+            let child;
+            while ((child = enumerator.next_file(null))) {
+                try {
+                    itemUris.push(child.get_uri());
+                } catch (e) {}
+            }
+            enumerator.close(null);
+        }
+        if (!itemUris.length) {
+            this._updateDesktop().catch(() => {});
+            return;
+        }
+        const progressItem = this.fileProgress.addOperation(
+            `emptytrash_${Date.now()}`, 'EMPTY_TRASH', itemUris.length,
+            _('Emptying Trash…'));
+        LocalFileOps.removeItemsWithProgress(itemUris, 'delete', progressItem, true)
+            .then(success => {
+                /* false = helper already setCancelled(); never overwrite. */
+                if (success)
+                    progressItem.setCompleted();
+                this._refreshAfterOp('empty-trash');
+            })
+            .catch(e => {
+                if (progressItem._endState === 'cancelled')
+                    return;
+                progressItem.setError(e.message || String(e));
+                this._refreshAfterOp('empty-trash');
+            });
+    }
+
+    _refreshAfterOp(_kind) {
+        GLib.timeout_add(GLib.PRIORITY_DEFAULT, 500, () => {
+            this._updateDesktop().catch(e =>
+                print(`Exception updating desktop after transfer: ${e.message}`));
+            return false;
+        });
     }
 
     checkIfDirectoryIsSelected() {

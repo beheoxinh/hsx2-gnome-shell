@@ -299,3 +299,72 @@ async function _getFileSize(file, cancellable) {
 }
 
 
+
+function _trashOrDeleteOne(file, mode, cancellable) {
+    /* Gio.File.trash_async / delete_async as a promise — the trash delete is
+     * the same call the trash backend uses, so progress here is real. */
+    return new Promise((resolve, reject) => {
+        const done = (f, res) => {
+            try {
+                if (mode === 'trash')
+                    f.trash_finish(res);
+                else
+                    f.delete_finish(res);
+                resolve();
+            } catch (e) {
+                reject(e);
+            }
+        };
+        if (mode === 'trash')
+            file.trash_async(GLib.PRIORITY_DEFAULT, cancellable, done);
+        else
+            file.delete_async(GLib.PRIORITY_DEFAULT, cancellable, done);
+    });
+}
+
+async function removeItemsWithProgress(uriList, mode, progressItem, tolerate = false) {
+    /* mode 'trash' -> Gio trash, 'delete' -> permanent unlink. Same contract
+     * as copy/move helpers: per-item secondary + counter, setCancelled() on
+     * cancel, throw on failures (caller setError). Failures on some items do
+     * not abort the rest — Nautilus reports and continues too. */
+    const cancellable = progressItem.cancellable;
+    let completedItems = 0;
+    const failures = [];
+    for (const uri of uriList) {
+        if (cancellable.is_cancelled()) {
+            progressItem.setCancelled();
+            return false;
+        }
+        const file = Gio.File.new_for_uri(uri);
+        progressItem.setSecondaryLabel(
+            _('[%d/%d] %s').replace('%d', String(completedItems + 1))
+                .replace('%d', String(uriList.length))
+                .replace('%s', file.get_basename()));
+        try {
+            await _trashOrDeleteOne(file, mode, cancellable);
+        } catch (e) {
+            if (cancellable.is_cancelled() ||
+                (e.matches && e.matches(Gio.IOErrorEnum, Gio.IOErrorEnum.CANCELLED))) {
+                progressItem.setCancelled();
+                return false;
+            }
+            failures.push(file.get_basename() || uri);
+        }
+        completedItems++;
+        progressItem.incrementCompleted();
+        progressItem.setProgress(completedItems, uriList.length);
+    }
+    if (failures.length) {
+        if (tolerate) {
+            /* Best-effort (empty trash): entries from foreign mounts or
+             * locked files can stay; report the count, do not fail the op. */
+            progressItem.setSecondaryLabel(
+                _('%d item(s) could not be removed').replace('%d', String(failures.length)));
+        } else {
+            throw new Error(_('Could not remove %d item(s): %s')
+                .replace('%d', String(failures.length))
+                .replace('%s', failures.slice(0, 3).join(', ')));
+        }
+    }
+    return true;
+}

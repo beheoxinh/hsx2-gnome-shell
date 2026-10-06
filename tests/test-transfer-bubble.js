@@ -141,21 +141,27 @@ export default [
         if (!s.includes('this._totalItems > 1'))
             throw new Error('meaningless 0/1 guard missing');
     }],
-    ['remote ops delegate to Nautilus: no DING card, refresh after dispatch', () => {
+    ['delete/trash report real progress: confirm before card, local Gio helper', () => {
         const s = readFile(DM);
-        for (const m of ['Remote ops are owned end-to-end by Nautilus', '_updateDesktop().catch']) {
+        if (s.includes('DBusUtils.RemoteFileOperations.TrashURIsRemote'))
+            throw new Error('trash still delegated to Nautilus (no real progress)');
+        if (s.includes('DBusUtils.RemoteFileOperations.DeleteURIsRemote'))
+            throw new Error('delete still delegated to Nautilus (no real progress)');
+        for (const m of ['_removeLocalWithCard', 'removeItemsWithProgress',
+                         '_confirmDeleteDirectly', '_confirmEmptyTrash',
+                         '_emptyTrashWithCard']) {
             if (!s.includes(m))
-                throw new Error(`missing remote-delegate invariant: ${m}`);
+                throw new Error('missing local progress path: ' + m);
         }
-        // doTrash/doDelete/doEmptyTrash must not create cards anymore
-        const dmBody = s.slice(s.indexOf('    doTrash()'), s.indexOf('    checkIfSpecialFilesAreSelected'));
-        if (dmBody.includes('addOperation'))
-            throw new Error('remote delete/trash still creates a premature card');
-        // stale TRASH/DELETE labels must be gone from FPM defaults
-        const fpm = readFile(FPM);
-        for (const m of ["TRASH: _('Moving to Trash", "DELETE: _('Deleting", 'EMPTY_TRASH:']) {
-            if (fpm.includes(m))
-                throw new Error(`stale remote label still present: ${m}`);
+        const conf = s.indexOf('_confirmDeleteDirectly(toDelete)');
+        const card = s.indexOf("_removeLocalWithCard(toDelete, 'delete')");
+        if (conf < 0 || card < 0 || conf > card)
+            throw new Error('delete confirm must precede card creation');
+        const lfo = readFile('modules/alienware-desktop-enable-gnome@hsx2coder/app/localFileOps.js');
+        for (const m of ['removeItemsWithProgress', 'trash_async', 'delete_async',
+                         'setSecondaryLabel', 'incrementCompleted']) {
+            if (!lfo.includes(m))
+                throw new Error('missing helper piece: ' + m);
         }
     }],
     ['local paste confirms overwrite before card (no silent OVERWRITE)', () => {
