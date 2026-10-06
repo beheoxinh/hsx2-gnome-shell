@@ -421,38 +421,64 @@ var FileProgressManager = class {
         }
     }
 
-    _armHideTimerIfDone() {
-        /* Auto-hide: while any op runs, stay. When all finished, keep every
-         * card readable through the delay, then hide all at once. */
-        if (this._allOps().some(o => !o._finished))
-            return;
-        if (!this._allOps().length)
-            return;
-        this._clearHideTimer();
-        const last = this._allOps()[this._allOps().length - 1];
-        const _cfgHide = this._bubbleConfig().hideDelay;
-        const delay = last._endState === 'error'
-            ? Math.max(AUTOHIDE_ERROR_MS, _cfgHide)
-            : last._endState === 'cancelled'
-                ? Math.max(AUTOHIDE_CANCELLED_MS, _cfgHide)
-                : _cfgHide;
-        /* hideDelay=0 keeps finished cards until dismissed. */
-        if (!delay)
-            return;
+    /* Per-op hide delay (ms): errors linger, cancelled keep the default,
+     * hideDelay=0 pins the card until dismissed. */
+    _hideDelayFor(op) {
+        const cfg = this._bubbleConfig().hideDelay;
+        if (op && op._endState === 'error')
+            return Math.max(AUTOHIDE_ERROR_MS, cfg);
+        return cfg;
+    }
 
-        this._hideTimer = GLib.timeout_add(GLib.PRIORITY_DEFAULT, delay, () => {
-            this._hideTimer = null;
-            /* Drop finished ops that never unregistered (defensive). */
-            for (let i = this._queue.length - 1; i >= 0; i--) {
-                if (this._queue[i]._finished)
-                    this._queue.splice(i, 1);
+    /* Hide one finished op now: drop its card widgets, then the queue entry.
+     * Running siblings are untouched — each card hides on its own delay. */
+    _hideOpNow(op) {
+        if (!op || !op._finished)
+            return;
+        try {
+            for (let b of this._bubbles) {
+                for (let child of b.list.get_children()) {
+                    if (child._dingOp === op) {
+                        try { child.destroy(); } catch (e) {}
+                    }
+                }
             }
-            if (this._queue.length)
-                this._refreshBubbleVisibility();
-            else
-                this.removeOperation();
-            return false;
-        });
+        } catch (e) {}
+        const i = this._queue.indexOf(op);
+        if (i >= 0)
+            this._queue.splice(i, 1);
+        if (this._item === op)
+            this._item = null;
+        this._syncUI();
+        this._refreshBubbleVisibility();
+    }
+
+    _armHideTimerIfDone() {
+        /* Auto-hide, per card: each finished op hides on its own delay
+         * (Nautilus parity: a done copy vanishes while the next one still
+         * runs). Running ops never hide. */
+        const pending = this._allOps().filter(o => o._finished && !o._hideArmed);
+        for (let op of pending) {
+            op._hideArmed = true;
+            const delay = this._hideDelayFor(op);
+            if (!delay)
+                continue;
+            GLib.timeout_add(GLib.PRIORITY_DEFAULT, delay, () => {
+                try {
+                    if (!op._hoverIn)
+                        this._hideOpNow(op);
+                    else {
+                        /* Hovered: retry shortly after leave. */
+                        op._hideArmed = false;
+                        this._armHideTimerIfDone();
+                    }
+                } catch (e) {}
+                return false;
+            });
+        }
+        /* ponytail: no blanket timer. Each finished op already got its own
+         * hide timer above; running ops never hide. Nothing left to arm. */
+        return;
     }
 
     _syncUI() {
@@ -480,16 +506,34 @@ var FileProgressManager = class {
     _paintStack(b) {
         const _cfg = this._bubbleConfig();
         this._applyBubbleLayout(b.revealer, _cfg);
-        for (let child of b.list.get_children())
-            child.destroy();
-        const seen = new Set();
-        for (let op of this._allOps()) {
-            if (seen.has(op))
-                continue;
-            seen.add(op);
-            b.list.add(this._buildCard(op));
+        /* ponytail: diff, not rebuild. Destroying cards per paint kills the
+         * running GtkSpinner animation (fresh start() each paint = frozen)
+         * and swaps the cancel button under the cursor mid-click. Update
+         * existing cards in place; only add/remove on set change. */
+        const live = new Set(this._allOps());
+        for (let child of b.list.get_children()) {
+            const tag = child._dingOp || null;
+            if (!tag || !live.has(tag)) {
+                try { child.destroy(); } catch (e) {}
+            }
         }
-        // ponytail: full rebuild per paint; ops stay <10 so O(n) is trivial.
+        const have = new Set();
+        for (let child of b.list.get_children()) {
+            if (child._dingOp)
+                have.add(child._dingOp);
+        }
+        for (let op of this._allOps()) {
+            if (have.has(op))
+                continue;
+            have.add(op);
+            const card = this._buildCard(op);
+            card._dingOp = op;
+            b.list.add(card);
+        }
+        for (let child of b.list.get_children()) {
+            if (child._dingOp && live.has(child._dingOp))
+                this._updateCard(child, child._dingOp);
+        }
         b.list.show_all();
     }
 
@@ -508,17 +552,24 @@ var FileProgressManager = class {
         /* Status icon per state (Nautilus operations popover parity):
          * running = spinner, done = green check, cancelled = dim stop,
          * error = red error mark. */
-        let statusIcon = null;
+        /* ponytail: both states prebuilt in a slot; _updateCard toggles
+         * visibility so the spinner is never destroyed while running. */
+        const statusSlot = new Gtk.Box({ orientation: Gtk.Orientation.HORIZONTAL, spacing: 0 });
+        statusSlot.set_valign(Gtk.Align.CENTER);
+        const spinner = new Gtk.Spinner();
+        spinner.start();
+        statusSlot.pack_start(spinner, false, false, 0);
+        let statusIcon = new Gtk.Image({ icon_name: 'emblem-ok-symbolic' });
+        statusSlot.pack_start(statusIcon, false, false, 0);
         if (!op._finished) {
-            statusIcon = new Gtk.Spinner();
-            statusIcon.start();
+            statusIcon.hide();
         } else {
             const iconName = op._endState === 'error'
                 ? 'dialog-error-symbolic'
                 : op._endState === 'cancelled'
                     ? 'process-stop-symbolic'
                     : 'emblem-ok-symbolic';
-            statusIcon = new Gtk.Image({ icon_name: iconName });
+            try { statusIcon.set_from_icon_name(iconName, Gtk.IconSize.MENU); } catch (e) {}
             statusIcon.get_style_context().add_class('ding-transfer-status-icon');
             if (op._endState === 'error')
                 statusIcon.get_style_context().add_class('ding-transfer-status-error');
@@ -528,7 +579,8 @@ var FileProgressManager = class {
                 statusIcon.get_style_context().add_class('ding-transfer-status-done');
         }
         statusIcon.set_valign(Gtk.Align.CENTER);
-        box.pack_start(statusIcon, false, false, 0);
+        statusIcon.get_style_context().add_class('ding-transfer-status-icon');
+        box.pack_start(statusSlot, false, false, 0);
         const labels = new Gtk.Box({
             orientation: Gtk.Orientation.VERTICAL,
             spacing: 0,
@@ -580,7 +632,13 @@ var FileProgressManager = class {
             bar.set_fraction(0);
         bar.set_hexpand(true);
         labels.pack_start(bar, false, true, 0);
-        if (!op._finished) {
+        /* ponytail: both buttons prebuilt; _updateCard shows cancel while
+         * running and dismiss once terminal — the button widget is never
+         * replaced mid-click. */
+        const actionSlot = new Gtk.Box({ orientation: Gtk.Orientation.HORIZONTAL, spacing: 0 });
+        actionSlot.set_valign(Gtk.Align.CENTER);
+        box.pack_start(actionSlot, false, false, 0);
+        {
             const stopBtn = new Gtk.Button({
                 image: new Gtk.Image({ icon_name: 'process-stop-symbolic' }),
             });
@@ -604,8 +662,12 @@ var FileProgressManager = class {
                     this._syncUI();
                 }
             });
-            box.pack_start(stopBtn, false, false, 0);
-        } else {
+            stopBtn._dingRole = 'stop';
+            actionSlot.pack_start(stopBtn, false, false, 0);
+            if (op._finished)
+                stopBtn.hide();
+        }
+        {
             /* Finished: status text already shows in the detail line —
              * dim the card, no duplicate label (G2). */
             card.get_style_context().add_class('ding-transfer-done');
@@ -623,7 +685,10 @@ var FileProgressManager = class {
             dismiss.connect('clicked', () => {
                 this._dismissOp(gone);
             });
-            box.pack_start(dismiss, false, false, 0);
+            dismiss._dingRole = 'dismiss';
+            actionSlot.pack_start(dismiss, false, false, 0);
+            if (!op._finished)
+                dismiss.hide();
         }
         /* Tooltip carries elapsed + full text (Nautilus "running how long"). */
         try {
@@ -635,14 +700,111 @@ var FileProgressManager = class {
         /* Hover pauses auto-hide, like Nautilus floating-bar hover tracking. */
         card.add_events(Gdk.EventMask.ENTER_NOTIFY_MASK | Gdk.EventMask.LEAVE_NOTIFY_MASK);
         card.connect('enter-notify-event', () => {
+            op._hoverIn = true;
             this._clearHideTimer();
             return false;
         });
         card.connect('leave-notify-event', () => {
+            op._hoverIn = false;
             this._armHideTimerIfDone();
             return false;
         });
+        card._dingRefs = { primary, detail, bar, statusSlot, actionSlot };
         return card;
+    }
+
+    /* In-place card refresh: text, icon state, bar fraction, button swap.
+     * No widget is destroyed here, so a running spinner keeps animating
+     * and the cancel button stays clickable across progress notifies. */
+    _updateCard(card, op) {
+        const R = card._dingRefs;
+        if (!R)
+            return;
+        const primaryText = op._primaryText
+            || (typeof op._defaultLabel === 'function' && op._defaultLabel())
+            || '';
+        try { R.primary.set_text(primaryText); } catch (e) {}
+        const detailParts = [];
+        if (op._secondaryText)
+            detailParts.push(op._secondaryText);
+        const autoDetail = (typeof op._detailText === 'function' && op._detailText()) || '';
+        if (autoDetail && autoDetail !== op._secondaryText)
+            detailParts.push(autoDetail);
+        const _cfgCard = this._bubbleConfig();
+        const detailText = _cfgCard.showDetail ? detailParts.join(' \u2014 ') : '';
+        try {
+            R.detail.set_text(detailText);
+            R.detail.set_visible(!!detailText);
+        } catch (e) {}
+        if (typeof op._fraction === 'number') {
+            try { R.bar.set_fraction(op._fraction); } catch (e) {}
+        } else if (!op._finished) {
+            try { R.bar.pulse(); } catch (e) {}
+        } else {
+            try { R.bar.set_fraction(0); } catch (e) {}
+        }
+        /* Status slot: exactly one of spinner / state icon visible. */
+        try {
+            const kids = R.statusSlot.get_children();
+            for (let k of kids) {
+                const isSpin = (k instanceof Gtk.Spinner);
+                const want = op._finished ? !isSpin : isSpin;
+                if (want && !k.get_visible()) {
+                    k.show();
+                    if (isSpin) { try { k.start(); } catch (e) {} }
+                } else if (!want && k.get_visible()) {
+                    if (isSpin) { try { k.stop(); } catch (e) {} }
+                    k.hide();
+                }
+            }
+            if (op._finished) {
+                const iconName = op._endState === 'error'
+                    ? 'dialog-error-symbolic'
+                    : (op._endState === 'cancelled'
+                        ? 'process-stop-symbolic'
+                        : 'emblem-ok-symbolic');
+                for (let k of kids) {
+                    if (!(k instanceof Gtk.Spinner)) {
+                        try { k.set_from_icon_name(iconName, Gtk.IconSize.MENU); } catch (e) {}
+                        const ctx = k.get_style_context();
+                        try { ctx.remove_class('ding-transfer-error'); } catch (e) {}
+                        try { ctx.remove_class('ding-transfer-cancelled'); } catch (e) {}
+                        try { ctx.remove_class('ding-transfer-done'); } catch (e) {}
+                        if (op._endState === 'error')
+                            ctx.add_class('ding-transfer-error');
+                        else if (op._endState === 'cancelled')
+                            ctx.add_class('ding-transfer-cancelled');
+                        else
+                            ctx.add_class('ding-transfer-done');
+                    }
+                }
+            }
+        } catch (e) {}
+        /* Action slot: cancel while running, dismiss once terminal. */
+        try {
+            const kids = R.actionSlot.get_children();
+            for (let k of kids) {
+                const isStop = (k._dingRole === 'stop');
+                const want = op._finished ? !isStop : isStop;
+                if (want && !k.get_visible())
+                    k.show();
+                else if (!want && k.get_visible())
+                    k.hide();
+            }
+        } catch (e) {}
+        try {
+            const errCtx = card.get_style_context();
+            if (op._finished && op._endState === 'error')
+                errCtx.add_class('ding-transfer-error');
+            else {
+                try { errCtx.remove_class('ding-transfer-error'); } catch (e) {}
+            }
+        } catch (e) {}
+        try {
+            const tip = this._tooltipText(op);
+            if (tip)
+                card.set_tooltip_text(tip);
+        } catch (e) {}
     }
 
     _startPulse() {

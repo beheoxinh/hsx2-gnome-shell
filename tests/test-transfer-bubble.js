@@ -240,4 +240,37 @@ export default [
                 throw new Error(`CSS still defines dead class ${dead}`);
         }
     }],
+    ['cards update in place, no rebuild (spinner/button survive)', () => {
+            const s = readFile(FPM);
+            const _a = s.indexOf('    _paintStack(b) {');
+            const _b = s.indexOf('    _buildCard(op) {');
+            const paint = s.slice(_a, _b);
+            if (!(!paint.includes('child.destroy();\n        const seen'))) throw new Error('paint must not destroy-all + rebuild-all');
+            if (!(paint.includes('card._dingOp = op'))) throw new Error('paint tags each card with its op');
+            if (!(paint.includes('this._updateCard(child, child._dingOp)'))) throw new Error('paint refreshes existing cards via _updateCard');
+            if (!(s.includes('_updateCard(card, op)'))) throw new Error('_updateCard exists');
+            if (!(s.includes('card._dingRefs = { primary, detail, bar, statusSlot, actionSlot };'))) throw new Error('build stores refs for in-place update');
+            if (!(s.includes("stopBtn._dingRole = 'stop'"))) throw new Error('stop button tagged for visibility swap');
+            if (!(s.includes("dismiss._dingRole = 'dismiss'"))) throw new Error('dismiss button tagged for visibility swap');
+        }
+    ],
+    ['per-card auto-hide on own delay, running siblings stay', () => {
+            const s = readFile(FPM);
+            if (!(s.includes('_hideDelayFor(op)'))) throw new Error('_hideDelayFor exists');
+            if (!(s.includes('_hideOpNow(op)'))) throw new Error('_hideOpNow exists');
+            const _c = s.indexOf('    _armHideTimerIfDone() {');
+            const _d = s.indexOf('    _syncUI() {', _c);
+            const arm = s.slice(_c, _d);
+            if (!(arm.includes('o._finished && !o._hideArmed'))) throw new Error('arm tracks one timer per finished op');
+            if (!(!arm.includes('hide all at once'))) throw new Error('blanket all-at-once hide gone');
+            if (!(!arm.includes('this._queue.splice(i, 1)'))) throw new Error('arm no longer splices whole queue at once');
+        }
+    ],
+    ['hover pauses per-card hide via op flag', () => {
+            const s = readFile(FPM);
+            if (!(s.includes('op._hoverIn = true'))) throw new Error('enter sets hover flag');
+            if (!(s.includes('op._hoverIn = false'))) throw new Error('leave clears hover flag');
+            if (!(s.includes('if (!op._hoverIn)'))) throw new Error('hide timer respects hover flag');
+        }
+    ],
 ];
