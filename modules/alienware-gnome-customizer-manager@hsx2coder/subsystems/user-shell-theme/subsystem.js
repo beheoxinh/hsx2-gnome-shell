@@ -79,7 +79,7 @@ export class UserShellThemeSubsystem {
                     return false;
                 }
             });
-            stylesheet = found ?? null;
+            stylesheet = found ? Gio.File.new_for_path(found) : null;
 
             if (!stylesheet) {
                 log('[UserShellTheme] stylesheet not resolved yet, skip loadTheme');
