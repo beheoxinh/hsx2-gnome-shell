@@ -94,15 +94,4 @@ export class UserShellThemeSubsystem {
             log(`[UserShellTheme] _changeTheme failed: ${e.message}`);
         }
     }
-
-    _getDefaultStylesheet() {
-        try {
-            const sessionMode = Main.sessionMode;
-            if (sessionMode?.stylesheet)
-                return sessionMode.stylesheet;
-        } catch (e) {
-            log(`[UserShellTheme] _getDefaultStylesheet failed: ${e.message}`);
-        }
-        return null;
-    }
 }
