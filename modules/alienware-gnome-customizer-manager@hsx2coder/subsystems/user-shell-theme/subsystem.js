@@ -80,16 +80,19 @@ export class UserShellThemeSubsystem {
                 }
             });
             stylesheet = found;
-            if (!stylesheet) {
+
+            if (stylesheet) {
+                log(`[UserShellTheme] loading user theme: ${stylesheet}`);
+            } else {
                 log('loading default theme (stylesheet not resolved yet, skip loadTheme)');
                 return;
             }
-
-            log(`[UserShellTheme] loading user theme: ${stylesheet}`);
-            if (Main._stylesheetTheme)
-                Main.setThemeStylesheet(stylesheet);
-            else
+            Main.setThemeStylesheet(stylesheet);
+            try {
                 Main.loadTheme();
+            } catch (e) {
+                log(`[UserShellTheme] loadTheme failed, will retry on next change: ${e.message}`);
+            }
         } catch (e) {
             log(`[UserShellTheme] _changeTheme failed: ${e.message}`);
         }
