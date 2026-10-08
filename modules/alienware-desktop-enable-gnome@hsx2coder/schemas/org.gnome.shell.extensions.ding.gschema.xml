@@ -21,17 +21,17 @@
     </enum>
     <schema path="/org/gnome/shell/extensions/ding/" id="org.gnome.shell.extensions.ding">
     <key name="icon-size" enum="org.gnome.shell.extension.ding.ZoomLevel">
-        <default>'standard'</default>
+        <default>'small'</default>
         <summary>Icon size</summary>
         <description>Set the size for the desktop icons.</description>
     </key>
     <key type="b" name="show-home">
-        <default>true</default>
+        <default>false</default>
         <summary>Show personal folder</summary>
         <description>Show the personal folder in the desktop.</description>
     </key>
     <key type="b" name="show-trash">
-        <default>true</default>
+        <default>false</default>
         <summary>Show trash icon</summary>
         <description>Show the trash icon in the desktop.</description>
     </key>
@@ -41,7 +41,7 @@
         <description>Set the corner from where the icons will start to be placed.</description>
     </key>
     <key type="b" name="show-volumes">
-        <default>true</default>
+        <default>false</default>
         <summary>Show external drives in the desktop</summary>
         <description>Show the disk drives connected to the computer.</description>
     </key>
@@ -71,7 +71,7 @@
         <description>Always keep Icons Arranged by the last arranged order</description>
     </key>
     <key name="arrangeorder" enum="org.gnome.shell.extension.ding.ArrangeOrder">
-        <default>'NAME'</default>
+        <default>'MODIFIEDTIME'</default>
         <summary>Arrange Order</summary>
         <description>Icons Arranged by this property</description>
     </key>
@@ -81,7 +81,7 @@
         <description>Always keep Icons Stacked, Similar types are grouped</description>
     </key>
     <key type="as" name="unstackedtypes">
-        <default>[]</default>
+        <default>['text/x-ms-regedit', 'application/zip', 'application/x-ms-shortcut']</default>
         <summary>Type of Files to not Stack</summary>
         <description>An Array of strings types, Don't Stack these types of files</description>
     </key>
@@ -106,7 +106,7 @@
         <description>Whether DING should show a popup if it is running on X11Wayland, or the user decided to not show it anymore.</description>
     </key>
     <key type="s" name="terminal-command">
-        <default>''</default>
+        <default>'ptyxis'</default>
         <summary>Custom terminal emulator</summary>
         <description>Terminal emulator to use for \"Open in Console\". Leave empty to use the system default.</description>
     </key>
@@ -151,7 +151,7 @@
         <description>Corner of the desktop where transfer cards appear: bottom-left, bottom-right, top-left or top-right.</description>
     </key>
     <key type="i" name="transfer-margin">
-        <default>12</default>
+        <default>24</default>
         <summary>Transfer stack margin</summary>
         <description>Distance in pixels between the transfer cards and the screen edges (0 to 64).</description>
     </key>

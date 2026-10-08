@@ -13,7 +13,7 @@
       <description>Display the Num Lock indicator in the top panel.</description>
     </key>
     <key name="hide-when-off" type="b">
-      <default>false</default>
+      <default>true</default>
       <summary>Hide when inactive</summary>
       <description>Hide the indicator completely when the lock is turned off instead of dimming it.</description>
     </key>

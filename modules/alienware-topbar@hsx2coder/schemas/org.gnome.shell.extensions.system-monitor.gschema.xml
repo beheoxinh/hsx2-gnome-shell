@@ -94,7 +94,7 @@ Having fun yet?
       <description>Set to false to remove cpu display in status bar</description>
     </key>
     <key name="cpu-refresh-time" type="i">
-      <default>1500</default>
+      <default>2000</default>
       <summary>Cpu refresh time</summary>
       <description>Time in ms between 2 refresh of cpu</description>
     </key>
@@ -186,7 +186,7 @@ Having fun yet?
       <description>Set to false to remove net display in status bar</description>
     </key>
     <key name="net-refresh-time" type="i">
-      <default>1000</default>
+      <default>2000</default>
       <summary>Net refresh time</summary>
       <description>Time in ms between 2 refresh of net</description>
     </key>

@@ -48,14 +48,14 @@
     </key>
 
     <key name="panel-button-padding" type="i">
-      <default>0</default>
+      <default>1</default>
       <range min="0" max="24"/>
       <summary>Button horizontal padding</summary>
       <description>Horizontal padding around panel buttons. 0 restores the default.</description>
     </key>
 
     <key name="panel-indicator-padding" type="i">
-      <default>0</default>
+      <default>1</default>
       <range min="0" max="24"/>
       <summary>Indicator horizontal padding</summary>
       <description>Horizontal padding around status area indicators. 0 restores the default.</description>
@@ -134,7 +134,7 @@
 
     <!-- Clock and calendar -->
     <key name="clock-visible" type="b">
-      <default>true</default>
+      <default>false</default>
       <summary>Show the clock</summary>
     </key>
 

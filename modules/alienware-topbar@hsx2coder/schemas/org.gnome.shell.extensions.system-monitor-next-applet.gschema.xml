@@ -21,12 +21,12 @@
 
 <schema id="org.gnome.shell.extensions.system-monitor-next-applet" path="/org/gnome/shell/extensions/system-monitor-next-applet/">
     <key name="settings-schema-version" type="i">
-      <default>0</default>
+      <default>1</default>
       <summary>Settings schema version</summary>
       <description>Internal flag to track the version of the settings schema. Checked during startup to see if migration is needed.</description>
     </key>
     <key name="icon-display" type="b">
-      <default>true</default>
+      <default>false</default>
       <summary>Display system monitor icon</summary>
       <description>Set to true to display system monitor icon in status bar.(NOTICE: The icon will be shown when none of the others is shown.)</description>
     </key>
@@ -41,7 +41,7 @@
       <description>Time in ms between 2 refresh of memory</description>
     </key>
     <key name="memory-graph-width" type="i">
-      <default>100</default>
+      <default>80</default>
       <summary>Memory graph width</summary>
       <description>Graph width in pixel</description>
     </key>
@@ -56,11 +56,11 @@
       <description>Set to true to show memory in pop-up menu</description>
     </key>
     <key name="memory-style" enum="org.gnome.shell.extensions.system-monitor-next-applet.display-style">
-      <default>'graph'</default>
+      <default>'both'</default>
       <summary>Choose the display style.</summary>
     </key>
     <key name="swap-display" type="b">
-      <default>false</default>
+      <default>true</default>
       <summary>Display swap</summary>
       <description>Set to false to remove swap display in status bar</description>
     </key>
@@ -85,7 +85,7 @@
       <description>Set to true to show swap in pop-up menu</description>
     </key>
     <key name="swap-style" enum="org.gnome.shell.extensions.system-monitor-next-applet.display-style">
-      <default>'graph'</default>
+      <default>'digit'</default>
       <summary>Choose the display style.</summary>
     </key>
     <key name="cpu-display" type="b">
@@ -99,7 +99,7 @@
       <description>Time in ms between 2 refresh of cpu</description>
     </key>
     <key name="cpu-graph-width" type="i">
-      <default>100</default>
+      <default>80</default>
       <summary>Cpu graph width</summary>
       <description>Graph width in pixel</description>
     </key>
@@ -114,7 +114,7 @@
       <description>Set to true to show cpu in pop-up menu</description>
     </key>
     <key name="cpu-style" enum="org.gnome.shell.extensions.system-monitor-next-applet.display-style">
-      <default>'graph'</default>
+      <default>'both'</default>
       <summary>Choose the display style.</summary>
     </key>
     <key name="cpu-individual-cores" type="b">
@@ -123,7 +123,7 @@
       <description>Set to true to display one graph per cpu core</description>
     </key>
     <key name="gpu-display" type="b">
-      <default>false</default>
+      <default>true</default>
       <summary>Display GPU usage</summary>
       <description>Set to false to remove GPU display in status bar</description>
     </key>
@@ -133,7 +133,7 @@
       <description>Time in ms between 2 refreshes of GPU usage</description>
     </key>
     <key name="gpu-graph-width" type="i">
-      <default>100</default>
+      <default>80</default>
       <summary>GPU usage graph width</summary>
       <description>Graph width in pixel</description>
     </key>
@@ -143,12 +143,12 @@
       <description>Set to true to show 'gpu' before GPU display</description>
     </key>
     <key name="gpu-show-menu" type="b">
-      <default>false</default>
+      <default>true</default>
       <summary>Display GPU In Menu</summary>
       <description>Set to true to show GPU in pop-up menu</description>
     </key>
     <key name="gpu-style" enum="org.gnome.shell.extensions.system-monitor-next-applet.display-style">
-      <default>'graph'</default>
+      <default>'both'</default>
       <summary>Choose the display style.</summary>
     </key>
     <key name="freq-display" type="b">
@@ -177,7 +177,7 @@
       <description>Set to true to show freq in pop-up menu</description>
     </key>
     <key name="freq-style" enum="org.gnome.shell.extensions.system-monitor-next-applet.display-style">
-      <default>'graph'</default>
+      <default>'digit'</default>
       <summary>Choose the display style.</summary>
     </key>
     <key name="freq-display-mode" enum="org.gnome.shell.extensions.system-monitor-next-applet.freq-display-mode">
@@ -211,7 +211,7 @@
       <description>Set to true to show net in pop-up menu</description>
     </key>
     <key name="net-style" enum="org.gnome.shell.extensions.system-monitor-next-applet.display-style">
-      <default>'graph'</default>
+      <default>'digit'</default>
       <summary>Choose the display style.</summary>
     </key>
     <key name="net-speed-in-bits" type="b">
@@ -252,7 +252,7 @@
       <summary>Choose the disk usage display style.</summary>
     </key>
     <key name="thermal-display" type="b">
-      <default>false</default>
+      <default>true</default>
       <summary>Display thermal</summary>
       <description>Set to false to remove thermal display in status bar</description>
     </key>
@@ -267,7 +267,7 @@
       <description>Graph width in pixel</description>
     </key>
     <key name="thermal-show-text" type="b">
-      <default>true</default>
+      <default>false</default>
       <summary>Display 'thermal'</summary>
       <description>Set to true to show 'thermal' before thermal display</description>
     </key>
@@ -277,31 +277,31 @@
       <description>Set to true to show thermal in pop-up menu</description>
     </key>
     <key name="thermal-style" enum="org.gnome.shell.extensions.system-monitor-next-applet.display-style">
-      <default>'graph'</default>
+      <default>'digit'</default>
       <summary>Choose the display style.</summary>
     </key>
     <key name="thermal-sensor-label" type="s">
-      <default>''</default>
+      <default>'alienware_wmi - CPU'</default>
       <summary>Sensor Label</summary>
       <description>Label of the sensor file for cpu temp</description>
     </key>
     <key name="thermal-menu-sensor-label-1" type="s">
-      <default>''</default>
+      <default>'alienware_wmi - CPU'</default>
       <summary>Menu Sensor 1 Label</summary>
       <description>Label of the sensor file for the first menu temperature</description>
     </key>
     <key name="thermal-menu-sensor-label-2" type="s">
-      <default>''</default>
+      <default>'alienware_wmi - GPU'</default>
       <summary>Menu Sensor 2 Label</summary>
       <description>Label of the sensor file for the second menu temperature</description>
     </key>
     <key name="thermal-menu-sensor-label-3" type="s">
-      <default>''</default>
+      <default>'dell_ddv - Memory'</default>
       <summary>Menu Sensor 3 Label</summary>
       <description>Label of the sensor file for the third menu temperature</description>
     </key>
     <key name="thermal-menu-sensor-label-4" type="s">
-      <default>''</default>
+      <default>'nvme - Composite'</default>
       <summary>Menu Sensor 4 Label</summary>
       <description>Label of the sensor file for the fourth menu temperature</description>
     </key>
@@ -311,7 +311,7 @@
       <description>When the temprature passes the threshold, the text is set to red as an alert.</description>
     </key>
     <key name="fan-display" type="b">
-      <default>false</default>
+      <default>true</default>
       <summary>Display fan</summary>
       <description>Set to false to remove fan display in status bar</description>
     </key>
@@ -326,7 +326,7 @@
       <description>Graph width in pixel</description>
     </key>
     <key name="fan-show-text" type="b">
-      <default>true</default>
+      <default>false</default>
       <summary>Display 'fan'</summary>
       <description>Set to true to show 'fan' before fan display</description>
     </key>
@@ -336,21 +336,21 @@
       <description>Set to true to show fan in pop-up menu</description>
     </key>
     <key name="fan-style" enum="org.gnome.shell.extensions.system-monitor-next-applet.display-style">
-      <default>'graph'</default>
+      <default>'digit'</default>
       <summary>Choose the display style.</summary>
     </key>
     <key name="fan-sensor-label" type="s">
-      <default>''</default>
+      <default>'alienware_wmi - CPU Fan'</default>
       <summary>Sensor Label</summary>
       <description>Label of the sensor file for fan</description>
     </key>
     <key name="fan-menu-sensor-label-1" type="s">
-      <default>''</default>
+      <default>'alienware_wmi - CPU Fan'</default>
       <summary>Menu Sensor Label 1</summary>
       <description>Label of the sensor file for the first menu fan</description>
     </key>
     <key name="fan-menu-sensor-label-2" type="s">
-      <default>''</default>
+      <default>'alienware_wmi - GPU Fan'</default>
       <summary>Menu Sensor Label 2</summary>
       <description>Label of the sensor file for the second menu fan</description>
     </key>
@@ -359,12 +359,12 @@
       <summary>Color of fan in the chart</summary>
     </key>
     <key name="rotate-labels" type="b">
-      <default>false</default>
+      <default>true</default>
       <summary>Rotate the chart labels one quarter-turn</summary>
       <description>True: Chart labels are rotated, False: Chart labels are presented normally</description>
     </key>
     <key name="show-tooltip" type="b">
-      <default>false</default>
+      <default>true</default>
       <summary>Enable or disable the tooltip</summary>
       <description>True: show tool tip on mouse hover </description>
     </key>
@@ -379,7 +379,7 @@
       <description>Minutes to wait before resetting graph scale after a spike. This only affects "downscales" of the graph scale (the graph always scales up without delay as new data comes in). This allows you to contextualize new data in terms of recent spikes which may have already fallen off the graph, rather than always scaling the graph to fit the current data. Set to 0 to allow immediate downscales.</description>
     </key>
     <key name="compact-display" type="b">
-      <default>false</default>
+      <default>true</default>
       <summary>Optimize view for small displays</summary>
       <description>Optimize texts sizes to fit on a small display </description>
     </key>
@@ -392,7 +392,7 @@
       <summary>Color of buffer memory in the chart</summary>
     </key>
     <key name="memory-cache-color" type="s">
-      <default>'#aaf5d0'</default>
+      <default>'#c8c8c833'</default>
       <summary>Color of cache memory in the chart</summary>
     </key>
     <key name="net-down-color" type="s">
@@ -510,47 +510,47 @@
       <summary>Display battery time remaining rather than percentage</summary>
     </key>
     <key name="cpu-font-size" type="d">
-      <default>12.0</default>
+      <default>11.0</default>
       <summary>CPU font size</summary>
       <description>Font size in pt for CPU widget</description>
     </key>
     <key name="freq-font-size" type="d">
-      <default>12.0</default>
+      <default>11.0</default>
       <summary>Frequency font size</summary>
       <description>Font size in pt for frequency widget</description>
     </key>
     <key name="memory-font-size" type="d">
-      <default>12.0</default>
+      <default>11.0</default>
       <summary>Memory font size</summary>
       <description>Font size in pt for memory widget</description>
     </key>
     <key name="swap-font-size" type="d">
-      <default>12.0</default>
+      <default>11.0</default>
       <summary>Swap font size</summary>
       <description>Font size in pt for swap widget</description>
     </key>
     <key name="net-font-size" type="d">
-      <default>12.0</default>
+      <default>10.0</default>
       <summary>Network font size</summary>
       <description>Font size in pt for network widget</description>
     </key>
     <key name="disk-font-size" type="d">
-      <default>11.0</default>
+      <default>10.0</default>
       <summary>Disk font size</summary>
       <description>Font size in pt for disk widget</description>
     </key>
     <key name="gpu-font-size" type="d">
-      <default>12.0</default>
+      <default>11.0</default>
       <summary>GPU font size</summary>
       <description>Font size in pt for GPU widget</description>
     </key>
     <key name="thermal-font-size" type="d">
-      <default>12.0</default>
+      <default>11.0</default>
       <summary>Thermal font size</summary>
       <description>Font size in pt for thermal widget</description>
     </key>
     <key name="fan-font-size" type="d">
-      <default>12.0</default>
+      <default>11.0</default>
       <summary>Fan font size</summary>
       <description>Font size in pt for fan widget</description>
     </key>
@@ -560,39 +560,39 @@
       <description>Font size in pt for battery widget</description>
     </key>
     <key name="cpu-position" type="i">
-      <default>0</default>
+      <default>2</default>
       <summary>Position in which to display the CPU display</summary>
     </key>
     <key name="freq-position" type="i">
-      <default>1</default>
+      <default>8</default>
       <summary>Position in which to display the frequency display</summary>
     </key>
     <key name="memory-position" type="i">
-      <default>2</default>
+      <default>4</default>
       <summary>Position in which to display the memory display</summary>
     </key>
     <key name="swap-position" type="i">
-      <default>3</default>
+      <default>5</default>
       <summary>Position in which to display the swap display</summary>
     </key>
     <key name="net-position" type="i">
-      <default>4</default>
+      <default>6</default>
       <summary>Position in which to display the net display</summary>
     </key>
     <key name="disk-position" type="i">
-      <default>5</default>
+      <default>7</default>
       <summary>Position in which to display the disk display</summary>
     </key>
     <key name="gpu-position" type="i">
-      <default>6</default>
+      <default>3</default>
       <summary>Position in which to display the GPU display</summary>
     </key>
     <key name="thermal-position" type="i">
-      <default>7</default>
+      <default>0</default>
       <summary>Position in which to display the thermal display</summary>
     </key>
     <key name="fan-position" type="i">
-      <default>8</default>
+      <default>1</default>
       <summary>Position in which to display the fan display</summary>
     </key>
     <key name="battery-position" type="i">
@@ -600,7 +600,7 @@
       <summary>Position in which to display the battery display</summary>
     </key>
     <key name="custom-monitor-command" type="s">
-      <default>''</default>
+      <default>'/usr/bin/flatpak run --branch=stable --arch=x86_64 --command=missioncenter io.missioncenter.MissionCenter'</default>
       <summary>Custom system monitor command</summary>
       <description>When set, this command will be executed instead of launching GNOME System Monitor</description>
     </key>

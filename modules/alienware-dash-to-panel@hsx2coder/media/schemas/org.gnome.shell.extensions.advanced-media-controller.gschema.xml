@@ -12,13 +12,13 @@
         <choice value="center" />
         <choice value="right" />
       </choices>
-      <default>"right"</default>
+      <default>'right'</default>
       <summary>Panel position</summary>
       <description>Position of the media controls indicator in the panel (left, center, right)</description>
     </key>
 
     <key name="panel-index" type="i">
-      <default>0</default>
+      <default>-1</default>
       <range min="-1" max="20" />
       <summary>Panel index</summary>
       <description>Index within the chosen panel area (-1 = automatic)</description>
@@ -30,7 +30,7 @@
         <choice value="left" />
         <choice value="right" />
       </choices>
-      <default>"right"</default>
+      <default>'left'</default>
       <summary>Dash-to-Panel box placement</summary>
       <description>Which Dash-to-Panel box to place the media controls indicator in (left or right)</description>
     </key>
@@ -56,7 +56,7 @@
 
     <!-- Panel label width -->
     <key name="panel-label-width" type="i">
-      <default>160</default>
+      <default>120</default>
       <range min="60" max="400" />
       <summary>Panel label width</summary>
       <description>Visible pixel width of the scrolling track label in the top panel. Changes apply immediately without a restart.</description>
@@ -70,7 +70,7 @@
     </key>
 
     <key name="scroll-speed" type="i">
-      <default>3</default>
+      <default>2</default>
       <range min="1" max="10" />
       <summary>Panel scroll speed</summary>
       <description>Speed of panel text scrolling: 1 = slowest, 10 = fastest</description>

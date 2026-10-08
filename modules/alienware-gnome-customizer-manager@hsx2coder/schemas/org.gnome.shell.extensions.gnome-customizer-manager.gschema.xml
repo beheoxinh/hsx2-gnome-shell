@@ -13,7 +13,7 @@
 
     <!-- Window -->
     <key type="b" name="window-demands-attention-focus">
-      <default>false</default>
+      <default>true</default>
       <summary>Focus Window on Demand Attention</summary>
     </key>
     <key type="b" name="window-maximized-on-create">
@@ -48,7 +48,7 @@
 
     <!-- Theme -->
     <key type="b" name="theme">
-      <default>false</default>
+      <default>true</default>
       <summary>Theme</summary>
     </key>
 

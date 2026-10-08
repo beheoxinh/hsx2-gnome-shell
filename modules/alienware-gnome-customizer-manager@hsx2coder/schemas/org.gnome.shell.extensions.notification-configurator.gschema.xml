@@ -4,13 +4,13 @@
 
     <!-- V2 -->
     <key name="global" type="s">
-      <default>'{}'</default>
+      <default>'{"enabled":true,"notificationCenter":{"disableGrouping":false,"maximumPerSource":5},"rateLimiting":{"enabled":true,"notificationThreshold":5000,"action":"close"},"timeout":{"enabled":true,"notificationTimeout":3000,"ignoreIdle":true},"urgency":{"alwaysNormalUrgency":true},"display":{"enableFullscreen":true,"notificationPosition":"right","verticalPosition":"top","hideAppTitleRow":false},"colors":{"enabled":true,"theme":{"appNameColor":[0.6,0.6,0.607843137,1],"timeColor":[0.6,0.6,0.607843137,1],"backgroundColor":[0.329411765,0.329411765,0.352941176,1],"titleColor":[0.992156863,0.992156863,0.992156863,1],"bodyColor":[0.992156863,0.992156863,0.992156863,1],"appNameFontSize":14,"timeFontSize":13,"titleFontSize":13,"bodyFontSize":12}},"margins":{"enabled":false,"top":0,"bottom":0,"left":0,"right":0},"windowAttention":{"activateInstead":true}}'</default>
       <summary>Global configuration</summary>
       <description>JSON object with the global notification configuration</description>
     </key>
 
     <key name="patterns" type="s">
-      <default>'[]'</default>
+      <default>'[{"enabled":true,"shortName":"","matcher":{"title":"","body":"","appName":""},"overrides":{"notificationCenter":false,"rateLimiting":false,"timeout":false,"urgency":false,"display":false,"colors":false,"margins":false,"windowAttention":false},"filtering":{"enabled":false,"action":"hide"},"notificationCenter":{"disableGrouping":false,"maximumPerSource":10},"rateLimiting":{"enabled":false,"notificationThreshold":5000,"action":"close"},"timeout":{"enabled":false,"notificationTimeout":4000,"ignoreIdle":true},"urgency":{"alwaysNormalUrgency":false},"display":{"enableFullscreen":false,"notificationPosition":"center","verticalPosition":"top","hideAppTitleRow":false},"colors":{"enabled":false,"theme":{"appNameColor":[0.6,0.6,0.607843137,1],"timeColor":[0.6,0.6,0.607843137,1],"backgroundColor":[0.329411765,0.329411765,0.352941176,1],"titleColor":[0.992156863,0.992156863,0.992156863,1],"bodyColor":[0.992156863,0.992156863,0.992156863,1],"appNameFontSize":18,"timeFontSize":14,"titleFontSize":18,"bodyFontSize":18}},"margins":{"enabled":false,"top":0,"bottom":0,"left":0,"right":0},"windowAttention":{"activateInstead":false}}]'</default>
       <summary>Pattern configurations</summary>
       <description>JSON array of per-pattern notification configurations</description>
     </key>

@@ -71,7 +71,7 @@
   </enum>
   <schema path="/org/gnome/shell/extensions/dash-to-panel/" id="org.gnome.shell.extensions.dash-to-panel">
     <key type="as" name="hidden-apps">
-      <default>[]</default>
+      <default>['jetbrains-toolbox.desktop', 'smart-ai.desktop']</default>
       <summary>Hidden applications</summary>
       <description>List of application IDs to hide from the panel.</description>
     </key>
@@ -116,12 +116,12 @@
       <description>Set the size of the panel.</description>
     </key>
     <key type="b" name="desktop-line-use-custom-color">
-      <default>false</default>
+      <default>true</default>
       <summary>Override Show Desktop line color</summary>
       <description>Replace current Show Desktop button line color</description>
     </key>
     <key type="s" name="desktop-line-custom-color">
-      <default>"rgba(200,200,200,0.2)"</default>
+      <default>'rgb(53,132,228)'</default>
       <summary>Custom Show Desktop line color</summary>
       <description>Custom Show Desktop button line color</description>
     </key>
@@ -141,7 +141,7 @@
       <description>Style of the running indicator for the icon for the currently focused application</description>
     </key>
     <key name="dot-style-unfocused" enum="org.gnome.shell.extensions.dash-to-panel.dotStyle">
-      <default>'METRO'</default>
+      <default>'DASHES'</default>
       <summary>Style of the running indicator (unfocused)</summary>
       <description>Style of the running indicator for the icon for applications which are not currently focused</description>
     </key>
@@ -231,7 +231,7 @@
       <description>Whether to keep the stock gnome-shell dash while in overview</description>
     </key>
     <key type="b" name="stockgs-keep-top-panel">
-      <default>false</default>
+      <default>true</default>
       <summary>Keep top panel</summary>
       <description>Whether to keep the stock gnome-shell top panel</description>
     </key>
@@ -246,7 +246,7 @@
       <description>Wheter to force having an Activities hot corner on the primary monitor</description>
     </key>
     <key type="b" name="taskbar-locked">
-      <default>false</default>
+      <default>true</default>
       <summary>Lock the taskbar</summary>
       <description>Specifies if the user can modify the taskbar</description>
     </key>
@@ -277,7 +277,7 @@
       <description>Custom background color for the panel</description>
     </key>
     <key type="b" name="trans-use-custom-opacity">
-      <default>false</default>
+      <default>true</default>
       <summary>Custom background color</summary>
       <description>Replace current theme background color for the panel</description>
     </key>
@@ -456,7 +456,7 @@
       <description>The delay before enabling intellihide on start</description>
     </key>
     <key type="s" name="show-apps-icon-file">
-      <default>""</default>
+      <default>''</default>
       <summary>Custom Show Applications icon</summary>
       <description>Customize the Show Applications icon</description>
     </key>
@@ -596,7 +596,7 @@
       <description>This defines the font weight of window preview titles. Supported values: inherit (from theme), normal, lighter, bold and bolder.</description>
     </key>
     <key type="i" name="window-preview-size">
-      <default>240</default>
+      <default>350</default>
       <summary>Window previews size</summary>
       <description>Preferred window previews size</description>
     </key>
@@ -631,12 +631,12 @@
       <description>The window previews immediately hide when an application icon is clicked.</description>
     </key>
     <key type="b" name="isolate-workspaces">
-      <default>false</default>
+      <default>true</default>
       <summary>Provide workspace isolation</summary>
       <description>Dash shows only windows from the current workspace</description>
     </key>
      <key type="b" name="overview-click-to-exit">
-      <default>false</default>
+      <default>true</default>
       <summary>Close overview by clicking in empty space</summary>
       <description>Close overview or app grid by clicking in empty space</description>
     </key>
@@ -844,12 +844,12 @@
         <summary>Border radius of panel elements</summary>
     </key>
     <key type="i" name="appicon-margin">
-        <default>8</default>
+        <default>4</default>
         <summary>App icon margin</summary>
         <description>Set the margin for application icons in the embedded dash.</description>
     </key>
     <key type="i" name="appicon-padding">
-        <default>4</default>
+        <default>0</default>
         <summary>App icon padding</summary>
         <description>Set the padding for application icons in the embedded dash.</description>
     </key>
@@ -877,35 +877,35 @@
       <summary>Animate when new window launched</summary>
     </key>
     <key type="b" name="animate-appicon-hover">
-      <default>false</default>
+      <default>true</default>
       <summary>Animate app icon on hover</summary>
     </key>
     <key name="animate-appicon-hover-animation-type" enum="org.gnome.shell.extensions.dash-to-panel.appIconHoverAnimationType">
-      <default>'SIMPLE'</default>
+      <default>'RIPPLE'</default>
       <summary>App icon hover animation type</summary>
     </key>
     <key type="a{sd}" name="animate-appicon-hover-animation-convexity">
-      <default>{'RIPPLE':2,'PLANK':1}</default>
+      <default>{'RIPPLE': 2.0, 'PLANK': 1.0, 'SIMPLE': 0.0}</default>
       <summary>App icon hover animation curve convexity (1 is linear, more is convex, less is concave)</summary>
     </key>
     <key type="a{su}" name="animate-appicon-hover-animation-duration">
-      <default>{'SIMPLE':160,'RIPPLE':130,'PLANK':100}</default>
+      <default>{'SIMPLE': uint32 160, 'RIPPLE': 225, 'PLANK': 100}</default>
       <summary>App icon hover animation duration in milliseconds</summary>
     </key>
     <key type="a{si}" name="animate-appicon-hover-animation-extent">
-      <default>{'RIPPLE':4,'PLANK':4}</default>
+      <default>{'RIPPLE': 4, 'PLANK': 4, 'SIMPLE': 1}</default>
       <summary>App icon hover animation extent (maximum number of animated icons)</summary>
     </key>
     <key type="a{si}" name="animate-appicon-hover-animation-rotation">
-      <default>{'SIMPLE':0,'RIPPLE':10,'PLANK':0}</default>
+      <default>{'SIMPLE': 10, 'RIPPLE': 10, 'PLANK': 0}</default>
       <summary>App icon hover animation rotation in degrees</summary>
     </key>
     <key type="a{sd}" name="animate-appicon-hover-animation-travel">
-      <default>{'SIMPLE':0.30,'RIPPLE':0.40,'PLANK':0}</default>
+      <default>{'SIMPLE': 0.14999999999999999, 'RIPPLE': 0.20000000000000001, 'PLANK': 0.0}</default>
       <summary>App icon hover animation travel translation in relation to the app icon size</summary>
     </key>
     <key type="a{sd}" name="animate-appicon-hover-animation-zoom">
-      <default>{'SIMPLE':1,'RIPPLE':1.25,'PLANK':2}</default>
+      <default>{'SIMPLE': 1.25, 'RIPPLE': 1.3500000000000001, 'PLANK': 2.0}</default>
       <summary>App icon hover animation zoom scale in relation to the app icon size</summary>
     </key>
     <key type="b" name="highlight-appicon-hover">
@@ -921,7 +921,7 @@
       <summary>Mouse down highlight color</summary>
     </key>
     <key type="i" name="highlight-appicon-hover-border-radius">
-      <default>0</default>
+      <default>2</default>
       <summary>Highlight border radius</summary>
     </key>
     <key type="b" name="secondarymenu-contains-appmenu">
@@ -1419,7 +1419,7 @@
       <summary>Track if the preferences window is opened</summary>
     </key>
     <key type="i" name="extension-version">
-      <default>65</default>
+      <default>73</default>
       <summary>Installed extension version</summary>
     </key>
   
@@ -1450,7 +1450,7 @@
       <description>How often the panel Bluetooth widget cycles through connected devices. Min 10, max 300 seconds.</description>
     </key>
     <key type="as" name="bt-hidden-devices">
-      <default>[]</default>
+      <default>@as []</default>
       <summary>Hidden Bluetooth devices</summary>
       <description>List of Bluetooth device object paths hidden from the panel widget.</description>
     </key>

@@ -7,7 +7,7 @@ SPDX-License-Identifier: GPL-2.0-or-later
 <schemalist gettext-domain="gnome-shell-extensions">
   <schema id="org.gnome.shell.extensions.user-theme" path="/org/gnome/shell/extensions/user-theme/">
     <key name="name" type="s">
-      <default>""</default>
+      <default>'Qogir-Square-Dark'</default>
       <summary>Theme name</summary>
       <description>The name of the theme, to be loaded from ~/.themes/name/gnome-shell</description>
     </key>
