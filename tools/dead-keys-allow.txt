@@ -8,6 +8,10 @@
 #
 # Format: one schema id per line, '#' starts a comment.
 org.gnome.shell.extensions.dash-to-panel
+# Live (post-port) id of the same module. It re-declares the upstream key set so
+# values written under the old id survive the rename; no JS consumer yet, the keys
+# are kept for settings migration only.
+org.gnome.shell.extensions.system-monitor
 org.gnome.shell.extensions.system-monitor-next-applet
 org.gnome.shell.extensions.advanced-media-controller
 org.gnome.shell.extensions.indicators-appindicator

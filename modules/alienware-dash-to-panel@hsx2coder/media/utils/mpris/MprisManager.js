@@ -83,13 +83,21 @@ export class MprisManager {
       .map((s) => s.toLowerCase());
 
     if (listed.length === 0) return true;
+
     const short = busName
       .replace(`${MprisConstants.MPRIS_PREFIX}.`, "")
       .replace(/\.instance[_\d]+$/i, "")
       .replace(/\.\d+$/, "")
       .toLowerCase();
 
-    const inList = listed.includes(short);
+    // Also check identity or desktop entry if cached
+    const identity = (this._identities.get(busName) || "").toLowerCase();
+    const desktopEntry = (this._desktopEntries.get(busName) || "").toLowerCase();
+
+    const inList =
+      listed.includes(short) ||
+      (identity && listed.includes(identity)) ||
+      (desktopEntry && listed.includes(desktopEntry));
 
     if (mode === 1) return !inList; // Blacklist – exclude if found in active list
     if (mode === 2) return inList; // Whitelist – allow only if found in active list
@@ -274,10 +282,6 @@ export class MprisManager {
 
   getPlayerInfo(name) {
     return this._player.getPlayerInfo(name);
-  }
-
-  getPlayerPosition(name) {
-    return this._playerPositions.get(name) || 0;
   }
 
   getPlayerDisplayLabel(name) {

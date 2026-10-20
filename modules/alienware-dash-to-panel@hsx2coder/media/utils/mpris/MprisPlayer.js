@@ -188,9 +188,20 @@ export class MprisPlayer {
 
           try {
             const reply = conn.call_finish(result);
-            const desktopEntry = reply.deep_unpack()[0].unpack();
+            const entryVariant = reply.deep_unpack()[0];
+            const desktopEntry = entryVariant ? entryVariant.unpack() : null;
+            if (typeof desktopEntry !== "string" || desktopEntry.length === 0) {
+              // Property missing / player gone mid-call: return early so a NULL
+              // value is never cached and later re-wrapped as a GObject.
+              if (!this._desktopEntryMissLogged) {
+                this._desktopEntryMissLogged = true;
+                console.warn('[dash-to-panel] _fetchDesktopEntry: no DesktopEntry value for ' + name);
+              }
+              resolve();
+              return;
+            }
             this._manager._desktopEntries.set(name, desktopEntry);
-          } catch (e) {}
+          } catch (e) {console.warn('[dash-to-panel] _fetchDesktopEntry: ' + ((e && e.message) ? e.message : e)) }
           resolve();
         },
       );
@@ -416,7 +427,7 @@ export class MprisPlayer {
           if (!this._manager._operationsPaused) {
             this._manager._onPlayerChanged?.(name);
           }
-        } catch (e) {}
+        } catch (e) {console.warn('[dash-to-panel] _queryPositionAsync: ' + ((e && e.message) ? e.message : e)) }
       },
     );
   }

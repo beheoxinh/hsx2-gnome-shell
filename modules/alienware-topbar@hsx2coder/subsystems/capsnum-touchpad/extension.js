@@ -66,8 +66,12 @@ const NotificationWidget = GObject.registerClass(
             this.opacity = 0;
             this.show();
 
-            GLib.idle_add(GLib.PRIORITY_DEFAULT, () => {
+            this._idleId = GLib.idle_add(GLib.PRIORITY_DEFAULT, () => {
+                this._idleId = 0;
                 const mon = Main.layoutManager.primaryMonitor;
+                if (!mon) {
+                    return GLib.SOURCE_REMOVE;
+                }
                 const x = mon.x + mon.width - this.width - 20;
                 const y = mon.y + Main.panel.height + 20;
                 this.set_position(x, y);
@@ -101,6 +105,10 @@ const NotificationWidget = GObject.registerClass(
             if (this._timeoutId) {
                 GLib.source_remove(this._timeoutId);
                 this._timeoutId = 0;
+            }
+            if (this._idleId) {
+                GLib.source_remove(this._idleId);
+                this._idleId = 0;
             }
             this.remove_all_transitions();
             super.destroy();

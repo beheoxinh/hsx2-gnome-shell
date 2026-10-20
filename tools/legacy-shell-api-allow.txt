@@ -1,0 +1,13 @@
+# Paths allowed to use GNOME-3 era shell APIs (imports.gi, imports.misc, ...).
+# Add a path only when the file really runs outside the Shell process, or when
+# the offending lines are pre-existing debt in a file this wave may not touch.
+#
+# modules/alienware-desktop-enable-gnome@hsx2coder/app/*.js
+#   Desktop Icons NG port. The shell-side extension.js spawns
+#   `gjs <path>/app/ding.js` as its own process, so these files are plain gjs
+#   scripts where imports.gi is the correct API.
+modules/alienware-desktop-enable-gnome@hsx2coder/app/*
+#
+#   Same dead GNOME-3 prefs boilerplate (`imports.package.initFormat()`) that
+#   the suite prefs.js carried. The module is out of scope for this suite-shell
+#   wave; drop this line together with the block when that module is revisited.

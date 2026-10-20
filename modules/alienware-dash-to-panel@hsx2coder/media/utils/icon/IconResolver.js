@@ -90,7 +90,7 @@ function _scoreApp(app, segments, exact, identity) {
       if (dn.includes(idFirst) || noSuffix.includes(idFirst)) score += 50;
       else score -= 80;
     }
-  } catch (_) {}
+  } catch (_) {console.warn('[dash-to-panel] ?: ' + ((_ && _.message) ? _.message : _)) }
   return score;
 }
 
@@ -180,7 +180,7 @@ export function resolveGicon(playerName, manager) {
           if (gi) return gi;
         }
       }
-    } catch (_) {}
+    } catch (_) {console.warn('[dash-to-panel] ?: ' + ((_ && _.message) ? _.message : _)) }
   }
 
   if (!_iconCache.has(playerName)) {
@@ -198,7 +198,7 @@ export function resolveGicon(playerName, manager) {
             }
           }
         }
-      } catch (_) {}
+      } catch (_) {console.warn('[dash-to-panel] ?: ' + ((_ && _.message) ? _.message : _)) }
     }
   }
 
@@ -222,7 +222,7 @@ export function resolveGicon(playerName, manager) {
         const gi = bestApp.get_icon();
         if (gi) _iconCache.set(playerName, gi);
       }
-    } catch (_) {}
+    } catch (_) {console.warn('[dash-to-panel] ?: ' + ((_ && _.message) ? _.message : _)) }
   }
 
   const cached = _iconCache.get(playerName);
@@ -315,7 +315,7 @@ export function applyMonochromeToIcon(stIcon, colourGicon, playerName, manager, 
         _removeDesaturateEffect(stIcon);
       }
     }
-  } catch (_) {}
+  } catch (_) {console.warn('[dash-to-panel] ?: ' + ((_ && _.message) ? _.message : _)) }
 }
 
 function _ensureDesaturateEffect(actor) {
@@ -348,7 +348,7 @@ export function resolveDisplayName(playerName, manager) {
     try {
       const identity = manager._identities && manager._identities.get(playerName);
       if (identity && identity.trim()) return identity.trim();
-    } catch (_) {}
+    } catch (_) {console.warn('[dash-to-panel] ?: ' + ((_ && _.message) ? _.message : _)) }
   }
 
   try {
@@ -372,7 +372,7 @@ export function resolveDisplayName(playerName, manager) {
         if (n) return n;
       }
     }
-  } catch (_) {}
+  } catch (_) {console.warn('[dash-to-panel] ?: ' + ((_ && _.message) ? _.message : _)) }
 
   if (playerName) {
     const tail = playerName

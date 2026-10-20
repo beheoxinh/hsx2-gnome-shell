@@ -392,7 +392,7 @@ export const MediaControls = GObject.registerClass(
       textStyle,
     ) {
       if (!enabled) {
-        if (existing) existing.destroy();
+        if (existing && existing._destroyed !== true) existing.destroy();
         typeof slot.destroy_all_children === "function" ? slot.destroy_all_children() : slot.remove_all_children();
         const lbl = new St.Label({
           text: fullText,
@@ -406,7 +406,7 @@ export const MediaControls = GObject.registerClass(
       }
 
       const speed = this._calcSpeed(speedPref, status);
-      if (existing) {
+      if (existing && existing._destroyed !== true) {
         existing.setScrollSpeed(speed);
         existing.setTextStyle(textStyle);
         existing.setText(fullText);
@@ -750,13 +750,22 @@ export const MediaControls = GObject.registerClass(
       }
     }
 
-    updateLyricsPosition(positionUs) {
-      const state = this._playerLyricsState.get(this._currentPlayerName);
-      if (!state || !state.visible || !this._lyricsView) return;
-      this._lyricsView.setPosition(positionUs / 1000);
-    }
-
     destroy() {
+      // Orphan-timer guard: a ScrollingLabel only cancels its GLib sources in its
+      // own destroy(); leaving it alive keeps a 60fps timer writing to a disposed
+      // St.Label forever. Release every label owned by this object here.
+      if (this._titleScrollLabel) {
+        try {
+          this._titleScrollLabel.destroy();
+        } catch (_) {}
+        this._titleScrollLabel = null;
+      }
+      if (this._artistScrollLabel) {
+        try {
+          this._artistScrollLabel.destroy();
+        } catch (_) {}
+        this._artistScrollLabel = null;
+      }
       this._isDestroyed = true;
 
       for (const { source, id } of this._signalIds) {

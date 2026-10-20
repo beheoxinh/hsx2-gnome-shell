@@ -10,6 +10,7 @@ import {
     selectedIndexForTheme,
     themeNameToRowLabel,
 } from './theme-names.js';
+import {gettext as _} from 'resource:///org/gnome/Shell/Extensions/js/extensions/prefs.js';
 
 const SETTINGS_SCHEMA = 'org.gnome.shell.extensions.user-theme';
 const SETTINGS_KEY = 'name';
@@ -23,17 +24,17 @@ export function addShellThemePages(dummyWin, gcmSettings) {
     const settings = new Gio.Settings({ settings_schema: schema });
 
     const page = new Adw.PreferencesPage({
-        title: 'Shell Theme',
+        title: _('Shell Theme'),
         icon_name: 'applications-graphics-symbolic',
     });
     const group = new Adw.PreferencesGroup({
-        title: 'User Shell Theme',
+        title: _('User Shell Theme'),
         description: 'Apply a custom theme to GNOME Shell (replaces the system User Themes extension).',
     });
 
     const themeRow = new Adw.ComboRow({
-        title: 'Shell Theme',
-        subtitle: 'GNOME Shell theme applied immediately on change.',
+        title: _('Shell Theme'),
+        subtitle: _('GNOME Shell theme applied immediately on change.'),
     });
 
     const scanDir = dir => {
@@ -99,8 +100,8 @@ export function addShellThemePages(dummyWin, gcmSettings) {
     }
 
     const reloadRow = new Adw.ActionRow({
-        title: 'Rescan Theme Folders',
-        subtitle: 'Refresh the list from ~/.themes and /usr/share/themes.',
+        title: _('Rescan Theme Folders'),
+        subtitle: _('Refresh the list from ~/.themes and /usr/share/themes.'),
         activatable: true,
     });
     reloadRow.connect('activated', refreshThemes);

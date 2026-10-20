@@ -265,10 +265,12 @@ export const ControlButtons = GObject.registerClass(
 
     updateButtons(info) {
       // Play/pause icon
-      this._playBtn.child.icon_name =
-        info.status === "Playing"
-          ? "media-playback-pause-symbolic"
-          : "media-playback-start-symbolic";
+      if (this._playBtn.child) {
+        this._playBtn.child.icon_name =
+          info.status === "Playing"
+            ? "media-playback-pause-symbolic"
+            : "media-playback-start-symbolic";
+      }
 
       // Shuffle
       const m = _metrics(this._settings);
@@ -276,31 +278,35 @@ export const ControlButtons = GObject.registerClass(
       if (info.shuffle) {
         this._shuffleBtn.add_style_class_name("active");
         this._shuffleBtn.style = _activeStyle(m);
-        this._shuffleBtn.child.style = "color: #1db954;";
+        if (this._shuffleBtn.child) this._shuffleBtn.child.style = "color: #1db954;";
       } else {
         this._shuffleBtn.remove_style_class_name("active");
         this._shuffleBtn.style = _secondaryStyle(m);
-        this._shuffleBtn.child.style_class = "media-icon";
-        this._shuffleBtn.child.style = "";
+        if (this._shuffleBtn.child) {
+          this._shuffleBtn.child.style_class = "media-icon";
+          this._shuffleBtn.child.style = "";
+        }
       }
 
       //  Repeat
       if (info.loopStatus === "Track") {
-        this._repeatBtn.child.icon_name = "media-playlist-repeat-song-symbolic";
+        if (this._repeatBtn.child) this._repeatBtn.child.icon_name = "media-playlist-repeat-song-symbolic";
         this._repeatBtn.add_style_class_name("active");
         this._repeatBtn.style = _activeStyle(m);
-        this._repeatBtn.child.style = "color: #1db954;";
+        if (this._repeatBtn.child) this._repeatBtn.child.style = "color: #1db954;";
       } else if (info.loopStatus === "Playlist") {
-        this._repeatBtn.child.icon_name = "media-playlist-repeat-symbolic";
+        if (this._repeatBtn.child) this._repeatBtn.child.icon_name = "media-playlist-repeat-symbolic";
         this._repeatBtn.add_style_class_name("active");
         this._repeatBtn.style = _activeStyle(m);
-        this._repeatBtn.child.style = "color: #1db954;";
+        if (this._repeatBtn.child) this._repeatBtn.child.style = "color: #1db954;";
       } else {
-        this._repeatBtn.child.icon_name = "media-playlist-repeat-symbolic";
+        if (this._repeatBtn.child) this._repeatBtn.child.icon_name = "media-playlist-repeat-symbolic";
         this._repeatBtn.remove_style_class_name("active");
         this._repeatBtn.style = _secondaryStyle(m);
-        this._repeatBtn.child.style_class = "media-icon";
-        this._repeatBtn.child.style = "";
+        if (this._repeatBtn.child) {
+          this._repeatBtn.child.style_class = "media-icon";
+          this._repeatBtn.child.style = "";
+        }
       }
     }
 

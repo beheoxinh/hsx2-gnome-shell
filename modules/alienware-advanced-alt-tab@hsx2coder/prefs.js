@@ -89,11 +89,6 @@ export default class AATWS extends ExtensionPreferences {
                 iconName: 'preferences-other-symbolic',
                 optionList: this._getMiscOptionList(options),
             },
-            {
-                title: _('About'),
-                iconName: 'preferences-system-details-symbolic',
-                optionList: this._getAboutOptionList(itemFactory),
-            },
         ];
 
         return pageList;
@@ -1613,65 +1608,4 @@ If apps are ordered by MRU, first pres of the hotkey reorders apps by Favorites'
         return optionList;
     }
 
-    _getAboutOptionList(itemFactory) {
-        const optionList = [];
-        // const itemFactory = new OptionsFactory.ItemFactory();
-
-        optionList.push(itemFactory.getRowWidget(
-            this.metadata.name
-        ));
-
-        const versionName = this.metadata['version-name'] ?? '';
-        let version = this.metadata['version'] ?? '';
-        version = versionName && version ? `/${version}` : version;
-        const versionStr = `${versionName}${version}`;
-        optionList.push(itemFactory.getRowWidget(
-            _('Version'),
-            null,
-            itemFactory.newLabel(versionStr)
-        ));
-
-        optionList.push(itemFactory.getRowWidget(
-            _('Reset all options'),
-            _('Reset all options to their default values'),
-            itemFactory.newOptionsResetButton()
-        ));
-
-
-        optionList.push(itemFactory.getRowWidget(
-            _('Links')
-        ));
-
-        optionList.push(itemFactory.getRowWidget(
-            _('Homepage'),
-            _('Source code and more info about this extension'),
-            itemFactory.newLinkButton('https://github.com/G-dH/advanced-alttab-window-switcher')
-        ));
-
-        optionList.push(itemFactory.getRowWidget(
-            _('Changelog'),
-            _("See what's changed."),
-            itemFactory.newLinkButton('https://github.com/G-dH/advanced-alttab-window-switcher/blob/main/CHANGELOG.md')
-        ));
-
-        optionList.push(itemFactory.getRowWidget(
-            _('GNOME Extensions'),
-            _('Rate and comment the extension on GNOME Extensions site.'),
-            itemFactory.newLinkButton('https://extensions.gnome.org/extension/4412')
-        ));
-
-        optionList.push(itemFactory.getRowWidget(
-            _('Report a bug or suggest new feature'),
-            null,
-            itemFactory.newLinkButton('https://github.com/G-dH/advanced-alttab-window-switcher/issues')
-        ));
-
-        optionList.push(itemFactory.getRowWidget(
-            _('Buy Me a Coffee'),
-            _('Enjoying this extension? Consider supporting it by buying me a coffee!'),
-            itemFactory.newLinkButton('https://buymeacoffee.com/georgdh')
-        ));
-
-        return optionList;
-    }
 }

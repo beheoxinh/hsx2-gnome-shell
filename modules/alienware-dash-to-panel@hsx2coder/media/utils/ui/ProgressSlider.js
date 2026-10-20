@@ -33,9 +33,21 @@ export const ProgressSlider = GObject.registerClass(
       this._canSeek = true;
       this._isDestroyed = false;
       this._pendingPositionCall = false;
+      this._loggedPositionWarn = false;
+      this._playerPositionLost = false;
 
       // Per-player snapshot so switching tabs never causes a jump or flicker
       this._playerCache = new Map();
+
+      // Root fix: the actor is frequently destroyed by a parent cascade
+      // (a grandparent tears the tree down), which does NOT invoke this
+      // class's destroy() override, so _isDestroyed stayed false and the
+      // 1s position source kept writing .text on finalized St.Labels.
+      // Clutter emits ::destroy for every destroyed actor, cascades included.
+      this.connect('destroy', () => {
+        this._isDestroyed = true;
+        this.stopPositionUpdate();
+      });
 
       this._buildUI();
     }
@@ -44,6 +56,13 @@ export const ProgressSlider = GObject.registerClass(
       const sliderContainer = new St.BoxLayout({ style: "margin: 0 8px;" });
 
       this._positionSlider = new Slider.Slider(0);
+      // GNOME Shell 50's BarLevel (Slider extends BarLevel) reads the
+      // -barlevel-* custom properties during repaint. Shell themes that never
+      // define them (e.g. Qogir-Square-Dark) leave the colors undefined, so
+      // cr.setSourceColor() throws "TypeError: color is undefined" on every
+      // position tick and the progress bar never paints. The class below is
+      // styled in the module stylesheet so the widget is theme-independent.
+      this._positionSlider.add_style_class_name("amc-media-progress-bar");
       this._positionSlider.accessible_name = "Position";
 
       this._sliderChangedId = this._positionSlider.connect(
@@ -108,8 +127,11 @@ export const ProgressSlider = GObject.registerClass(
 
     setPlayerName(name) {
       if (this._playerName === name) return;
+      if (this._isDestroyed) return;
       this._saveCacheForCurrentPlayer();
       this._playerName = name;
+      this._loggedPositionWarn = false;
+      this._playerPositionLost = false;
       this._restoreCacheForCurrentPlayer();
     }
 
@@ -212,7 +234,7 @@ export const ProgressSlider = GObject.registerClass(
       if (this._isDestroyed) return;
       try {
         this.emit("slider-ratio-changed", ratio);
-      } catch (_) {}
+      } catch (_) {console.warn('[dash-to-panel] _emitRatio: ' + ((_ && _.message) ? _.message : _)) }
     }
 
     _saveCacheForCurrentPlayer() {
@@ -248,6 +270,7 @@ export const ProgressSlider = GObject.registerClass(
         this._isDestroyed ||
         this._sliderDragging ||
         !this._playerName ||
+        this._playerPositionLost ||
         !this._trackLength ||
         this._pendingPositionCall
       )
@@ -272,7 +295,17 @@ export const ProgressSlider = GObject.registerClass(
             const pos = reply.recursiveUnpack()[0];
             if (pos !== null && pos !== undefined)
               this._currentPosition = pos;
-          } catch (_e) {}
+          } catch (_e) {
+            if (!this._loggedPositionWarn) {
+              this._loggedPositionWarn = true;
+              console.warn('[dash-to-panel] _updateSliderPosition: ' + ((_e && _e.message) ? _e.message : _e));
+            }
+              // Player loss: the bus name is no longer activatable (player closed).
+              // Stop polling the dead player; cleared when a new player name is bound.
+              const errMsg = (_e && _e.message) ? _e.message : String(_e);
+              if (errMsg.includes('ServiceUnknown') || errMsg.includes('NameHasNoOwner'))
+                this._playerPositionLost = true;
+          }
           this._applyPosition(this._currentPosition);
           this._saveCacheForCurrentPlayer();
         },
@@ -280,6 +313,7 @@ export const ProgressSlider = GObject.registerClass(
     }
 
     _applyPosition(position) {
+      if (this._isDestroyed) return;
       position = Math.max(0, Math.min(position, this._trackLength));
       const ratio = this._trackLength > 0 ? position / this._trackLength : 0;
 

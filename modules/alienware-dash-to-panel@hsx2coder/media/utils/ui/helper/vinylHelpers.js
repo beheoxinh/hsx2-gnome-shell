@@ -217,7 +217,7 @@ export function resolveCanonicalIds(playerName, manager) {
         }
       }
     }
-  } catch (_e) {}
+  } catch (_e) {console.warn('[dash-to-panel] ?: ' + ((_e && _e.message) ? _e.message : _e)) }
 
   //MprisManager desktopEntries map
   if (manager) {
@@ -333,7 +333,7 @@ export function getVinylApps(settings) {
 export function setVinylApps(settings, ids) {
   try {
     settings.set_strv("vinyl-app-ids", ids);
-  } catch (_e) {}
+  } catch (_e) {console.warn('[dash-to-panel] ?: ' + ((_e && _e.message) ? _e.message : _e)) }
 }
 
 // Private helpers

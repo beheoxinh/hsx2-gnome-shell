@@ -20,6 +20,7 @@ import GObject from 'gi://GObject';
 import GdkPixbuf from 'gi://GdkPixbuf';
 import Gio from 'gi://Gio';
 import St from 'gi://St';
+import Cogl from 'gi://Cogl';
 
 import * as Params from 'resource:///org/gnome/shell/misc/params.js';
 import * as Signals from 'resource:///org/gnome/shell/misc/signals.js';
@@ -42,7 +43,7 @@ Gio._promisify(Gio.DBusConnection.prototype, 'call');
 
 const MAX_UPDATE_FREQUENCY = 30; // In ms
 const FALLBACK_ICON_NAME = 'image-loading-symbolic';
-const PIXMAPS_FORMAT = imports.gi.Cogl.PixelFormat.ARGB_8888;
+const PIXMAPS_FORMAT = Cogl.PixelFormat.ARGB_8888;
 
 export const SNICategory = Object.freeze({
     APPLICATION: 'ApplicationStatus',
@@ -194,8 +195,19 @@ class AppIndicatorProxy extends DBusProxy {
                         skipEqualityCheck: p.endsWith('Pixmap'),
                     });
                 } catch (e) {
-                    if (!AppIndicatorProxy.OPTIONAL_PROPERTIES.includes(p) ||
-                        !(e instanceof Gio.DBusError))
+                    const isRemoteDbError = (e instanceof Gio.DBusError) ||
+                        (e instanceof Gio.IOErrorEnum && e.matches(Gio.IOErrorEnum, Gio.IOErrorEnum.DBUS_ERROR)) ||
+                        Gio.DBusError.is_remote_error(e);
+                    // Peers legitimately drop properties (a StatusNotifier item
+                    // may never export an optional one, or may lose it while
+                    // running); refreshProperty() already treats this as
+                    // "silently ignore it". Don't spam ERROR with a full stack.
+                    const isMissingProperty = (e instanceof GLib.Error) &&
+                        Gio.DBusError.is_remote_error(e) &&
+                        Gio.DBusError.get_remote_error(e) ===
+                            'org.freedesktop.DBus.Properties.Error.PropertyNotFound';
+                    if (!isMissingProperty &&
+                        (!AppIndicatorProxy.OPTIONAL_PROPERTIES.includes(p) || !isRemoteDbError))
                         logError(e);
                 }
             }));

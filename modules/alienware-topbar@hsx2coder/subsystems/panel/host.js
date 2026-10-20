@@ -31,6 +31,35 @@ const BOXES = ['left', 'center', 'right'];
 
 export const SIDE = {LEFT: 0, CENTER: 1, RIGHT: 2};
 
+function _isSafeActor(actor) {
+    if (!actor) return false;
+    try {
+        // A disposed GJS wrapper must never be touched here: stringifying it or
+        // reading its GObject properties emits "already disposed — impossible to
+        // get any property from it" as a *warning*, not an exception, so the
+        // try/catch below cannot contain it. Only JS-side flags are safe.
+        if (actor._isDestroyed === true)
+            return false;
+        return true;
+    } catch (_) {
+        return false;
+    }
+}
+
+// Marks an actor as gone the moment it is destroyed, so _isSafeActor() can
+// answer without ever touching the (possibly disposed) GObject wrapper.
+function _watchDestroy(actor) {
+    if (!actor || actor._isDestroyWatched)
+        return;
+    try {
+        actor._isDestroyWatched = true;
+        actor._isDestroyed = false;
+        actor.connect('destroy', () => {
+            actor._isDestroyed = true;
+        });
+    } catch (_) {}
+}
+
 class PanelHostImpl {
     #api = null;
     #listeners = new Set();
@@ -88,7 +117,7 @@ class PanelHostImpl {
     disable() {
         for (const actor of this.#owned.values()) {
             try {
-                if (actor && !actor._isDestroyed && !actor.is_finalized?.())
+                if (_isSafeActor(actor))
                     actor.destroy();
             } catch (_) {
                 /* already gone */
@@ -117,14 +146,14 @@ class PanelHostImpl {
         if (Main.panel.statusArea?.[role]) {
             try {
                 const old = Main.panel.statusArea[role];
-                if (old && !old._isDestroyed && !old.is_finalized?.())
+                if (_isSafeActor(old))
                     old.destroy();
             } catch (_) {}
             delete Main.panel.statusArea[role];
         }
         try {
             const oldOwned = this.#owned.get(role);
-            if (oldOwned && !oldOwned._isDestroyed && !oldOwned.is_finalized?.())
+            if (_isSafeActor(oldOwned))
                 oldOwned.destroy();
         } catch (_) {}
         this.#owned.set(role, indicator);
@@ -149,10 +178,11 @@ class PanelHostImpl {
         }
         try {
             const oldOwned = this.#owned.get(role);
-            if (oldOwned && !oldOwned._isDestroyed && !oldOwned.is_finalized?.())
+            if (_isSafeActor(oldOwned))
                 oldOwned.destroy();
         } catch (_) {}
         this.#owned.set(role, actor);
+        _watchDestroy(actor);
         if (typeof Main.panel._addToPanelBox === 'function')
             return Main.panel._addToPanelBox(role, actor, position, target);
         return Main.panel.addToStatusArea(role, actor, position, target);
@@ -203,7 +233,7 @@ class PanelHostImpl {
         if (!actor)
             return false;
         try {
-            if (!actor._isDestroyed && !actor.is_finalized?.())
+            if (_isSafeActor(actor))
                 actor.destroy();
         } catch (_) {}
         return true;

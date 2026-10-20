@@ -281,7 +281,9 @@ export const DBusClient = GObject.registerClass({
     }
 
     _requestLayoutUpdate() {
-        const cancellable = new Util.CancellableChild(this._cancellable);
+        // Never pass undefined as a GObject property: `{parent: undefined}`
+        // throws "Invalid value 'undefined' for property parent".
+        const cancellable = new Util.CancellableChild(this._cancellable || null);
         this._beginLayoutUpdate(cancellable);
     }
 
@@ -457,7 +459,9 @@ export const DBusClient = GObject.registerClass({
     }
 
     _doPropertiesUpdate() {
-        const cancellable = new Util.CancellableChild(this._cancellable);
+        // Never pass undefined as a GObject property: `{parent: undefined}`
+        // throws "Invalid value 'undefined' for property parent".
+        const cancellable = new Util.CancellableChild(this._cancellable || null);
         this._doPropertiesUpdateAsync(cancellable).catch(e => {
             if (!e.matches(Gio.IOErrorEnum, Gio.IOErrorEnum.CANCELLED))
                 Util.Logger.warn(`Could not get menu properties menu proxy: ${e}`);

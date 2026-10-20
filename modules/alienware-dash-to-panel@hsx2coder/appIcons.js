@@ -2002,7 +2002,7 @@ export class TaskbarSecondaryMenu extends AppMenu.AppMenu {
         try {
           let v = appInfo.get_string('X-AppStream-Version') || appInfo.get_string('Version')
           if (v) version = v
-        } catch (e) {}
+        } catch (e) {console.warn('[dash-to-panel] _showAppProperty: ' + ((e && e.message) ? e.message : e)) }
       }
 
       let installSize = 'N/A'
@@ -2016,7 +2016,7 @@ export class TaskbarSecondaryMenu extends AppMenu.AppMenu {
           else if (bytes > 1024) installSize = (bytes / 1024).toFixed(1) + ' KB'
           else if (bytes > 0) installSize = bytes + ' B'
           if (installSize !== 'N/A') installSize += ' (binary)'
-        } catch (e) {}
+        } catch (e) {console.warn('[dash-to-panel] _showAppProperty: ' + ((e && e.message) ? e.message : e)) }
       }
 
       let pids = app.get_pids()
@@ -2066,7 +2066,7 @@ export class TaskbarSecondaryMenu extends AppMenu.AppMenu {
           St.Clipboard.get_default().set_text(St.ClipboardType.CLIPBOARD, value)
           cpBtn.get_child().style = 'color: #6f8;'
           GLib.timeout_add(GLib.PRIORITY_DEFAULT, 800, () => {
-            try { cpBtn.get_child().style = 'color: #888;' } catch (e) {}
+            try { cpBtn.get_child().style = 'color: #888;' } catch (e) {console.warn('[dash-to-panel] _showAppProperty: ' + ((e && e.message) ? e.message : e)) }
             return GLib.SOURCE_REMOVE
           })
           return Clutter.EVENT_STOP
@@ -2099,7 +2099,7 @@ export class TaskbarSecondaryMenu extends AppMenu.AppMenu {
 
       // Desktop File row with Edit button
       let editBtn = new St.Button({
-        label: 'Edit',
+        label: _('Edit'),
         reactive: true,
         y_align: Clutter.ActorAlign.CENTER,
         style: 'font-size: 11px; color: #8af; padding: 2px 10px; background-color: rgba(136,170,255,0.15); border-radius: 4px;',
@@ -2109,7 +2109,7 @@ export class TaskbarSecondaryMenu extends AppMenu.AppMenu {
           try { GLib.spawn_command_line_async('xdg-open ' + GLib.shell_quote(desktopFile)) }
           catch (e) {
             try { GLib.spawn_command_line_async('gedit ' + GLib.shell_quote(desktopFile)) }
-            catch (e2) { global.log('App Property: no editor for ' + desktopFile) }
+            catch (e2) { console.log('App Property: no editor for ' + desktopFile) }
           }
         }
         return Clutter.EVENT_STOP
@@ -2128,7 +2128,7 @@ export class TaskbarSecondaryMenu extends AppMenu.AppMenu {
       // Buttons
       dialog.setButtons([
         {
-          label: 'Copy All',
+          label: _('Copy All'),
           action: () => {
             let clipText = [
               'App: ' + appName,
@@ -2147,7 +2147,7 @@ export class TaskbarSecondaryMenu extends AppMenu.AppMenu {
           },
         },
         {
-          label: 'Close',
+          label: _('Close'),
           action: () => { dialog.close() },
           key: Clutter.KEY_Escape,
           default: true,
@@ -2212,10 +2212,9 @@ export class TaskbarSecondaryMenu extends AppMenu.AppMenu {
       if (pids && pids.length > 0) {
         pids.forEach((pid) => {
           try {
-            const GLib = imports.gi.GLib;
             GLib.spawn_command_line_async('kill -9 ' + pid);
           } catch (e) {
-            global.log('Dash to Panel: Could not force quit pid ' + pid + ': ' + e)
+            console.log('Dash to Panel: Could not force quit pid ' + pid + ': ' + e)
           }
         })
       }

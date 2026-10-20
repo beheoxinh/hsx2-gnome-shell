@@ -144,10 +144,6 @@ class Settings {
             title: _("Show Private Mode"),
             subtitle: _("Display the private mode toggle in the clipboard menu")
         });
-        this.field_show_settings_button = new Adw.SwitchRow({
-            title: _("Show Settings Button"),
-            subtitle: _("Display a shortcut to these settings in the clipboard menu")
-        });
         this.field_show_clear_history_button = new Adw.SwitchRow({
             title: _("Show Clear History Button"),
             subtitle: _("Display the clear history button in the clipboard menu")
@@ -269,7 +265,6 @@ class Settings {
         this.ui.add(this.field_pinned_on_bottom);
         this.ui.add(this.field_show_search_bar);
         this.ui.add(this.field_show_private_mode);
-        this.ui.add(this.field_show_settings_button);
         this.ui.add(this.field_show_clear_history_button);
 
         this.behavior.add(this.field_strip_text);
@@ -330,7 +325,6 @@ class Settings {
         this.schema.bind(PrefsFields.PINNED_ON_BOTTOM, this.field_pinned_on_bottom, 'active', Gio.SettingsBindFlags.DEFAULT);
         this.schema.bind(PrefsFields.SHOW_SEARCH_BAR, this.field_show_search_bar, 'active', Gio.SettingsBindFlags.DEFAULT);
         this.schema.bind(PrefsFields.SHOW_PRIVATE_MODE, this.field_show_private_mode, 'active', Gio.SettingsBindFlags.DEFAULT);
-        this.schema.bind(PrefsFields.SHOW_SETTINGS_BUTTON, this.field_show_settings_button, 'active', Gio.SettingsBindFlags.DEFAULT);
         this.schema.bind(PrefsFields.SHOW_CLEAR_HISTORY_BUTTON, this.field_show_clear_history_button, 'active', Gio.SettingsBindFlags.DEFAULT);
         this.schema.bind(PrefsFields.ENABLE_KEYBINDING, this.field_keybinding_activation, 'active', Gio.SettingsBindFlags.DEFAULT);
         this.schema.bind(PrefsFields.CLEAR_ON_BOOT, this.field_clear_on_boot, 'active', Gio.SettingsBindFlags.DEFAULT);

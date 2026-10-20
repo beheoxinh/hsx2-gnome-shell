@@ -306,10 +306,7 @@ function _trashOrDeleteOne(file, mode, cancellable) {
     return new Promise((resolve, reject) => {
         const done = (f, res) => {
             try {
-                if (mode === 'trash')
-                    f.trash_finish(res);
-                else
-                    f.delete_finish(res);
+                f.trash_finish(res);
                 resolve();
             } catch (e) {
                 reject(e);
@@ -318,18 +315,135 @@ function _trashOrDeleteOne(file, mode, cancellable) {
         if (mode === 'trash')
             file.trash_async(GLib.PRIORITY_DEFAULT, cancellable, done);
         else
-            file.delete_async(GLib.PRIORITY_DEFAULT, cancellable, done);
+            _deleteTreeRecursive(file, cancellable).then(resolve, reject);
     });
 }
 
+/* Query a file's type without ever following a symbolic link. */
+function _queryInfoNoFollow(file, cancellable, priority) {
+    return new Promise((resolve, reject) => {
+        file.query_info_async(`${Gio.FILE_ATTRIBUTE_STANDARD_NAME},${Gio.FILE_ATTRIBUTE_STANDARD_TYPE}`,
+            Gio.FileQueryInfoFlags.NOFOLLOW_SYMLINKS, priority, cancellable, (source, res) => {
+                try {
+                    resolve(source.query_info_finish(res));
+                } catch (e) {
+                    reject(e);
+                }
+            });
+    });
+}
+
+/* Permanent removal of exactly one entry: file, symlink or empty directory. */
+function _unlinkOne(file, cancellable, priority) {
+    return new Promise((resolve, reject) => {
+        file.delete_async(priority, cancellable, (source, res) => {
+            try {
+                source.delete_finish(res);
+                resolve();
+            } catch (e) {
+                reject(e);
+            }
+        });
+    });
+}
+
+function _closeEnumerator(enumerator, cancellable, priority) {
+    return new Promise((resolve, reject) => {
+        if (enumerator.is_closed()) {
+            resolve();
+            return;
+        }
+        enumerator.close_async(priority, cancellable, (source, res) => {
+            try {
+                source.close_finish(res);
+                resolve();
+            } catch (e) {
+                reject(e);
+            }
+        });
+    });
+}
+
+/* Child names of a directory, queried with NOFOLLOW_SYMLINKS so that a
+ * symlink is reported as a symlink and never resolved to its target. */
+async function _listChildrenNoFollow(dir, cancellable, priority) {
+    const enumerator = await new Promise((resolve, reject) => {
+        dir.enumerate_children_async(
+            `${Gio.FILE_ATTRIBUTE_STANDARD_NAME},${Gio.FILE_ATTRIBUTE_STANDARD_TYPE}`,
+            Gio.FileQueryInfoFlags.NOFOLLOW_SYMLINKS, priority, cancellable, (source, res) => {
+                try {
+                    resolve(source.enumerate_children_finish(res));
+                } catch (e) {
+                    reject(e);
+                }
+            });
+    });
+
+    const names = [];
+    try {
+        for (;;) {
+            if (cancellable && cancellable.is_cancelled())
+                throw new GLib.Error(Gio.IOErrorEnum, Gio.IOErrorEnum.CANCELLED, 'Operation cancelled');
+
+            const batch = await new Promise((resolve, reject) => {
+                enumerator.next_files_async(64, priority, cancellable, (source, res) => {
+                    try {
+                        resolve(source.next_files_finish(res));
+                    } catch (e) {
+                        reject(e);
+                    }
+                });
+            });
+            if (!batch.length)
+                break;
+
+            for (const info of batch) {
+                if (info)
+                    names.push(info.get_name());
+            }
+        }
+    } finally {
+        try {
+            await _closeEnumerator(enumerator, cancellable, priority);
+        } catch (closeError) {
+            /* The listing is done; report the close failure to the journal
+             * without masking the real error that may be in flight. */
+            console.error('Failed to close directory enumerator:', closeError);
+        }
+    }
+    return names;
+}
+
+/* Permanent delete of `file` and everything below it, bottom-up.
+ * Gio.File.delete_async is only unlink()/rmdir(): a directory that still has
+ * children fails with G_IO_ERROR_NOT_EMPTY, so the children go first. Symbolic
+ * links are unlinked themselves and never traversed, so a link pointing out of
+ * the tree cannot drag its target's contents with it. */
+async function _deleteTreeRecursive(file, cancellable, priority = GLib.PRIORITY_DEFAULT) {
+    if (cancellable && cancellable.is_cancelled())
+        throw new GLib.Error(Gio.IOErrorEnum, Gio.IOErrorEnum.CANCELLED, 'Operation cancelled');
+
+    const info = await _queryInfoNoFollow(file, cancellable, priority);
+    if (info.get_file_type() === Gio.FileType.DIRECTORY) {
+        const children = await _listChildrenNoFollow(file, cancellable, priority);
+        for (const childName of children) {
+            if (cancellable && cancellable.is_cancelled())
+                throw new GLib.Error(Gio.IOErrorEnum, Gio.IOErrorEnum.CANCELLED, 'Operation cancelled');
+            await _deleteTreeRecursive(file.get_child(childName), cancellable, priority);
+        }
+    }
+    await _unlinkOne(file, cancellable, priority);
+}
+
 async function removeItemsWithProgress(uriList, mode, progressItem, tolerate = false) {
-    /* mode 'trash' -> Gio trash, 'delete' -> permanent unlink. Same contract
+    /* mode 'trash' -> Gio trash, 'delete' -> permanent recursive unlink. Same contract
      * as copy/move helpers: per-item secondary + counter, setCancelled() on
      * cancel, throw on failures (caller setError). Failures on some items do
      * not abort the rest — Nautilus reports and continues too. */
     const cancellable = progressItem.cancellable;
     let completedItems = 0;
     const failures = [];
+    const failureReasons = [];
     for (const uri of uriList) {
         if (cancellable.is_cancelled()) {
             progressItem.setCancelled();
@@ -349,6 +463,7 @@ async function removeItemsWithProgress(uriList, mode, progressItem, tolerate = f
                 return false;
             }
             failures.push(file.get_basename() || uri);
+            failureReasons.push(e.message || String(e));
         }
         completedItems++;
         progressItem.incrementCompleted();
@@ -361,9 +476,10 @@ async function removeItemsWithProgress(uriList, mode, progressItem, tolerate = f
             progressItem.setSecondaryLabel(
                 _('%d item(s) could not be removed').replace('%d', String(failures.length)));
         } else {
+            const reason = failureReasons.length ? ` (${failureReasons[0]})` : '';
             throw new Error(_('Could not remove %d item(s): %s')
                 .replace('%d', String(failures.length))
-                .replace('%s', failures.slice(0, 3).join(', ')));
+                .replace('%s', failures.slice(0, 3).join(', ')) + reason);
         }
     }
     return true;

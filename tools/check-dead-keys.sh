@@ -36,7 +36,7 @@ js_files = sys.argv[5 + n_xml:5 + n_xml + n_js]
 
 import xml.etree.ElementTree as ET
 
-keys = {}          # key name -> (schema id, file)
+pairs = []         # (key name, schema id, file) - one entry per declaration          # key name -> (schema id, file)
 schema_ids = {}    # schema id -> file
 for path in xml_files:
     root_el = ET.parse(path).getroot()
@@ -44,7 +44,7 @@ for path in xml_files:
         sid = schema.get('id')
         schema_ids[sid] = path
         for key in schema.findall('key'):
-            keys[key.get('name')] = (sid, path)
+            pairs.append((key.get('name'), sid, path))
 
 js_blob = []
 for path in js_files:
@@ -57,7 +57,7 @@ blob = '\n'.join(js_blob)
 rc = 0
 port_only = 0
 dead = []
-for name, (sid, path) in sorted(keys.items()):
+for name, sid, path in sorted(pairs):
     if sid in allow:
         # only report when the whole schema is upstream AND every key is unused
         port_only += 1

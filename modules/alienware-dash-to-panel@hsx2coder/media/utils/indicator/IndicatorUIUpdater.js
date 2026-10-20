@@ -51,7 +51,7 @@ export class IndicatorUIUpdater {
         if (!pInfo) continue;
         if (pInfo.status === "Playing") return name;
         if (pInfo.status === "Paused" && !paused) paused = name;
-      } catch (_) {}
+      } catch (_) {console.warn('[dash-to-panel] _findBestFallback: ' + ((_ && _.message) ? _.message : _)) }
     }
 
     return paused ?? null;
@@ -162,7 +162,7 @@ export class IndicatorUIUpdater {
 
       this._indicator._panelUI.resetToDefault();
       this._indicator.show();
-    } catch (e) {}
+    } catch (e) {console.warn('[dash-to-panel] updateVisibility: ' + ((e && e.message) ? e.message : e)) }
   }
 
   updateUI() {
@@ -213,7 +213,7 @@ export class IndicatorUIUpdater {
 
       this.updateLabel();
       this.updateTabs();
-    } catch (e) {}
+    } catch (e) {console.warn('[dash-to-panel] updateUI: ' + ((e && e.message) ? e.message : e)) }
   }
 
   updateLabel() {
@@ -284,7 +284,7 @@ export class IndicatorUIUpdater {
 
       this._indicator._panelUI.stopScrolling();
       this._indicator._panelUI.label.hide();
-    } catch (e) {}
+    } catch (e) {console.warn('[dash-to-panel] updateLabel: ' + ((e && e.message) ? e.message : e)) }
   }
 
   updateTabs() {
@@ -302,6 +302,6 @@ export class IndicatorUIUpdater {
         this._indicator._state._currentPlayer,
         this._indicator._manager,
       );
-    } catch (e) {}
+    } catch (e) {console.warn('[dash-to-panel] updateTabs: ' + ((e && e.message) ? e.message : e)) }
   }
 }

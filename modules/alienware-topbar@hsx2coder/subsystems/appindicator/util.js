@@ -222,11 +222,14 @@ export const CancellableChild = GObject.registerClass({
     },
 },
 class CancellableChild extends Gio.Cancellable {
-    _init(parent) {
+    _init(parent = null) {
         if (parent && !(parent instanceof Gio.Cancellable))
             throw TypeError('Not a valid cancellable');
 
-        super._init({parent});
+        if (parent)
+            super._init({parent});
+        else
+            super._init({});
 
         if (parent) {
             if (parent.is_cancelled()) {

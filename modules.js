@@ -58,7 +58,14 @@ export function buildSubMetadata(suiteExtension, moduleDef) {
         .get_child(moduleDef.uuid);
     const modulePath = moduleDir.get_path();
 
-    const original = JSON.parse(_readText(moduleDir.get_child('metadata.json')));
+    // A missing or broken metadata.json must name the module, not surface as
+    // a bare "Unexpected end of JSON input" from JSON.parse.
+    let original;
+    try {
+        original = JSON.parse(_readText(moduleDir.get_child('metadata.json')));
+    } catch (e) {
+        throw new Error(`${moduleDef.uuid}: metadata.json is missing or invalid (${e.message})`);
+    }
 
     return {
         ...original,

@@ -140,7 +140,7 @@ if os.path.isfile(top_xml) and os.path.isfile(top_ext):
     text = open(top_ext, encoding='utf-8').read()
     handled = set(re.findall(r"\['([a-z0-9-]+)',\s*\(\s*[sf]", text))
     # the clone keys are applied by subsystems/topbar-clone, not this table
-    clone = {'clone-topbar', 'clone-show-clock', 'clone-show-tray', 'clone-show-indicators'}
+    clone = {'clone-topbar', 'clone-show-clock', 'clone-show-tray'}
     # the widget switches are handled by alienware-topbar/extension.js
     widgets = {'enable-system-monitor', 'enable-indicators'}
     for key in sorted(declared - handled - clone - widgets):

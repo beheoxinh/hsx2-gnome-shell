@@ -23,6 +23,7 @@ export default class CommandsUI extends Adw.PreferencesPage {
         this.menuIdx = menuIdx;
         this.menus = menus;
         this._settings = settings;
+        this._idleSourceIds = new Set();
         const menu = this.menus[this.menuIdx];
 
         const settingsGroup0 = new Adw.PreferencesGroup();
@@ -587,8 +588,26 @@ export default class CommandsUI extends Adw.PreferencesPage {
         return newMenu;
     }
 
+    /** cancel-safe idle source: tracked so destroy() can remove it */
+    _queueIdleSource(callback) {
+        const id = GLib.idle_add(GLib.PRIORITY_DEFAULT_IDLE, () => {
+            this._idleSourceIds.delete(id);
+            return callback();
+        });
+        this._idleSourceIds.add(id);
+        return id;
+    }
+
+    destroy() {
+        for (const id of this._idleSourceIds) {
+            GLib.source_remove(id);
+        }
+        this._idleSourceIds.clear();
+        super.destroy();
+    }
+
     _listBoxScrollToBottom() {
-        GLib.idle_add(GLib.PRIORITY_DEFAULT_IDLE, () => {
+        this._queueIdleSource(() => {
             const adj = this._scroller.get_vadjustment?.();
             if (!adj) return GLib.SOURCE_REMOVE;
             adj.set_value(adj.get_upper() - adj.get_page_size());
@@ -639,7 +658,7 @@ export default class CommandsUI extends Adw.PreferencesPage {
             this.commandsListBox.insert(row, insertIndex++);
         }
 
-        GLib.idle_add(GLib.PRIORITY_DEFAULT_IDLE, () => {
+        this._queueIdleSource(() => {
             adjustment.set_value(scrollValue);
             return GLib.SOURCE_REMOVE;
         });

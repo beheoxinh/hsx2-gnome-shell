@@ -345,7 +345,7 @@ export class PanelExtension {
     #assertEveryKeyHandled() {
         const handled = new Set(this.#table().map(([k]) => k));
         const nonPanelKeys = new Set([
-            'clone-topbar', 'clone-show-clock', 'clone-show-tray', 'clone-show-indicators',
+            'clone-topbar', 'clone-show-clock', 'clone-show-tray',
             'enable-system-monitor', 'enable-indicators',
         ]);
         const missing = this.#settings.settings_schema.list_keys()

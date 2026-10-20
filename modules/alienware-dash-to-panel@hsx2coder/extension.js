@@ -329,7 +329,7 @@ class _JpHandler {
   }
 
   stop() {
-    try { this.#s.disconnectObject(this) } catch(e) {}
+    try { this.#s.disconnectObject(this) } catch(e) {console.warn('[dash-to-panel] stop: ' + ((e && e.message) ? e.message : e)) }
     this.#api?.close()
     this.#api = null
   }

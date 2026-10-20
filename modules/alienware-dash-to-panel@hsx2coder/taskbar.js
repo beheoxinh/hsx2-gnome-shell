@@ -43,6 +43,31 @@ import * as Utils from './utils.js'
 import * as WindowPreview from './windowPreview.js'
 import { SETTINGS, tracker } from './extension.js'
 
+function _isSafeActor(actor) {
+  if (!actor) return false
+  try {
+    // Never stringify a GObject wrapper: the stringify itself emits
+    // "Object St.Label (0x...), has been already disposed" warnings.
+    // Only JS-side flags are safe to read (same pattern as host.js).
+    if (actor._isDestroyed === true) return false
+    if (actor._destroyed === true) return false
+    return true
+  } catch (_) {
+    return false
+  }
+}
+
+// Marks an actor as gone the moment it is destroyed, so _isSafeActor() can
+// answer without ever touching the (possibly disposed) GObject wrapper.
+function _watchDestroy(actor) {
+  if (!actor || actor._isDestroyWatched) return
+  try {
+    actor._isDestroyWatched = true
+    if (actor._isDestroyed !== true) actor._isDestroyed = false
+    actor.connect('destroy', () => { actor._isDestroyed = true })
+  } catch (_) {}
+}
+
 const SearchController = Main.overview.searchController
 
 export var hotkeyAppNumbers = {}
@@ -469,8 +494,11 @@ export const Taskbar = class extends EventEmitter {
 
   _dropIconAnimations() {
     this._getTaskbarIcons().forEach((item) => {
-      item.raise(0)
-      item.stretch(0)
+      // raise()/stretch() throw on a disposed actor.
+      try {
+        item.raise(0)
+        item.stretch(0)
+      } catch (_) {}
     })
   }
 
@@ -482,8 +510,14 @@ export const Taskbar = class extends EventEmitter {
     if (!pointerX || !pointerY) [pointerX, pointerY] = global.get_pointer()
 
     this._getTaskbarIcons().forEach((item) => {
-      let [x, y] = item.get_transformed_position()
-      let [width, height] = item.get_transformed_size()
+      // A disposed GObject throws on get_transformed_*(); measure defensively so
+      // one mid-teardown icon can never abort the whole animation pass.
+      let x = 0, y = 0, width = 0, height = 0
+      try {
+        const pos = item.get_transformed_position()
+        const sz = item.get_transformed_size()
+        x = pos[0]; y = pos[1]; width = sz[0]; height = sz[1]
+      } catch (_) { return }
       let [centerX, centerY] = [x + width / 2, y + height / 2]
       let size = vertical ? height : width
       let difference = vertical ? pointerY - centerY : pointerX - centerX
@@ -805,12 +839,17 @@ export const Taskbar = class extends EventEmitter {
         this._timeoutsHandler.add([
           T1,
           100,
-          () =>
-            Utils.ensureActorVisibleInScrollView(
+          () => {
+            try {
+              Utils.ensureActorVisibleInScrollView(
               this._scrollView,
               appIcon,
               this._scrollView._dtpFadeSize,
-            ),
+              );
+            } catch (e) {
+              console.warn('[dash-to-panel] hover-scroll: ' + (e && e.message ? e.message : e));
+            }
+          },
         ])
 
         if (!appIcon.isDragged && iconAnimationSettings.type == 'SIMPLE')
@@ -875,7 +914,13 @@ export const Taskbar = class extends EventEmitter {
 
   _getTaskbarIcons(includeAnimated) {
     return this._box.get_children().filter(function (actor) {
+      // Watch each icon once: a C-side destroy then flips actor._isDestroyed,
+      // which is what _isSafeActor() reads.
+      if (actor) _watchDestroy(actor)
       return (
+        actor &&
+        actor._isDestroyed !== true &&
+        actor._destroyed !== true &&
         actor.child &&
         actor.child._delegate &&
         actor.child._delegate.icon &&
@@ -1536,26 +1581,6 @@ export const Taskbar = class extends EventEmitter {
       this.showAppsButton.checked = status
   }
 
-  showShowAppsButton() {
-    this.showAppsButton.visible = true
-    this.showAppsButton.set_width(-1)
-    this.showAppsButton.set_height(-1)
-  }
-
-  popupFocusedAppSecondaryMenu() {
-    let appIcons = this._getAppIcons()
-
-    for (let i in appIcons) {
-      if (appIcons[i].app == tracker.focus_app) {
-        let appIcon = appIcons[i]
-        if (appIcon._menu && appIcon._menu.isOpen) appIcon._menu.close()
-        else appIcon.popupMenu()
-
-        appIcon.sync_hover()
-        break
-      }
-    }
-  }
 }
 
 export const TaskbarItemContainer = GObject.registerClass(
@@ -1591,7 +1616,7 @@ export const TaskbarItemContainer = GObject.registerClass(
     // In case appIcon is removed from the taskbar while it is hovered,
     // restore opacity before dashItemContainer.animateOutAndDestroy does the destroy animation.
     animateOutAndDestroy() {
-      if (this._raisedClone) {
+      if (this._raisedClone && this._raisedClone.source) {
         this._raisedClone.source.opacity = 255
         this._raisedClone.destroy()
       }
@@ -1611,6 +1636,7 @@ export const TaskbarItemContainer = GObject.registerClass(
     }
 
     _updateCloneContainerPosition(cloneContainer) {
+      if (!_isSafeActor(this) || !_isSafeActor(cloneContainer)) return
       let [stageX, stageY] = this.get_transformed_position()
 
       cloneContainer.set_position(
@@ -1620,7 +1646,10 @@ export const TaskbarItemContainer = GObject.registerClass(
     }
 
     _createRaisedClone() {
-      let [width, height] = this.get_transformed_size()
+      // A disposed actor throws on get_transformed_size(); degrade to a zero-size
+    // clone instead of crashing the zoom animation.
+    let width = 0, height = 0
+    try { const sz = this.get_transformed_size(); width = sz[0]; height = sz[1] } catch (_) {}
 
       // "clone" of this child (appIcon actor)
       let cloneButton = this.child._delegate.getCloneButton()
@@ -1674,7 +1703,7 @@ export const TaskbarItemContainer = GObject.registerClass(
         delete this._raisedClone
       })
 
-      this._raisedClone.source.opacity = 0
+      if (this._raisedClone && this._raisedClone.source) this._raisedClone.source.opacity = 0
       Main.uiGroup.add_child(cloneContainer)
     }
 
@@ -1721,7 +1750,11 @@ export const TaskbarItemContainer = GObject.registerClass(
 
       // level is about 1 for the icon that is hovered, less for others.
       // time depends on the translation to do.
-      let [width, height] = this._raisedClone.source.get_transformed_size()
+      // The clone's source actor can already be gone (or disposed) while the
+      // zoom animation is still scheduled; measure defensively.
+      const _cloneSrc = this._raisedClone && this._raisedClone.source
+      let width = 0, height = 0
+      try { const sz = _cloneSrc.get_transformed_size(); width = sz[0]; height = sz[1] } catch (_) {}
       let translationMax =
         (vertical ? width : height) * (travel + (zoom - 1) / 2)
       let translationEnd = translationMax * level
@@ -1741,7 +1774,7 @@ export const TaskbarItemContainer = GObject.registerClass(
         time: time,
         transition: 'easeOutQuad',
         onComplete: () => {
-          if (!level) {
+          if (!level && this._raisedClone && this._raisedClone.source) {
             this._raisedClone.source.opacity = 255
             this._raisedClone.destroy()
             delete this._raisedClone

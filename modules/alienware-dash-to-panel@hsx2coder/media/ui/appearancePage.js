@@ -26,7 +26,7 @@ function _getDefaultFontFamily() {
                 if (family) return family;
             }
         }
-    } catch (_e) {}
+    } catch (_e) {console.warn('[dash-to-panel] ?: ' + ((_e && _e.message) ? _e.message : _e)) }
     return "Sans";
 }
 

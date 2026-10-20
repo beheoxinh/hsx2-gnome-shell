@@ -29,14 +29,6 @@ import GObject from 'gi://GObject'
 import Gtk from 'gi://Gtk'
 import Gdk from 'gi://Gdk'
 
-try {
-  if (typeof imports !== 'undefined' && imports.package && typeof imports.package.initFormat === 'function') {
-    imports.package.initFormat()
-  }
-} catch (e) {
-  // ignore
-}
-
 import * as PanelSettings from './panelSettings.js'
 import * as Pos from './panelPositions.js'
 
@@ -49,8 +41,8 @@ import {buildPlayerFilterPage} from './media/ui/playerFilterPage.js'
 import {
   ExtensionPreferences,
   gettext as _,
-  ngettext,
-} from 'resource:///org/gnome/Shell/Extensions/js/extensions/prefs.js'
+} from 'resource:///org/gnome/Shell/Extensions/js/extensions/prefs.js';
+const ngettext = (str, plural, n) => (n === 1 ? _(str) : _(plural));
 import { SplitPreferencesView } from '../../lib/ui/splitPrefsView.js'
 
 const SCALE_UPDATE_TIMEOUT = 500
@@ -239,6 +231,8 @@ const Preferences = class {
     this._builder.add_from_file(this._path + '/ui/SettingsFineTune.ui')
     let pageFineTune = this._builder.get_object('finetune')
 
+    this._builder.add_from_file(this._path + '/ui/SettingsAbout.ui')
+
     this._builder.add_from_file(this._path + '/ui/SettingsHiddenApps.ui')
     let pageHiddenApps = this._builder.get_object('hidden_apps_page')
 
@@ -337,8 +331,11 @@ const Preferences = class {
     let listbox = this._builder.get_object('taskbar_display_listbox')
     let provider = new Gtk.CssProvider()
     provider.load_from_data('list { background-color: transparent; }', -1)
-    let context = listbox.get_style_context()
-    context.add_provider(provider, Gtk.STYLE_PROVIDER_PRIORITY_APPLICATION)
+    Gtk.StyleContext.add_provider_for_display(
+      Gdk.Display.get_default(),
+      provider,
+      Gtk.STYLE_PROVIDER_PRIORITY_APPLICATION,
+    )
 
     // set the window as notebook, it is being used as parent for dialogs
     this.notebook = window
@@ -361,7 +358,7 @@ const Preferences = class {
           try {
             if (window.set_visible_page_name)
               window.set_visible_page_name(targetPageName)
-          } catch (_) {}
+          } catch (_) {console.warn('[dash-to-panel] ?: ' + ((_ && _.message) ? _.message : _)) }
           settings.set_string('target-prefs-page', '')
         }
       }
@@ -376,9 +373,6 @@ const Preferences = class {
   /**
    * Connect signals
    */
-  _connector(builder, object, signal, handler) {
-    object.connect(signal, this._SignalHandler[handler].bind(this))
-  }
 
   _updateVerticalRelatedOptions() {
     let position = this._getPanelPosition(this._currentMonitorIndex)
@@ -704,7 +698,7 @@ const Preferences = class {
         let cogImg = new Gtk.Image({ icon_name: 'emblem-system-symbolic' })
         let optionsBtn = new Gtk.Button({ tooltip_text: _('More options') })
 
-        optionsBtn.get_style_context().add_class('circular')
+        optionsBtn.add_css_class('circular')
         optionsBtn.set_child(cogImg)
         grid.attach(optionsBtn, 2, 0, 1, 1)
 
@@ -834,7 +828,7 @@ const Preferences = class {
 
     handleIconChange(this._settings.get_string('show-apps-icon-file'))
 
-    dialog.show()
+    dialog.present()
     // dialog.set_default_size(1, 1)
   }
 
@@ -909,7 +903,7 @@ const Preferences = class {
         this._settings.set_int('show-showdesktop-time', widget.get_value())
       })
 
-    dialog.show()
+    dialog.present()
     // dialog.set_default_size(1, 1)
   }
 
@@ -1275,7 +1269,7 @@ const Preferences = class {
             this._settings.set_int('dot-size', widget.get_value())
           })
 
-        dialog.show()
+        dialog.present()
         // dialog.set_default_size(1, 1)
       })
 
@@ -1687,7 +1681,7 @@ const Preferences = class {
           },
         )
 
-        dialog.show()
+        dialog.present()
         // dialog.set_default_size(1, 1)
       })
 
@@ -2200,7 +2194,7 @@ const Preferences = class {
           },
         )
 
-        dialog.show()
+        dialog.present()
         // dialog.set_default_size(1, 1)
       })
 
@@ -2778,7 +2772,7 @@ const Preferences = class {
             .set_rgba(rgba)
         }).apply(this)
 
-        dialog.show()
+        dialog.present()
       })
 
     this._settings.bind(
@@ -2818,7 +2812,7 @@ const Preferences = class {
           },
         )
 
-        dialog.show()
+        dialog.present()
       })
 
     this._settings.bind(
@@ -2856,7 +2850,7 @@ const Preferences = class {
           },
         )
 
-        dialog.show()
+        dialog.present()
       })
 
     this._settings.bind(
@@ -3133,8 +3127,8 @@ const Preferences = class {
             )
           })
 
-        dialog.show()
-        dialog.set_default_size(600, 1)
+        dialog.present()
+        // dialog.set_default_size(600, 1)
       })
 
     this._builder
@@ -3233,8 +3227,8 @@ const Preferences = class {
           Gio.SettingsBindFlags.DEFAULT,
         )
 
-        dialog.show()
-        dialog.set_default_size(700, 1)
+        dialog.present()
+        // dialog.set_default_size(700, 1)
       })
 
     this._builder
@@ -3257,9 +3251,16 @@ const Preferences = class {
 
     let expanders = []
     let contextMenuGroup = this._builder.get_object('context_menu_group')
-    let contextMenuActions = JSON.parse(
+    let contextMenuActions = []
+    try {
+      contextMenuActions = JSON.parse(
       this._settings.get_string('context-menu-entries'),
-    )
+      )
+    } catch (e) {
+      console.warn('[dash-to-panel] _bindSettings: invalid context-menu-entries JSON: ' + e.message)
+    }
+    if (!Array.isArray(contextMenuActions))
+      contextMenuActions = []
     let contextMenuAddButton = this._builder.get_object(
       'context_menu_add_button',
     )
@@ -3406,8 +3407,8 @@ const Preferences = class {
           Gio.SettingsBindFlags.DEFAULT,
         )
 
-        dialog.show()
-        dialog.set_default_size(640, 1)
+        dialog.present()
+        // dialog.set_default_size(640, 1)
       })
 
     // Create dialog for icon scroll options
@@ -3440,8 +3441,8 @@ const Preferences = class {
             this._settings.set_int('scroll-icon-delay', widget.get_value())
           })
 
-        dialog.show()
-        dialog.set_default_size(640, 1)
+        dialog.present()
+        // dialog.set_default_size(640, 1)
       })
 
     this._settings.bind(
@@ -3558,8 +3559,8 @@ const Preferences = class {
         },
       )
 
-      dialog.show()
-      dialog.set_default_size(600, 1)
+      dialog.present()
+      // dialog.set_default_size(600, 1)
     })
 
     // setup dialog for secondary menu options
@@ -3603,8 +3604,8 @@ const Preferences = class {
           Gio.SettingsBindFlags.DEFAULT,
         )
 
-        dialog.show()
-        dialog.set_default_size(480, 1)
+        dialog.present()
+        // dialog.set_default_size(480, 1)
       })
 
     // Fine-tune panel
@@ -3975,7 +3976,7 @@ const Preferences = class {
           },
         )
 
-        dialog.show()
+        dialog.present()
       })
 
     this._settings.bind(
@@ -4091,7 +4092,7 @@ const Preferences = class {
           },
         )
 
-        dialog.show()
+        dialog.present()
       })
 
     this._settings.bind(
@@ -4223,7 +4224,7 @@ const Preferences = class {
 
     let scrolled = new Gtk.ScrolledWindow({ vexpand: true });
     let listbox = new Gtk.ListBox({ selection_mode: Gtk.SelectionMode.SINGLE });
-    listbox.get_style_context().add_class('boxed-list');
+    listbox.add_css_class('boxed-list');
     scrolled.set_child(listbox);
     box.append(scrolled);
 
@@ -4288,12 +4289,12 @@ const Preferences = class {
     }
     let hiddenAppIds = this._settings.get_strv('hidden-apps');
     for (let appId of hiddenAppIds) {
-      let app = Gio.DesktopAppInfo.new(appId);
+      let app = GioUnix.DesktopAppInfo ? GioUnix.DesktopAppInfo.new(appId) : Gio.DesktopAppInfo.new(appId);
       if (app) {
         let row = new Adw.ActionRow({ title: app.get_name() });
         let icon = new Gtk.Image({ gicon: app.get_icon() });
         row.add_prefix(icon);
-        let removeBtn = new Gtk.Button({ label: 'Remove', valign: Gtk.Align.CENTER });
+        let removeBtn = new Gtk.Button({ label: _('Remove'), valign: Gtk.Align.CENTER });
         removeBtn.connect('clicked', () => {
           let currentApps = this._settings.get_strv('hidden-apps');
           let newApps = currentApps.filter(id => id !== appId);
@@ -4335,9 +4336,7 @@ const Preferences = class {
         const file = self[`${action}_finish`](result)
 
         if (file) acceptHandler.call(this, file.get_path())
-      } catch {
-        // user closed without selecting a file
-      }
+      } catch {console.warn('[dash-to-panel] _showFileDialog: ' + ((e && e.message) ? e.message : e)) }
     })
   }
 }
@@ -4360,10 +4359,6 @@ const BuilderScope = GObject.registerClass(
         throw new Error(`${handlerName} is undefined`)
 
       return this[handlerName].bind(connectObject || this)
-    }
-
-    on_btn_click(connectObject) {
-      connectObject.set_label('Clicked')
     }
 
     position_bottom_button_clicked_cb(button) {

@@ -178,7 +178,7 @@ export const AlbumArt = GObject.registerClass(
           if (first && first.length > 2 && candidates.segments.has(first))
             return app;
         }
-      } catch (_e) {}
+      } catch (_e) {console.warn('[dash-to-panel] _resolveAppInfo: ' + ((_e && _e.message) ? _e.message : _e)) }
       return null;
     }
 
@@ -316,7 +316,7 @@ export const AlbumArt = GObject.registerClass(
 
         deduped.push(JSON.stringify(finalRecord));
         this._settings.set_strv("vinyl-app-instances", deduped);
-      } catch (_e) {}
+      } catch (_e) {console.warn('[dash-to-panel] _saveInstance: ' + ((_e && _e.message) ? _e.message : _e)) }
     }
 
     _markInstanceEnabled(canonicalIds, enabledValue) {
@@ -330,11 +330,11 @@ export const AlbumArt = GObject.registerClass(
               canonicalIds.has(lower) ||
               canonicalIds.has(lower.split(".").pop());
             if (match) return JSON.stringify({ ...obj, enabled: enabledValue });
-          } catch (_) {}
+          } catch (_) {console.warn('[dash-to-panel] _markInstanceEnabled: ' + ((_ && _.message) ? _.message : _)) }
           return raw;
         });
         this._settings.set_strv("vinyl-app-instances", updated);
-      } catch (_e) {}
+      } catch (_e) {console.warn('[dash-to-panel] _markInstanceEnabled: ' + ((_e && _e.message) ? _e.message : _e)) }
     }
 
     _onVinylAppsSettingChanged() {
@@ -564,7 +564,7 @@ export const AlbumArt = GObject.registerClass(
       try {
         vinylClicks = this._settings.get_int("vinyl-click-count");
         lyricsClicks = this._settings.get_int("lyrics-click-count");
-      } catch (_e) {}
+      } catch (_e) {console.warn('[dash-to-panel] _onAlbumArtClicked: ' + ((_e && _e.message) ? _e.message : _e)) }
 
       vinylClicks = Math.max(1, Math.min(5, vinylClicks));
       lyricsClicks = Math.max(1, Math.min(5, lyricsClicks));
@@ -773,7 +773,7 @@ export const AlbumArt = GObject.registerClass(
           try {
             src.copy_finish(res);
             this._setCoverImage(`file://${cachePath}`);
-          } catch (e) {}
+          } catch (e) {console.warn('[dash-to-panel] _downloadCover: ' + ((e && e.message) ? e.message : e)) }
         },
       );
     }

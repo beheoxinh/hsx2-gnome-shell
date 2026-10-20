@@ -87,7 +87,6 @@ Schema: `org.gnome.shell.extensions.clipboard-indicator` (44 keys)
 | Key | Type | Default | Mô tả |
 |-----|------|---------|-------|
 | `show-search-bar` | b | true | Show search/filter bar |
-| `show-settings-button` | b | true | Show settings button |
 | `show-clear-history-button` | b | true | Show clear button |
 | `show-preview-button` | b | true | Show preview toggle |
 | `show-edit-button` | b | true | Show edit button |

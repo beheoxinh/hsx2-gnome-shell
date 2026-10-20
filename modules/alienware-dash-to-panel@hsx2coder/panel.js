@@ -144,10 +144,6 @@ export const Panel = GObject.registerClass(
         this._weatherBox.add_child(this._weatherStatus)
         this.panel.add_child(this._weatherBox)
 
-        this._bluetoothBox = new St.BoxLayout({ name: 'bluetoothBox' })
-        this._btStatus = new BluetoothStatus()
-        this._bluetoothBox.add_child(this._btStatus)
-        this.panel.add_child(this._bluetoothBox)
         // DTP boxes — kept for compatibility
         this._leftBox = this.panel._leftBox = Utils.createBoxLayout({
           name: 'panelLeft',
@@ -158,9 +154,9 @@ export const Panel = GObject.registerClass(
         this._centerBox = this.panel._centerBox = Utils.createBoxLayout({
           name: 'panelCenter',
         })
-        // TEST: red dot to verify LEFT_BOX alloc
-        this._testDot = new St.BoxLayout({ style: 'min-width:20px;min-height:20px;background-color:red;' })
-        this._leftBox.add_child(this._testDot)
+
+        this._btStatus = new BluetoothStatus()
+        this._leftBox.add_child(this._btStatus)
 
 
         this.menuManager = this.panel.menuManager =
@@ -578,10 +574,6 @@ export const Panel = GObject.registerClass(
       return St.Side.LEFT
     }
 
-    checkIfVertical() {
-      return this.geom.vertical
-    }
-
     getOrientation() {
       return this.geom.vertical ? 'vertical' : 'horizontal'
     }
@@ -933,8 +925,8 @@ export const Panel = GObject.registerClass(
         Pos.ACTIVITIES_BTN,
         this.statusArea.activities ? this.statusArea.activities.container : 0,
       )
-      if (this._weatherBox) setMap(Pos.WEATHER, this._weatherBox)
-      setMap(Pos.LEFT_BOX, this._bluetoothBox || this._leftBox)
+      setMap(Pos.WEATHER, this._weatherBox)
+      setMap(Pos.LEFT_BOX, this._leftBox)
       setMap(Pos.TASKBAR, this.taskbar.actor)
       setMap(Pos.CENTER_BOX, this._centerBox)
       setMap(Pos.DATE_MENU, this.statusArea.dateMenu.container)

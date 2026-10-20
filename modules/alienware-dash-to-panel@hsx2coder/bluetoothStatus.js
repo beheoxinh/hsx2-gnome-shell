@@ -123,9 +123,9 @@ export const BluetoothStatus = GObject.registerClass(
       }
 
       try {
-        GLib.idle_add(GLib.PRIORITY_DEFAULT_IDLE, () => {
+        this._deferredMenuIdleId = GLib.idle_add(GLib.PRIORITY_DEFAULT_IDLE, () => {
           this.menu = new PopupMenu.PopupMenu(this, 0.0, St.Side.BOTTOM)
-          try { Main.uiGroup.add_child(this.menu.actor); this.menu.actor.hide() } catch (e) {}
+          try { Main.uiGroup.add_child(this.menu.actor); this.menu.actor.hide() } catch (e) {console.warn('[dash-to-panel] _init: ' + ((e && e.message) ? e.message : e)) }
           this._localMgr = new PopupMenu.PopupMenuManager(this)
           this._localMgr.addMenu(this.menu)
           this._buildMenu()
@@ -217,7 +217,7 @@ export const BluetoothStatus = GObject.registerClass(
           if (pos === St.Side.LEFT) return St.Side.RIGHT
           if (pos === St.Side.RIGHT) return St.Side.LEFT
         }
-      } catch (_e) {}
+      } catch (_e) {console.warn('[dash-to-panel] _getPanelArrowSide: ' + ((_e && _e.message) ? _e.message : _e)) }
       return St.Side.BOTTOM
     }
 
@@ -443,7 +443,7 @@ export const BluetoothStatus = GObject.registerClass(
             this._rollerIndex = 0
             this._updateUI()
             GLib.idle_add(GLib.PRIORITY_DEFAULT_IDLE, () => {
-              try { this._rebuildMenuItems() } catch(e) {}
+              try { this._rebuildMenuItems() } catch(e) {console.warn('[dash-to-panel] _rebuildMenuItems: ' + ((e && e.message) ? e.message : e)) }
               return GLib.SOURCE_REMOVE
             })
           } catch (e) {
@@ -470,6 +470,10 @@ export const BluetoothStatus = GObject.registerClass(
     }
 
     destroy() {
+      if (this._deferredMenuIdleId) {
+        try { GLib.Source.remove(this._deferredMenuIdleId); } catch (_) {}
+        this._deferredMenuIdleId = null;
+      }
       this._stopRoller()
       this._cancelAnim()
       if (this._timerId) { try { GLib.source_remove(this._timerId); this._timerId = 0 } catch (e) {} }

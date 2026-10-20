@@ -53,7 +53,7 @@ export function buildLyricsPage(pageOrSettings, settings) {
   let lyricsN = 3;
   try {
     lyricsN = s.get_int("lyrics-click-count");
-  } catch (_e) {}
+  } catch (_e) {console.warn('[dash-to-panel] ?: ' + ((_e && _e.message) ? _e.message : _e)) }
   lyricsN = Math.max(1, Math.min(5, lyricsN));
   const clickWord = (n) =>
     n === 1 ? _("once") : n === 2 ? _("twice") : _("%d times").format(n);
@@ -273,7 +273,7 @@ export function buildLyricsPage(pageOrSettings, settings) {
   lrclibRow.connect("activated", () => {
     try {
       Gio.AppInfo.launch_default_for_uri("https://lrclib.net", null);
-    } catch (e) {}
+    } catch (e) {console.warn('[dash-to-panel] ?: ' + ((e && e.message) ? e.message : e)) }
   });
   sourceGroup.add(lrclibRow);
 

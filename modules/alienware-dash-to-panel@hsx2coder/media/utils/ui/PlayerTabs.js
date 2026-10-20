@@ -77,7 +77,7 @@ function _isDarkTheme() {
         .get_string(playerConstant.GTK_THEME_KEY)
         .toLowerCase()
         .includes("dark");
-  } catch (_) {}
+  } catch (_) {console.warn('[dash-to-panel] ?: ' + ((_ && _.message) ? _.message : _)) }
   return true;
 }
 
@@ -415,10 +415,6 @@ export const PlayerTabs = GObject.registerClass(
 
     // Called by the host when PlaybackStatus "Playing" moves to a different player
     // Stored separately so the tab highlight can follow the actual playing app
-
-    notifyPlayingPlayer(playerName) {
-      this._playingPlayer = playerName || null;
-    }
 
     updateTabs(players, currentPlayer, manager) {
       const playersChanged =

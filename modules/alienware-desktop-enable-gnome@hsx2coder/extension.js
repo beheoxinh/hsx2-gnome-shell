@@ -409,32 +409,65 @@ export default class DING extends Extension {
 
         let fileEnum = procFolder.enumerate_children('standard::*', Gio.FileQueryInfoFlags.NONE, null);
         let info;
+        let entries = [];
         while ((info = fileEnum.next_file(null))) {
             let filename = info.get_name();
-            if (!filename) {
-                break;
+            if (filename) {
+                entries.push(filename);
             }
-            let processPath = GLib.build_filenamev(['/proc', filename, 'cmdline']);
-            let processUser = Gio.File.new_for_path(processPath);
-            if (!processUser.query_exists(null)) {
-                continue;
-            }
-            let [binaryData, etag] = processUser.load_bytes(null);
-            let contents = '';
-            let readData = binaryData.get_data();
-            for (let i = 0; i < readData.length; i++) {
-                if (readData[i] < 32) {
-                    contents += ' ';
-                } else {
-                    contents += String.fromCharCode(readData[i]);
+        }
+
+        this._killOldDesktopProcesses(entries);
+    }
+
+    /**
+     * Same dangling-process cleanup as before, but each /proc/<pid>/cmdline is
+     * read asynchronously and the /bin/kill subprocess is waited on asynchronously,
+     * so a scan over every running process never blocks the shell's main loop
+     * while the extension is being enabled.
+     * @param {string[]} entries - /proc entries left to inspect
+     * @param {number} index - position in entries, kept across async callbacks
+     */
+    _killOldDesktopProcesses(entries, index = 0) {
+        while (index < entries.length) {
+            let entry = entries[index];
+            index++;
+
+            let processUser = Gio.File.new_for_path(GLib.build_filenamev(['/proc', entry, 'cmdline']));
+            processUser.load_bytes_async(null, (file, res) => {
+                let binaryData = null;
+                try {
+                    binaryData = file.load_bytes_finish(res);
+                } catch (e) {
+                    // process vanished between the scan and the read: nothing to kill
+                    binaryData = null;
                 }
-            }
-            let path = `gjs ${GLib.build_filenamev([this.path, 'app', 'ding.js'])}`;
-            if (contents.startsWith(path)) {
-                let proc = new Gio.Subprocess({argv: ['/bin/kill', filename]});
-                proc.init(null);
-                proc.wait(null);
-            }
+                if (Array.isArray(binaryData)) {
+                    binaryData = binaryData[0];
+                }
+
+                let contents = '';
+                if (binaryData) {
+                    let readData = binaryData.get_data();
+                    for (let i = 0; i < readData.length; i++) {
+                        if (readData[i] < 32) {
+                            contents += ' ';
+                        } else {
+                            contents += String.fromCharCode(readData[i]);
+                        }
+                    }
+                }
+
+                let path = `gjs ${GLib.build_filenamev([this.path, 'app', 'ding.js'])}`;
+                if (contents.startsWith(path)) {
+                    let proc = new Gio.Subprocess({argv: ['/bin/kill', entry]});
+                    proc.init(null);
+                    proc.wait_async(null, () => this._killOldDesktopProcesses(entries, index));
+                } else {
+                    this._killOldDesktopProcesses(entries, index);
+                }
+            });
+            return;
         }
     }
 

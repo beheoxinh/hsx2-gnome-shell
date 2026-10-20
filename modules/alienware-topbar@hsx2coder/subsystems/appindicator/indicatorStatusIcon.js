@@ -18,6 +18,7 @@ import Clutter from 'gi://Clutter';
 import Gio from 'gi://Gio';
 import GObject from 'gi://GObject';
 import St from 'gi://St';
+import Meta from 'gi://Meta';
 
 import * as AppDisplay from 'resource:///org/gnome/shell/ui/appDisplay.js';
 import * as Main from 'resource:///org/gnome/shell/ui/main.js';
@@ -542,7 +543,7 @@ class IndicatorTrayIcon extends BaseStatusIcon {
 
     vfunc_touch_event(event) {
         // Under X11 we rely on emulated pointer events
-        if (!imports.gi.Meta.is_wayland_compositor())
+        if (!Meta.is_wayland_compositor())
             return Clutter.EVENT_PROPAGATE;
 
         const slot = event.get_event_sequence().get_slot();

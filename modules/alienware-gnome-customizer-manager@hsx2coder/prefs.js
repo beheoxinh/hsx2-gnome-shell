@@ -1,7 +1,7 @@
 import Adw from 'gi://Adw';
 import Gio from 'gi://Gio';
 import Gtk from 'gi://Gtk';
-import {ExtensionPreferences} from 'resource:///org/gnome/Shell/Extensions/js/extensions/prefs.js';
+import {ExtensionPreferences, gettext as _} from 'resource:///org/gnome/Shell/Extensions/js/extensions/prefs.js';
 import {SplitPreferencesView} from '../../lib/ui/splitPrefsView.js';
 
 import {addWorkspaceControlPages} from './subsystems/workspace-prefs.js';
@@ -86,7 +86,7 @@ export default class GnomeCustomizerManagerPreferences extends ExtensionPreferen
         // Add Notification section to left sidebar with 2 sub-tabs (Global and Patterns)
         sections.push({
             id: 'notifications',
-            title: 'Notifications',
+            title: _('Notifications'),
             iconName: 'preferences-system-notifications-symbolic',
             buildContent: () => {
                 const notifMeta = {
@@ -106,13 +106,13 @@ export default class GnomeCustomizerManagerPreferences extends ExtensionPreferen
                 notifPrefs.loadData();
 
                 const globalPage = new Adw.PreferencesPage({
-                    title: 'Global',
+                    title: _('Global'),
                     icon_name: 'preferences-system-symbolic',
                 });
                 notifPrefs.buildGlobalPage(globalPage);
 
                 const patternsPage = new Adw.PreferencesPage({
-                    title: 'Patterns',
+                    title: _('Patterns'),
                     icon_name: 'view-list-symbolic',
                 });
                 notifPrefs.buildPatternsPage(window, patternsPage);
@@ -137,7 +137,7 @@ export default class GnomeCustomizerManagerPreferences extends ExtensionPreferen
         });
 
         const split = new SplitPreferencesView({
-            title: 'Gnome Customizer Manager',
+            title: _('Gnome Customizer Manager'),
             sections,
         });
         split.attachToWindow(window);
@@ -149,10 +149,10 @@ export default class GnomeCustomizerManagerPreferences extends ExtensionPreferen
 class Settings {
     static getTabDefs(s) {
         return [
-            {title: 'Animation',   iconName: 'preferences-system-symbolic',              groups: [s.animation]},
-            {title: 'Windows',     iconName: 'window-duplicate-symbolic',                groups: [s.windows]},
-            {title: 'OSD',         iconName: 'video-display-symbolic',                    groups: [s.osd]},
-            {title: 'Advanced',    iconName: 'applications-engineering-symbolic',        groups: [s.advanced]},
+            {title: _('Animation'),   iconName: 'preferences-system-symbolic',              groups: [s.animation]},
+            {title: _('Windows'),     iconName: 'window-duplicate-symbolic',                groups: [s.windows]},
+            {title: _('OSD'),         iconName: 'video-display-symbolic',                    groups: [s.osd]},
+            {title: _('Advanced'),    iconName: 'applications-engineering-symbolic',        groups: [s.advanced]},
         ];
     }
     constructor(schema) {
@@ -160,80 +160,80 @@ class Settings {
 
         // ── Animation ──
         this.animationSpeed = new Adw.SpinRow({
-            title: 'Animation Speed',
-            subtitle: '0=disabled, 1=default, 2-8=faster. Higher values mean faster animations.',
+            title: _('Animation Speed'),
+            subtitle: _('0=disabled, 1=default, 2-8=faster. Higher values mean faster animations.'),
             adjustment: new Gtk.Adjustment({lower: 0, upper: 8, step_increment: 1}),
         });
-        this.animation = new Adw.PreferencesGroup({title: 'Animation'});
+        this.animation = new Adw.PreferencesGroup({title: _('Animation')});
 
         // ── Windows ──
         this.windowDemandsAttention = new Adw.SwitchRow({
-            title: 'Focus Window on Demand Attention',
-            subtitle: 'Auto-focus a window that demands attention (e.g. chat notifications).',
+            title: _('Focus Window on Demand Attention'),
+            subtitle: _('Auto-focus a window that demands attention (e.g. chat notifications).'),
         });
         this.windowMaximizedOnCreate = new Adw.SwitchRow({
-            title: 'Maximize on Create',
-            subtitle: 'New windows open maximized by default.',
+            title: _('Maximize on Create'),
+            subtitle: _('New windows open maximized by default.'),
         });
         this.windowPreviewCaption = new Adw.SwitchRow({
-            title: 'Window Preview Caption',
-            subtitle: 'Show window title text in the Alt+Tab thumbnail.',
+            title: _('Window Preview Caption'),
+            subtitle: _('Show window title text in the Alt+Tab thumbnail.'),
         });
         this.windowPreviewCloseBtn = new Adw.SwitchRow({
-            title: 'Close Button in Preview',
-            subtitle: 'Show a close button on window thumbnails in Alt+Tab.',
+            title: _('Close Button in Preview'),
+            subtitle: _('Show a close button on window thumbnails in Alt+Tab.'),
         });
         this.windowPickerIcon = new Adw.SwitchRow({
-            title: 'Window Icon in Picker',
-            subtitle: 'Show app icon alongside window thumbnails.',
+            title: _('Window Icon in Picker'),
+            subtitle: _('Show app icon alongside window thumbnails.'),
         });
         this.windowMenu = new Adw.SwitchRow({
-            title: 'Window Menu',
-            subtitle: 'Enable the right-click window menu (Alt+Space).',
+            title: _('Window Menu'),
+            subtitle: _('Enable the right-click window menu (Alt+Space).'),
         });
         this.windowMenuScreenshot = new Adw.SwitchRow({
-            title: 'Screenshot Button in Window Menu',
-            subtitle: 'Add a screenshot entry to the window menu.',
+            title: _('Screenshot Button in Window Menu'),
+            subtitle: _('Add a screenshot entry to the window menu.'),
         });
-        this.windows = new Adw.PreferencesGroup({title: 'Windows', description: 'Window behaviour, previews, and window menu options.'});
+        this.windows = new Adw.PreferencesGroup({title: _('Windows'), description: 'Window behaviour, previews, and window menu options.'});
 
         // ── OSD ──
         this.osdVisible = new Adw.SwitchRow({
-            title: 'OSD Visibility',
-            subtitle: 'Show on-screen display for volume, brightness, and media keys.',
+            title: _('OSD Visibility'),
+            subtitle: _('Show on-screen display for volume, brightness, and media keys.'),
         });
         this.osdPosition = new Adw.ComboRow({
-            title: 'OSD Position',
-            subtitle: 'Where the OSD popup appears on screen.',
+            title: _('OSD Position'),
+            subtitle: _('Where the OSD popup appears on screen.'),
             model: this.#strList(['Center', 'Top-Left', 'Top-Right', 'Bottom-Left', 'Bottom-Right', 'Top-Center', 'Bottom-Center', 'Left', 'Right', 'Floating']),
         });
-        this.osd = new Adw.PreferencesGroup({title: 'On-Screen Display (OSD)', description: 'Control the OSD popup visibility and position.'});
+        this.osd = new Adw.PreferencesGroup({title: _('On-Screen Display (OSD)'), description: 'Control the OSD popup visibility and position.'});
 
         // ── Quick Settings ──
         this.theme = new Adw.SwitchRow({
-            title: 'Custom Shell Theme',
-            subtitle: 'Apply user theme styling to GNOME Shell.',
+            title: _('Custom Shell Theme'),
+            subtitle: _('Apply user theme styling to GNOME Shell.'),
         });
 
         this.lookingGlassWidth = new Adw.ComboRow({
-            title: 'Looking Glass Width',
-            subtitle: 'Width of the Looking Glass debug console (0=default).',
+            title: _('Looking Glass Width'),
+            subtitle: _('Width of the Looking Glass debug console (0=default).'),
             model: this.#strList(['Default', '1', '2', '3', '4', '5', '6', '7', '8', '9']),
         });
         this.lookingGlassHeight = new Adw.ComboRow({
-            title: 'Looking Glass Height',
-            subtitle: 'Height of the Looking Glass debug console (0=default).',
+            title: _('Looking Glass Height'),
+            subtitle: _('Height of the Looking Glass debug console (0=default).'),
             model: this.#strList(['Default', '1', '2', '3', '4', '5', '6', '7', '8', '9']),
         });
         this.removePreselectedBox = new Adw.SwitchRow({
-            title: 'Remove Screenshot Preselected Box',
-            subtitle: 'Remove the pre-selected region box when taking a screenshot area.',
+            title: _('Remove Screenshot Preselected Box'),
+            subtitle: _('Remove the pre-selected region box when taking a screenshot area.'),
         });
         this.screenshotOnRelease = new Adw.SwitchRow({
-            title: 'Screenshot on Mouse Release',
-            subtitle: 'Take the screenshot when the mouse button is released, not when pressed.',
+            title: _('Screenshot on Mouse Release'),
+            subtitle: _('Take the screenshot when the mouse button is released, not when pressed.'),
         });
-        this.advanced = new Adw.PreferencesGroup({title: 'Advanced', description: 'Looking Glass, theme, search, and screenshot settings.'});
+        this.advanced = new Adw.PreferencesGroup({title: _('Advanced'), description: 'Looking Glass, theme, search, and screenshot settings.'});
 
         // ── Assemble ──
         this.animation.add(this.animationSpeed);

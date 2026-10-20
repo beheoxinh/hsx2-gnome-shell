@@ -8,13 +8,14 @@
 import Adw from 'gi://Adw';
 import Gio from 'gi://Gio';
 import Gtk from 'gi://Gtk';
+import {gettext as _} from 'resource:///org/gnome/Shell/Extensions/js/extensions/prefs.js';
 
 class WorkspaceSettings {
     static getTabDefs(s) {
         return [
-            {title: 'Workspace', iconName: 'preferences-system-symbolic',   groups: [s.workspaceG]},
-            {title: 'Behaviour', iconName: 'input-keyboard-symbolic',       groups: [s.behaviour]},
-            {title: 'Appearance', iconName: 'applications-graphics-symbolic',      groups: [s.appearance]},
+            {title: _('Workspace'), iconName: 'preferences-system-symbolic',   groups: [s.workspaceG]},
+            {title: _('Behaviour'), iconName: 'input-keyboard-symbolic',       groups: [s.behaviour]},
+            {title: _('Appearance'), iconName: 'applications-graphics-symbolic',      groups: [s.appearance]},
         ];
     }
 
@@ -23,72 +24,72 @@ class WorkspaceSettings {
 
         // ── Workspace ──
         this.workspace = new Adw.SwitchRow({
-            title: 'Workspace Switcher',
-            subtitle: 'Show the workspace switcher in the overview.',
+            title: _('Workspace Switcher'),
+            subtitle: _('Show the workspace switcher in the overview.'),
         });
         this.workspacePopup = new Adw.SwitchRow({
-            title: 'Workspace Popup',
-            subtitle: 'Show the workspace popup when switching workspaces.',
+            title: _('Workspace Popup'),
+            subtitle: _('Show the workspace popup when switching workspaces.'),
         });
         this.workspaceSwitcherSize = new Adw.SpinRow({
-            title: 'Switcher Size',
-            subtitle: 'Workspace switcher size in percent (0=default).',
+            title: _('Switcher Size'),
+            subtitle: _('Workspace switcher size in percent (0=default).'),
             adjustment: new Gtk.Adjustment({lower: 0, upper: 30, step_increment: 1}),
         });
         this.alwaysShowSwitcher = new Adw.SwitchRow({
-            title: 'Always Show Switcher',
-            subtitle: 'Keep the workspace switcher visible at all times.',
+            title: _('Always Show Switcher'),
+            subtitle: _('Keep the workspace switcher visible at all times.'),
         });
         this.workspaceWrap = new Adw.SwitchRow({
-            title: 'Wrap Around',
-            subtitle: 'Allow wrapping from last to first workspace.',
+            title: _('Wrap Around'),
+            subtitle: _('Allow wrapping from last to first workspace.'),
         });
         this.workspacePeek = new Adw.SwitchRow({
-            title: 'Workspace Peek',
-            subtitle: 'Show workspace preview when switching.',
+            title: _('Workspace Peek'),
+            subtitle: _('Show workspace preview when switching.'),
         });
         this.workspacesInAppGrid = new Adw.SwitchRow({
-            title: 'Workspaces in App Grid',
-            subtitle: 'Show workspace thumbnails in the app grid.',
+            title: _('Workspaces in App Grid'),
+            subtitle: _('Show workspace thumbnails in the app grid.'),
         });
         this.workspaceThumbnailToMain = new Adw.SwitchRow({
-            title: 'Thumbnail Goes to Main View',
-            subtitle: 'Clicking a workspace thumbnail always goes to the main overview view.',
+            title: _('Thumbnail Goes to Main View'),
+            subtitle: _('Clicking a workspace thumbnail always goes to the main overview view.'),
         });
-        this.workspaceG = new Adw.PreferencesGroup({title: 'Workspace', description: 'Switcher, popup, peek, wrapping, and thumbnail behaviour.'});
+        this.workspaceG = new Adw.PreferencesGroup({title: _('Workspace'), description: 'Switcher, popup, peek, wrapping, and thumbnail behaviour.'});
 
         // ── Behaviour ──
         this.overlayKey = new Adw.SwitchRow({
-            title: 'Overlay Key',
-            subtitle: 'Super key opens the overview.',
+            title: _('Overlay Key'),
+            subtitle: _('Super key opens the overview.'),
         });
         this.doubleSuper = new Adw.SwitchRow({
-            title: 'Double Super to App Grid',
-            subtitle: 'Press Super twice quickly to open the app grid.',
+            title: _('Double Super to App Grid'),
+            subtitle: _('Press Super twice quickly to open the app grid.'),
         });
         this.rippleBox = new Adw.SwitchRow({
-            title: 'Ripple Box',
-            subtitle: 'Show ripple animation on workspace/overlay elements.',
+            title: _('Ripple Box'),
+            subtitle: _('Show ripple animation on workspace/overlay elements.'),
         });
         this.startupStatus = new Adw.ComboRow({
-            title: 'Startup Status',
-            subtitle: 'Default workspace state after login.',
+            title: _('Startup Status'),
+            subtitle: _('Default workspace state after login.'),
             model: this.#strList(['Default', 'Empty Workspace', 'Windows']),
         });
         this.controlsManagerSpacing = new Adw.SpinRow({
-            title: 'Overview Spacing',
-            subtitle: 'Spacing between elements in the overview (0=default).',
+            title: _('Overview Spacing'),
+            subtitle: _('Spacing between elements in the overview (0=default).'),
             adjustment: new Gtk.Adjustment({lower: 0, upper: 150, step_increment: 1}),
         });
-        this.behaviour = new Adw.PreferencesGroup({title: 'Behaviour', description: 'Super key, app grid, ripple animation, startup mode, and overview spacing.'});
+        this.behaviour = new Adw.PreferencesGroup({title: _('Behaviour'), description: 'Super key, app grid, ripple animation, startup mode, and overview spacing.'});
 
         // ── Appearance ──
         this.workspaceCornerSize = new Adw.SpinRow({
-            title: 'Workspace Corner Radius',
-            subtitle: 'Rounded corners on workspace backgrounds (0=default).',
+            title: _('Workspace Corner Radius'),
+            subtitle: _('Rounded corners on workspace backgrounds (0=default).'),
             adjustment: new Gtk.Adjustment({lower: 0, upper: 61, step_increment: 1}),
         });
-        this.appearance = new Adw.PreferencesGroup({title: 'Appearance', description: 'Visual styling for workspace thumbnails and backgrounds.'});
+        this.appearance = new Adw.PreferencesGroup({title: _('Appearance'), description: 'Visual styling for workspace thumbnails and backgrounds.'});
 
         // ── Assemble ──
         for (const w of [

@@ -567,13 +567,4 @@ export const Overview = class {
     this._clickToExitEnabled = false
   }
 
-  _onSwipeBegin() {
-    this._swiping = true
-    return true
-  }
-
-  _onSwipeEnd() {
-    this._timeoutsHandler.add([T1, 0, () => (this._swiping = false)])
-    return true
-  }
 }

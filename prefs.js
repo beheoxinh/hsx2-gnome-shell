@@ -2,15 +2,8 @@ import Adw from 'gi://Adw';
 import Gio from 'gi://Gio';
 import Gtk from 'gi://Gtk';
 
-try {
-    if (typeof imports !== 'undefined' && imports.package && typeof imports.package.initFormat === 'function') {
-        imports.package.initFormat();
-    }
-} catch (e) {
-    // ignore
-}
 
-import {ExtensionPreferences} from 'resource:///org/gnome/Shell/Extensions/js/extensions/prefs.js';
+import {ExtensionPreferences, gettext as _} from 'resource:///org/gnome/Shell/Extensions/js/extensions/prefs.js';
 
 import TopbarPrefs from './modules/alienware-topbar@hsx2coder/prefs.js';
 import DashToPanelPrefs from './modules/alienware-dash-to-panel@hsx2coder/prefs.js';
@@ -36,12 +29,12 @@ export default class AlienwareSuitePreferences extends ExtensionPreferences {
         window.set_default_size(1000, 750);
 
         const page = new Adw.PreferencesPage({
-            title: 'Modules',
+            title: _('Modules'),
             icon_name: 'preferences-system-symbolic',
         });
 
         const headerGroup = new Adw.PreferencesGroup({
-            title: 'Alienware Suite',
+            title: _('Alienware Suite'),
             description:
                 'Master switches for every module (7 consolidated modules). ' +
                 'Open per-module settings with the Configure button.',
@@ -49,7 +42,7 @@ export default class AlienwareSuitePreferences extends ExtensionPreferences {
         page.add(headerGroup);
 
         const togglesGroup = new Adw.PreferencesGroup({
-            title: 'Modules',
+            title: _('Modules'),
             description:
                 'Disabling a module here unloads it immediately on next shell reload. ' +
                 'Re-enabling reloads it without restarting the shell.',
@@ -87,7 +80,7 @@ export default class AlienwareSuitePreferences extends ExtensionPreferences {
                     icon_name: 'emblem-system-symbolic',
                     valign: Gtk.Align.CENTER,
                     css_classes: ['flat'],
-                    tooltip_text: 'Configure…',
+                    tooltip_text: _('Configure…'),
                 });
                 button.connect('clicked', () =>
                     this._openModuleWindow(window, def),
@@ -99,9 +92,9 @@ export default class AlienwareSuitePreferences extends ExtensionPreferences {
             togglesGroup.add(row);
         }
 
-        const aboutGroup = new Adw.PreferencesGroup({title: 'About'});
+        const aboutGroup = new Adw.PreferencesGroup({title: _('About')});
         const aboutRow = new Adw.ActionRow({
-            title: 'Alienware Suite',
+            title: _('Alienware Suite'),
             subtitle: `${this.metadata.uuid} · v${this.metadata.version}`,
         });
         const aboutIcon = new Gtk.Image({

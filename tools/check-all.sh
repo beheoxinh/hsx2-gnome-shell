@@ -24,6 +24,8 @@ run "shell api"         python3 tools/check-shell-api.py
 run "shell imports"     python3 tools/check-shell-imports.py
 run "wiring"            python3 tools/check-wiring.py
 run "schemas load"      env GSETTINGS_BACKEND=memory gjs -m tools/check-schemas.js
+run "legacy api"       python3 tools/check-legacy-shell-api.py
+run "migration schema" python3 tools/check-migration-map.py
 run "migration map"    env GSETTINGS_BACKEND=memory gjs -m tools/migration-dry-run.js
 
 echo

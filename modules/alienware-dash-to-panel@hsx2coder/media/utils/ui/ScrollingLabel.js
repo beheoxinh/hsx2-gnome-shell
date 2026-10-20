@@ -26,6 +26,16 @@ export const ScrollingLabel = GObject.registerClass(
         y_expand: false,
         reactive: false,
       });
+      this._destroyed = false;
+      this.connect('destroy', () => {
+        this._destroyed = true;
+        try {
+          this._stopAll();
+        } catch (e) {
+          console.warn('[dash-to-panel] ScrollingLabel destroy: ' + (e && e.message ? e.message : e));
+        }
+        this._label = null;
+      });
 
       this._origText = params.text ?? "";
       this._viewW = params.viewportWidth ?? 280;
@@ -59,6 +69,10 @@ export const ScrollingLabel = GObject.registerClass(
       this._label.clutter_text.single_line_mode = true;
 
       this.add_child(this._label);
+      this._label.connect('destroy', () => {
+        this._label = null;
+        this._stopAll();
+      });
 
       this._mappedSigId = this.connect("notify::mapped", () => {
         if (this.is_mapped()) {
@@ -76,6 +90,7 @@ export const ScrollingLabel = GObject.registerClass(
     }
 
     _scheduleMeasure() {
+      if (this._destroyed) return;
       if (this._measureId !== null) return;
       this._measureId = GLib.idle_add(GLib.PRIORITY_DEFAULT_IDLE, () => {
         this._measureId = null;
@@ -85,7 +100,7 @@ export const ScrollingLabel = GObject.registerClass(
     }
 
     _measure() {
-      if (!this._label) return;
+      if (this._destroyed || !this._label) return;
 
       const labelW = this._label.width;
 
@@ -97,6 +112,13 @@ export const ScrollingLabel = GObject.registerClass(
 
       this._label.text = this._origText + "   " + this._origText;
 
+      // A pending measure idle must be cancelled before the id is replaced by
+      // the loop idle, otherwise the old source id is lost and can never be
+      // removed (it would then fire against a possibly disposed label).
+      if (this._measureId !== null) {
+        GLib.source_remove(this._measureId);
+        this._measureId = null;
+      }
       this._measureId = GLib.idle_add(GLib.PRIORITY_DEFAULT_IDLE, () => {
         this._measureId = null;
         this._startLoop();
@@ -105,7 +127,7 @@ export const ScrollingLabel = GObject.registerClass(
     }
 
     _startLoop() {
-      if (!this._label) return;
+      if (this._destroyed || !this._label) return;
 
       this._oneWidth = Math.ceil(this._label.width / 2);
       this._label.translation_x = 0;
@@ -115,6 +137,7 @@ export const ScrollingLabel = GObject.registerClass(
     }
 
     _scheduleAfterPause(firstLoop = false) {
+      if (this._destroyed || !this._label) return;
       this._stopTickAndPause();
 
       const delay = firstLoop && this._pauseMs === 0 ? 0 : this._pauseMs;
@@ -131,11 +154,12 @@ export const ScrollingLabel = GObject.registerClass(
     }
 
     _startTick() {
+      if (this._destroyed || !this._label) return;
       if (this._tickId !== null) return;
 
       this._tickId = GLib.timeout_add(GLib.PRIORITY_DEFAULT, FRAME_MS, () => {
         try {
-          if (this._paused || !this._label) {
+          if (this._paused || this._destroyed || !this._label) {
             this._tickId = null;
             return GLib.SOURCE_REMOVE;
           }
@@ -160,17 +184,20 @@ export const ScrollingLabel = GObject.registerClass(
     }
 
     pauseScrolling() {
+      if (this._destroyed) return;
       this._paused = true;
       this._stopTickAndPause();
     }
 
     resumeScrolling() {
+      if (this._destroyed || !this._label) return;
       if (!this._paused) return;
       this._paused = false;
       if (this._oneWidth > 0) this._startTick();
     }
 
     setText(text) {
+      if (this._destroyed) return;
       if (text === this._origText) return;
       this._stopAll();
       this._oneWidth = 0;
@@ -183,11 +210,13 @@ export const ScrollingLabel = GObject.registerClass(
     }
 
     setScrollSpeed(pxPerSec) {
+      if (this._destroyed) return;
       this._speed = Math.max(10, pxPerSec);
       this._pxPerFrame = (this._speed / 1000) * FRAME_MS;
     }
 
     setTextStyle(style) {
+      if (this._destroyed) return;
       if (style === this._textStyle) return;
       this._textStyle = style;
       if (this._label) this._label.style = style;
@@ -213,6 +242,8 @@ export const ScrollingLabel = GObject.registerClass(
     }
 
     destroy() {
+      if (this._destroyed) return;
+      this._destroyed = true;
       this._stopAll();
       if (this._mappedSigId !== null) {
         this.disconnect(this._mappedSigId);

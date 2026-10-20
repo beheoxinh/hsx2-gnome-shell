@@ -188,6 +188,7 @@ export const WindowSwitcherPopup = {
         this._connectMouseHandler();
 
         this._timeoutIds = {};
+        this._destroyed = false;
     },
 
     _getMonitorIndex() {
@@ -345,6 +346,9 @@ export const WindowSwitcherPopup = {
             // if system is busy, pushModal may fail again
             200,
             () => {
+                if (this._destroyed)
+                    return GLib.SOURCE_REMOVE;
+
                 if (!this._pushModal()) {
                     console.error(`[${Me.metadata.name}] Error: Unable to grab input, AATWS failed to pop up`);
                     this.destroy();
@@ -659,6 +663,9 @@ export const WindowSwitcherPopup = {
     },
 
     _updateSwitcherList(itemList) {
+        if (this._destroyed)
+            return;
+
         if (this._switcherList)
             this._switcherList.destroy();
 
@@ -739,6 +746,7 @@ export const WindowSwitcherPopup = {
     },
 
     _onDestroy() {
+        this._destroyed = true;
         this._doNotUpdateOnNewWindow = true;
 
         this._popModal();
@@ -1136,6 +1144,9 @@ export const WindowSwitcherPopup = {
         this._timeoutIds.delayedDestroy = GLib.idle_add(
             GLib.PRIORITY_DEFAULT,
             () => {
+                if (this._destroyed)
+                    return GLib.SOURCE_REMOVE;
+
                 this._timeoutIds.delayedDestroy = 0;
                 this.destroy();
                 return GLib.SOURCE_REMOVE;
@@ -2076,6 +2087,20 @@ export const WindowSwitcherPopup = {
     },
 
     // //////////////////////////////////////////////////////////////////////
+
+    _selectOnScroll(direction) {
+        // Scroll-driven selection: step the highlight one item in the
+        // scroll direction, reusing the same helpers as keyboard navigation.
+        const items = this._switcherList?._items;
+        if (!items || items.length === 0)
+            return;
+
+        const index = direction > 0 ? this._next(true) : this._previous(true);
+        if (index === undefined || index === null)
+            return;
+
+        this._select(index);
+    },
 
     _triggerAction(action, direction = 0) {
         switch (action) {

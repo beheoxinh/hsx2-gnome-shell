@@ -21,8 +21,8 @@ alienware-hsx2coder-gnome@hsx2coder.github.com/
 ├── migrations/schemas/   ← schema "đông lạnh" chỉ để migrations.js đọc
 ├── schemas/              ← suite schema: 9 enable-* + migration flag
 ├── stylesheet.css        ← aggregated, tự động nạp
-├── tools/                ← 8 static checks, xem mục 7
-└── modules/              ← 9 module
+├── tools/                ← 15 static checks, xem mục 7
+└── modules/              ← 5 module
 ```
 
 ### 1.1 Module và domain
@@ -31,12 +31,12 @@ alienware-hsx2coder-gnome@hsx2coder.github.com/
 |---|---|---|
 | `alienware-dash-to-panel@hsx2coder` | panel surgery core (clone panel, 3 box, statusArea) | `…extensions.dash-to-panel` |
 | `alienware-topbar@hsx2coder` | **top bar & panel**: layout, clock, quick settings, panel items, multi-monitor clone, clipboard + command menu widgets | `…extensions.alienware-topbar` |
-| `alienware-system-monitor@hsx2coder` *(thư mục: `alienware-monitor`)* | đồ thị hệ thống trong panel | `…extensions.system-monitor-next-applet` |
-| `alienware-indicators@hsx2coder` | tray icons, capsnum, touchpad | `…extensions.indicators-appindicator`, `…capsnum-touchpad` |
+| `alienware-system-monitor@hsx2coder` *(thư mục: `alienware-monitor`)* | đồ thị hệ thống trong panel | `…extensions.system-monitor-next-applet` — **chưa có trong `modules/` (không nằm trong `modules.js`)** |
+| `alienware-indicators@hsx2coder` | tray icons, capsnum, touchpad | `…extensions.indicators-appindicator`, `…capsnum-touchpad` — **chưa có trong `modules/` (không nằm trong `modules.js`)** |
 | `alienware-gnome-customizer-manager@hsx2coder` | theme, workspace, overview, OSD, window preview | `…extensions.gnome-customizer-manager` |
-| `alienware-advanced-media-controller@hsx2coder` | MPRIS now-playing | `…extensions.advanced-media-controller` |
+| `alienware-advanced-media-controller@hsx2coder` | MPRIS now-playing | `…extensions.advanced-media-controller` — **chưa có trong `modules/` (không nằm trong `modules.js`)** |
 | `alienware-advanced-alt-tab@hsx2coder` | window switcher | `…extensions.advanced-alt-tab-window-switcher` |
-| `alienware-notification-configurator@hsx2coder` | MessageTray + notification daemon | `…extensions.notification-configurator` |
+| `alienware-notification-configurator@hsx2coder` | MessageTray + notification daemon | `…extensions.notification-configurator` — **chưa có trong `modules/` (không nằm trong `modules.js`)** |
 | `alienware-desktop-enable-gnome@hsx2coder` | desktop icon grid | `…extensions.ding` |
 
 ### 1.2 Bốn luật bất di bất dịch
@@ -190,6 +190,8 @@ GNOME 45 bỏ cơ chế migration per-extension, nên:
 | `check-wiring.py` | registry lệch, import gãy, viết panel ngoài PanelHost |
 | `check-schemas.js` | mọi schema load và round-trip được |
 | `migration-dry-run.js` | map migration không gãy |
+| `check-migration-map.py` | bảng `KEY_MOVES` phải khớp schema thật: key đích tồn tại, mọi key legacy được phủ, nickname enum hợp lệ |
+| `check-legacy-shell-api.py` | `imports.gi` / `global.log` / `lookupByUUID` trong code in-process; chỉ đường dẫn trong `tools/legacy-shell-api-allow.txt` được miễn |
 
 Cả hai lỗi trên đều **không** bị syntax check thấy và đều làm module không
 load được — `prefs.js` import một tên đã bị xoá, và `new St.CssProvider()` trong

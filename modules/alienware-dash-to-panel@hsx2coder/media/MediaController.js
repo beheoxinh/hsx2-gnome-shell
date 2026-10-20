@@ -81,6 +81,16 @@ export default class MediaController {
 
     this._updateDefaultPlayerVisibility();
 
+    if (this._settings) {
+      this._settingsChangedId = this._settings.connect(
+        "changed::amc-dtp-box",
+        () => {
+          this._removeFromDTP();
+          this._addToDTP();
+        },
+      );
+    }
+
     if (this._dtpSettings) {
       this._dtpChangedId = this._dtpSettings.connect(
         'changed::show-media-player', () => {
@@ -94,6 +104,11 @@ export default class MediaController {
   }
 
   disable() {
+    if (this._settingsChangedId && this._settings) {
+      this._settings.disconnect(this._settingsChangedId);
+      this._settingsChangedId = 0;
+    }
+
     if (this._hideDefaultChangedId) {
       this._settings.disconnect(this._hideDefaultChangedId);
       this._hideDefaultChangedId = null;
@@ -160,7 +175,12 @@ export default class MediaController {
     const panel = global.dashToPanel.panels[0];
     if (!panel) return;
 
-    const box = panel._rightBox || panel._centerBox || panel._leftBox;
+    const dtpBoxPref = this._settings?.get_string("amc-dtp-box") || "right";
+    let box =
+      dtpBoxPref === "left"
+        ? panel._leftBox || panel._rightBox
+        : panel._rightBox || panel._leftBox;
+    if (!box) box = panel._centerBox;
     if (!box) return;
 
     const parent = this._indicator.get_parent();

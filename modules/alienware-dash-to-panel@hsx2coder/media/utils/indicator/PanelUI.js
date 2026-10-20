@@ -22,7 +22,7 @@ function _isDarkTheme() {
         .get_string(playerConstant.GTK_THEME_KEY)
         .toLowerCase()
         .includes("dark");
-  } catch (_) {}
+  } catch (_) {console.warn('[dash-to-panel] ?: ' + ((_ && _.message) ? _.message : _)) }
   return true;
 }
 
@@ -84,6 +84,31 @@ function _panelElementOrder(settings) {
   } catch (_e) {
     return DEFAULT;
   }
+}
+
+function _isSafeActor(actor) {
+  if (!actor) return false;
+  try {
+    // Never stringify a GObject wrapper here: the stringify itself is what
+    // emits "Object St.Label (0x...), has been already disposed" warnings.
+    // Only JS-side flags are safe to read (same pattern as host.js).
+    if (actor._isDestroyed === true) return false;
+    if (actor._destroyed === true) return false;
+    return true;
+  } catch (_) {
+    return false;
+  }
+}
+
+// Marks an actor as gone the moment it is destroyed, so _isSafeActor() can
+// answer without ever touching the (possibly disposed) GObject wrapper.
+function _watchDestroy(actor) {
+  if (!actor || actor._isDestroyWatched) return;
+  try {
+    actor._isDestroyWatched = true;
+    if (actor._isDestroyed !== true) actor._isDestroyed = false;
+    actor.connect("destroy", () => { actor._isDestroyed = true; });
+  } catch (_) {}
 }
 
 export class PanelUI {
@@ -233,6 +258,7 @@ export class PanelUI {
       y_align: Clutter.ActorAlign.CENTER,
       style: "margin-left: 0;",
     });
+    _watchDestroy(this._labelContainer);
     this._labelContainer.hide();
 
     // Insert children in the configured order
@@ -294,11 +320,11 @@ export class PanelUI {
     if (!this._labelShim) {
       this._labelShim = {
         show: () => {
-          if (this._labelContainer && !this._labelContainer.is_finalized?.())
+          if (_isSafeActor(this._labelContainer))
             this._labelContainer.show();
         },
         hide: () => {
-          if (this._labelContainer && !this._labelContainer.is_finalized?.())
+          if (_isSafeActor(this._labelContainer))
             this._labelContainer.hide();
           this.stopScrolling();
         },
@@ -308,7 +334,7 @@ export class PanelUI {
             this._labelShim.hide();
             return;
           }
-          if (this._labelContainer && !this._labelContainer.is_finalized?.()) {
+          if (_isSafeActor(this._labelContainer)) {
             this._labelContainer.remove_all_children();
             const lbl = new St.Label({
               text: txt,
@@ -353,11 +379,18 @@ export class PanelUI {
 
       if (!isPlaying || !enabled || natW <= labelW) {
         if (this._scrollLabel) {
-          this._scrollLabel.destroy();
+          try {
+            if (_isSafeActor(this._scrollLabel))
+              this._scrollLabel.destroy();
+          } catch (_) {console.warn('[dash-to-panel] startScrolling: ' + ((_ && _.message) ? _.message : _)) }
           this._scrollLabel = null;
         }
-        if (this._labelContainer)
-          this._labelContainer.remove_all_children();
+        if (this._labelContainer) {
+          try {
+            if (_isSafeActor(this._labelContainer))
+              this._labelContainer.remove_all_children();
+          } catch (_) {console.warn('[dash-to-panel] startScrolling: ' + ((_ && _.message) ? _.message : _)) }
+        }
 
         const lbl = new St.Label({
           text: fullText,
@@ -366,30 +399,47 @@ export class PanelUI {
         });
         lbl.clutter_text.ellipsize = 3;
         lbl.clutter_text.single_line_mode = true;
-        this._labelContainer.add_child(lbl);
-        this._labelContainer.show();
+        if (_isSafeActor(this._labelContainer)) {
+          this._labelContainer.add_child(lbl);
+          this._labelContainer.show();
+        }
         return;
       }
 
       const speed = this._calcSpeed(settings);
 
       if (this._scrollLabel) {
-        if (this._scrollLabel._viewW !== labelW) {
-          this._scrollLabel.destroy();
+        // Never read a property off a possibly-disposed wrapper: that read is
+        // itself what emits "has been already disposed".
+        const scrollSafe = _isSafeActor(this._scrollLabel);
+        if (!scrollSafe || this._scrollLabel._viewW !== labelW) {
+          try {
+            if (scrollSafe)
+              this._scrollLabel.destroy();
+          } catch (_) {console.warn('[dash-to-panel] startScrolling: ' + ((_ && _.message) ? _.message : _)) }
           this._scrollLabel = null;
-          if (this._labelContainer)
-            this._labelContainer.remove_all_children();
+          if (this._labelContainer) {
+            try {
+              if (_isSafeActor(this._labelContainer))
+                this._labelContainer.remove_all_children();
+            } catch (_) {console.warn('[dash-to-panel] startScrolling: ' + ((_ && _.message) ? _.message : _)) }
+          }
         } else {
           this._scrollLabel.setScrollSpeed(speed);
           this._scrollLabel.setTextStyle(textStyle);
           this._scrollLabel.setText(fullText);
-          this._labelContainer.show();
+          if (_isSafeActor(this._labelContainer))
+            this._labelContainer.show();
           return;
         }
       }
 
-      if (this._labelContainer)
-        this._labelContainer.remove_all_children();
+      if (this._labelContainer) {
+        try {
+          if (_isSafeActor(this._labelContainer))
+            this._labelContainer.remove_all_children();
+        } catch (_) {console.warn('[dash-to-panel] startScrolling: ' + ((_ && _.message) ? _.message : _)) }
+      }
       this._scrollLabel = new ScrollingLabel({
         text: fullText,
         viewportWidth: labelW,
@@ -399,8 +449,13 @@ export class PanelUI {
         scrollPauseTime: LOOP_PAUSE_MS,
         textStyle,
       });
-      this._labelContainer.add_child(this._scrollLabel);
-      this._labelContainer.show();
+      if (_isSafeActor(this._labelContainer)) {
+        this._labelContainer.add_child(this._scrollLabel);
+        // The label is now parented into the panel: watch it so a C-side destroy
+        // still flips the JS flag that _isSafeActor() reads.
+        _watchDestroy(this._scrollLabel);
+        this._labelContainer.show();
+      }
     }
 
   _calcSpeed(settings) {
@@ -410,11 +465,17 @@ export class PanelUI {
 
   stopScrolling() {
     if (this._scrollLabel) {
-      this._scrollLabel.destroy();
+      try {
+        if (_isSafeActor(this._scrollLabel))
+          this._scrollLabel.destroy();
+      } catch (_) {console.warn('[dash-to-panel] stopScrolling: ' + ((_ && _.message) ? _.message : _)) }
       this._scrollLabel = null;
     }
     if (this._labelContainer) {
-      this._labelContainer.remove_all_children();
+      try {
+        if (_isSafeActor(this._labelContainer))
+          this._labelContainer.remove_all_children();
+      } catch (_) {console.warn('[dash-to-panel] stopScrolling: ' + ((_ && _.message) ? _.message : _)) }
     }
     this._settings = null;
     this._lastScrollText = null;
@@ -427,16 +488,6 @@ export class PanelUI {
    * @param {string|null} playerName  MPRIS bus name of the playing app, or null
    * @param {object}      manager     MprisManager instance
    */
-  setPlayingPlayer(playerName, manager) {
-    if (this._indicator._state._sessionChanging) return;
-
-    const next = playerName || null;
-    this._playingPlayer = next;
-    this._manager = manager;
-
-    this._lastIconSource = undefined;
-    this._refreshIcon();
-  }
 
   /**
    * @param {string|null} playerName  MPRIS bus name the popup is focused on
@@ -537,6 +588,15 @@ export class PanelUI {
   }
 
   destroy() {
+    // Orphan-timer guard: a ScrollingLabel only cancels its GLib sources in its
+    // own destroy(); leaving it alive keeps a 60fps timer writing to a disposed
+    // St.Label forever. Release every label owned by this object here.
+    if (this._scrollLabel) {
+      try {
+        if (_isSafeActor(this._scrollLabel)) this._scrollLabel.destroy();
+      } catch (_) {}
+      this._scrollLabel = null;
+    }
     if (this._orderChangedId && this._extSettings) {
       try { this._extSettings.disconnect(this._orderChangedId); } catch (_) {}
       this._orderChangedId = 0;

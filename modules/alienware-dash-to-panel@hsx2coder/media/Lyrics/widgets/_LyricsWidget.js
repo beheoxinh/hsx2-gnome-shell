@@ -227,20 +227,6 @@ export const LyricsWidget = GObject.registerClass(
       this._refreshThemeColors();
     }
 
-    updateAppearance(config) {
-      if (config.activeSize !== undefined)
-        this._fontConfigOverride.activeSize = config.activeSize;
-      if (config.neighborSize !== undefined)
-        this._fontConfigOverride.neighborSize = config.neighborSize;
-      if (config.inactiveSize !== undefined)
-        this._fontConfigOverride.inactiveSize = config.inactiveSize;
-      if (config.spacing !== undefined)
-        this._fontConfigOverride.lineSpacing = config.spacing;
-      this._fontConfig = this._buildFontConfig(this._width);
-      this._invalidateGeometry();
-      this._canvas.queue_repaint();
-    }
-
     // Animation loop
 
     _startAnim() {
@@ -759,15 +745,6 @@ export const LyricsWidget = GObject.registerClass(
     }
 
     //Cairo helper: rounded rectangle path
-    _roundedRect(cr, x, y, w, h, r) {
-      const r2 = Math.min(r, w / 2, h / 2);
-      cr.newPath();
-      cr.arc(x + r2, y + r2, r2, Math.PI, Math.PI * 1.5);
-      cr.arc(x + w - r2, y + r2, r2, Math.PI * 1.5, 0);
-      cr.arc(x + w - r2, y + h - r2, r2, 0, Math.PI * 0.5);
-      cr.arc(x + r2, y + h - r2, r2, Math.PI * 0.5, Math.PI);
-      cr.closePath();
-    }
 
     destroy() {
       this._stopAnim();

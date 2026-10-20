@@ -246,7 +246,7 @@ export const MediaIndicator = GObject.registerClass(
     destroy() {
       try {
         this._setDefaultPlayerVisible(true);
-      } catch (_e) {}
+      } catch (_e) {console.warn('[dash-to-panel] destroy: ' + ((_e && _e.message) ? _e.message : _e)) }
 
       this._state._sessionChanging = true;
       this._state._safetyLock = true;

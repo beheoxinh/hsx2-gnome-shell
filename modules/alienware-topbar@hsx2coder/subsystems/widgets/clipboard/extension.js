@@ -398,18 +398,6 @@ const ClipboardIndicator = GObject.registerClass({
 
         this.clearMenuItem.connect('activate', this._removeAll.bind(this));
 
-        // Add 'Settings' menu item to open settings
-        this.settingsMenuItem = new PopupMenu.PopupMenuItem(_('Settings'));
-        this.settingsMenuItem.insert_child_at_index(
-            new St.Icon({
-                icon_name: 'preferences-system-symbolic',
-                style_class: 'clipboard-menu-icon',
-                y_align: Clutter.ActorAlign.CENTER
-            }),
-            0
-        );
-        this.settingsMenuItem.connect('activate', this._openSettings.bind(this));
-
         // Empty state section
         this.emptyStateSection = new St.BoxLayout({
             style_class: 'clipboard-indicator-empty-state',
@@ -444,8 +432,6 @@ const ClipboardIndicator = GObject.registerClass({
         if (this.menu.box.contains(this.historySeparator)) this.menu.box.remove_child(this.historySeparator);
         if (this.clearMenuItem?.actor && this.menu.box.contains(this.clearMenuItem.actor))
             this.menu.box.remove_child(this.clearMenuItem.actor);
-        if (this.settingsMenuItem?.actor && this.menu.box.contains(this.settingsMenuItem.actor))
-            this.menu.box.remove_child(this.settingsMenuItem.actor);
         if (this.menu.box.contains(this.emptyStateSection)) this.menu.box.remove_child(this.emptyStateSection);
     }
 
@@ -489,7 +475,7 @@ const ClipboardIndicator = GObject.registerClass({
         // History separator (between history and toggled buttons)
         if (this.clipItemsRadioGroup.length > 0 &&
             this.historySection._getMenuItems().length > 0 && !PRIVATEMODE &&
-            (SHOW_PRIVATE_MODE || SHOW_SETTINGS_BUTTON || SHOW_CLEAR_HISTORY_BUTTON)) {
+            (SHOW_PRIVATE_MODE || SHOW_CLEAR_HISTORY_BUTTON)) {
             if (!this.menu.box.contains(this.historySeparator))
                 this.menu.box.insert_child_above(this.historySeparator, this.scrollViewMenuSection.actor);
         } else if (this.menu.box.contains(this.historySeparator)) {
@@ -500,25 +486,14 @@ const ClipboardIndicator = GObject.registerClass({
         if (this.clipItemsRadioGroup.length === 0) {
             if (!this.menu.box.contains(this.emptyStateSection))
                 this._renderEmptyState();
-            // Re-append toggled buttons after the empty state
-            if (this.menu.box.contains(this.settingsMenuItem?.actor))
-                this.menu.box.remove_child(this.settingsMenuItem.actor);
-
-            let index = this.menu.box.get_n_children(); // append after empty state
-            if (SHOW_SETTINGS_BUTTON && this.settingsMenuItem)
-                this.menu.box.insert_child_at_index(this.settingsMenuItem.actor, index++);
             return;
         }
 
         // Re-append toggled buttons at end in fixed order
-        if (this.menu.box.contains(this.settingsMenuItem?.actor))
-            this.menu.box.remove_child(this.settingsMenuItem.actor);
         if (this.menu.box.contains(this.clearMenuItem?.actor))
             this.menu.box.remove_child(this.clearMenuItem.actor);
 
         let index = this.menu.box.get_n_children(); // append
-        if (SHOW_SETTINGS_BUTTON && this.settingsMenuItem)
-            this.menu.box.insert_child_at_index(this.settingsMenuItem.actor, index++);
         if (SHOW_CLEAR_HISTORY_BUTTON && this.clearMenuItem && !PRIVATEMODE)
             this.menu.box.insert_child_at_index(this.clearMenuItem.actor, index++);
     }
@@ -1257,11 +1232,6 @@ const ClipboardIndicator = GObject.registerClass({
         }
         formattedTime += `${seconds}s`;
         this.timerLabel.set_text(formattedTime);
-    }
-
-    _openSettings () {
-        this.extension.openSettings();
-        this.menu.close();
     }
 
     _initNotifSource () {

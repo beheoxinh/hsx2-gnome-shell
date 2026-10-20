@@ -230,12 +230,6 @@
       <summary>Status area on cloned bars</summary>
     </key>
 
-    <key name="clone-show-indicators" type="b">
-      <default>true</default>
-      <summary>Panel item state on cloned bars</summary>
-      <description>Apply the current visibility of every panel item to the cloned bars.</description>
-    </key>
-
     <key name="enable-system-monitor" type="b">
       <default>true</default>
       <summary>Enable System Monitor</summary>

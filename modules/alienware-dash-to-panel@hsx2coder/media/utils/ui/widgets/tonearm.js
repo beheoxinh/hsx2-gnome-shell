@@ -19,7 +19,7 @@ function _canvasSize(settings) {
   if (settings) {
     try {
       return Math.max(180, settings.get_int("popup-width"));
-    } catch (_e) {}
+    } catch (_e) {console.warn('[dash-to-panel] ?: ' + ((_e && _e.message) ? _e.message : _e)) }
   }
   return 340;
 }
@@ -175,7 +175,7 @@ export const Tonearm = GObject.registerClass(
       } catch (_e) {
         try {
           cr.$dispose();
-        } catch (__) {}
+        } catch (__) {console.warn('[dash-to-panel] _draw: ' + ((__ && __.message) ? __.message : __)) }
         return;
       }
 
@@ -327,7 +327,7 @@ export const Tonearm = GObject.registerClass(
 
       try {
         cr.$dispose();
-      } catch (_e) {}
+      } catch (_e) {console.warn('[dash-to-panel] _draw: ' + ((_e && _e.message) ? _e.message : _e)) }
     }
 
     destroy() {

@@ -40,14 +40,6 @@ export class LyricsClient {
     }
   }
 
-  prefetch(title, artist, album, durationSec) {
-    if (!title && !artist) return;
-    const key = this._cacheKey(title, artist, album, durationSec);
-    if (this._cache.has(key) || this._inflight.has(key)) return;
-    // fire-and-forget; result lands in cache for next call
-    this.getLyrics(title, artist, album, durationSec).catch(() => {});
-  }
-
   destroy() {
     this._session.abort();
     this._session = null;
@@ -188,7 +180,12 @@ export class LyricsClient {
     const raw = bytes.get_data();
     if (!raw) throw new Error("empty body");
 
-    return JSON.parse(decode(raw));
+    try {
+      return JSON.parse(decode(raw));
+    } catch (e) {
+      console.warn('[dash-to-panel] _fetchJSON: invalid JSON from ' + url + ': ' + e.message);
+      return null;
+    }
   }
 
   _parseLRC(lrcText) {
