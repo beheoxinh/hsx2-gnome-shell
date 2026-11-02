@@ -52,7 +52,8 @@ export class CancellablePromise extends Promise {
         this._cancellationId = cancellable.connect(() => {
             const id = this._cancellationId;
             this._cancellationId = 0;
-            GLib.idle_add(GLib.PRIORITY_DEFAULT, () => cancellable.disconnect(id));
+            if (GObject.signal_handler_is_connected(cancellable, id))
+                cancellable.disconnect(id);
             this.cancel();
         });
 

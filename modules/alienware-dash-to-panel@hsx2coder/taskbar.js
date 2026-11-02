@@ -167,6 +167,7 @@ export const TaskbarActor = GObject.registerClass(
     }
 
     vfunc_allocate(box) {
+      Utils.sanitizeBox(box, 'taskbar')
       this.set_allocation(box)
 
       let panel = this._delegate.dtpPanel
@@ -174,6 +175,7 @@ export const TaskbarActor = GObject.registerClass(
       let availVarSize = box[panel.varCoord.c2] - box[panel.varCoord.c1]
       let [dummy, scrollview, leftFade, rightFade] = this.get_children()
       let [, natSize] = this[panel.sizeFunc](availFixedSize)
+      natSize = Utils.finiteSize(natSize, 0, 'taskbar-nat')
       let childBox = new Clutter.ActorBox()
       let orientation = panel.getOrientation()
 
@@ -184,6 +186,7 @@ export const TaskbarActor = GObject.registerClass(
       childBox[panel.fixedCoord.c1] = box[panel.fixedCoord.c1]
       childBox[panel.fixedCoord.c2] = box[panel.fixedCoord.c2]
 
+      Utils.sanitizeBox(childBox, 'taskbar-scroll')
       scrollview.allocate(childBox)
 
       let [, , upper, , , pageSize] =

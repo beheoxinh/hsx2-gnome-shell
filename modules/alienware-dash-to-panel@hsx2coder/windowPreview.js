@@ -1406,10 +1406,11 @@ export const WindowCloneLayout = GObject.registerClass(
       )
 
       box.set_size(
-        width + (this.bufferRect.width - this.frameRect.width) * this.ratio,
-        height + (this.bufferRect.height - this.frameRect.height) * this.ratio,
+      width + (this.bufferRect.width - this.frameRect.width) * this.ratio,
+      height + (this.bufferRect.height - this.frameRect.height) * this.ratio,
       )
 
+      Utils.sanitizeBox(box, 'window-preview')
       actor.get_first_child().allocate(box)
     }
   },

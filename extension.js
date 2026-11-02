@@ -29,6 +29,8 @@ export default class AlienwareSuiteExtension extends Extension {
 
     enable() {
         this.initTranslations();
+
+
         try {
             this._loadStylesheets();
         } catch (e) {
@@ -169,6 +171,14 @@ export default class AlienwareSuiteExtension extends Extension {
             const instance = new Klass(subMetadata);
             this._loaded.set(def.uuid, instance);
 
+            if (def.uuid === 'alienware-desktop-enable-gnome@hsx2coder') {
+                Object.defineProperty(this, 'DesktopIconsUsableArea', {
+                    get: () => instance.DesktopIconsUsableArea,
+                    configurable: true,
+                    enumerable: true,
+                });
+            }
+
             const suiteExt = this;
             instance.openPreferences = function () {
                 suiteExt.openPreferences();
@@ -202,6 +212,9 @@ export default class AlienwareSuiteExtension extends Extension {
             instance.disable();
         } catch (e) {
             logError(e, `[alienware-suite] failed to disable ${def.uuid}`);
+        }
+        if (def.uuid === 'alienware-desktop-enable-gnome@hsx2coder') {
+            delete this.DesktopIconsUsableArea;
         }
         this._loaded.delete(def.uuid);
         log(`[alienware-suite] disabled module ${def.uuid}`);

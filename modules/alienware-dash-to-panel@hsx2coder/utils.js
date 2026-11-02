@@ -985,3 +985,60 @@ export const drawRoundedLine = function (
   if (stroke != null) cr.setSource(stroke)
   cr.stroke()
 }
+
+/**
+ * Clutter asserts on every relayout when an allocation carries NaN, which
+ * floods the journal while the panel is built or rebuilt. A NaN coordinate is
+ * clamped to 0 in place instead of skipping the allocation: an actor that is
+ * never allocated keeps the "needs an allocation" warning and a stale box, so
+ * skipping is worse than the assert it avoids. The first offender is reported
+ * once per session.
+ * @param {Clutter.ActorBox|null} box box about to be allocated, mutated in place
+ * @param {string} tag call site, for the one-shot report
+ * @returns {boolean} true when every coordinate was already finite
+ */
+let _badAllocWarned = false
+export function sanitizeBox(box, tag) {
+  if (!box) return box
+
+  let broken = []
+  for (let key of ['x1', 'y1', 'x2', 'y2']) {
+    if (!Number.isFinite(box[key])) {
+      broken.push(`${key}=${box[key]}`)
+      box[key] = 0
+    }
+  }
+
+  if (broken.length > 0 && !_badAllocWarned) {
+    _badAllocWarned = true
+    console.warn(
+      `[dash-to-panel] non-finite allocation (${tag}): ${broken.join(' ')}, clamped to 0`,
+    )
+  }
+
+  return box
+}
+
+/**
+ * Clutter's preferred-size queries return NaN for an actor that cannot measure
+ * itself yet (a label whose Pango layout is still empty, a box with no visible
+ * child). Feeding that into an allocation makes Clutter assert on every frame,
+ * so a measured size is coerced to a usable number instead.
+ * @param {number} value measured size
+ * @param {number} fallback value used when the measurement is not finite
+ * @param {string} tag call site, for the one-shot report
+ * @returns {number} a finite size
+ */
+let _badSizeWarned = false
+export function finiteSize(value, fallback, tag) {
+  if (Number.isFinite(value)) return value
+
+  if (!_badSizeWarned) {
+    _badSizeWarned = true
+    console.warn(
+      `[dash-to-panel] non-finite preferred size (${tag}): ${value}, using ${fallback}`,
+    )
+  }
+
+  return fallback
+}

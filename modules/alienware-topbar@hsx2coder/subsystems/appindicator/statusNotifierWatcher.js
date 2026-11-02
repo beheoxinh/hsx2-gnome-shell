@@ -89,7 +89,7 @@ export class StatusNotifierWatcher {
     async _registerItem(service, busName, objPath) {
         const id = Util.indicatorId(service, busName, objPath);
 
-        if (this._items.has(id)) {
+        if (this._items?.has(id)) {
             Util.Logger.warn(`Item ${id} is already registered`);
             return;
         }
@@ -106,7 +106,7 @@ export class StatusNotifierWatcher {
                     try {
                         await new PromiseUtils.TimeoutPromise(500,
                             GLib.PRIORITY_DEFAULT, this._cancellable);
-                        if (this._items.has(id) && !indicator.hasNameOwner)
+                        if (this._items?.has(id) && !indicator.hasNameOwner)
                             indicator.destroy();
                     } catch (e) {
                         if (!e.matches(Gio.IOErrorEnum, Gio.IOErrorEnum.CANCELLED))
@@ -133,7 +133,7 @@ export class StatusNotifierWatcher {
 
     async _ensureItemRegistered(service, busName, objPath) {
         const id = Util.indicatorId(service, busName, objPath);
-        const item = this._items.get(id);
+        const item = this._items?.get(id);
 
         if (item) {
             // delete the old one and add the new indicator
@@ -179,7 +179,7 @@ export class StatusNotifierWatcher {
                 const {services, name, path} = JSON.parse(textDecoder.decode(line));
                 const ids = [null, ...services].map(s => Util.indicatorId(s, name, path));
 
-                if (ids.every(id => !this._items.has(id))) {
+                if (!this._items || ids.every(id => !this._items.has(id))) {
                     const service = services.find(s =>
                         s && s.startsWith('org.kde.StatusNotifierItem')) || services[0];
                     const id = Util.indicatorId(
@@ -249,7 +249,7 @@ export class StatusNotifierWatcher {
 
     _onIndicatorDestroyed(indicator) {
         const {uniqueId} = indicator;
-        this._items.delete(uniqueId);
+        this._items?.delete(uniqueId);
 
         try {
             this._dbusImpl.emit_signal('StatusNotifierItemUnregistered',
@@ -273,7 +273,7 @@ export class StatusNotifierWatcher {
     }
 
     get RegisteredStatusNotifierItems() {
-        return Array.from(this._items.values()).map(i => i.uniqueId);
+        return Array.from(this._items?.values() ?? []).map(i => i.uniqueId);
     }
 
     get IsStatusNotifierHostRegistered() {

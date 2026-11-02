@@ -100,8 +100,10 @@ class IndicatorBaseStatusIcon extends PanelMenu.Button {
 
         if (this._icon) {
             this._box.add_child(this._icon);
-            const id = this._icon.connect('destroy', () => {
-                this._icon.disconnect(id);
+            this._icon.connect('destroy', () => {
+                // The handler dies with the icon: disconnecting it from inside
+                // the destroy emission trips glib's "no handler with id" and
+                // leaves the wrapper disposed-but-still-referenced.
                 this._icon = null;
                 this._monitorIconEffects();
             });
@@ -279,7 +281,10 @@ class IndicatorStatusIcon extends BaseStatusIcon {
 
     _onDestroy() {
         if (this._menuClient) {
-            this._menuClient.disconnect(this._menuReadyId);
+            if (this._menuReadyId) {
+                this._menuClient.disconnect(this._menuReadyId);
+                this._menuReadyId = 0;
+            }
             this._menuClient.destroy();
             this._menuClient = null;
         }
@@ -328,7 +333,13 @@ class IndicatorStatusIcon extends BaseStatusIcon {
 
     _updateMenu() {
         if (this._menuClient) {
-            this._menuClient.disconnect(this._menuReadyId);
+            // destroy() can re-enter through notify::visible, so the handler id
+            // is cleared before the client goes away: a second disconnect of a
+            // dead id is glib's "no handler with id" warning.
+            if (this._menuReadyId) {
+                this._menuClient.disconnect(this._menuReadyId);
+                this._menuReadyId = 0;
+            }
             this._menuClient.destroy();
             this._menuClient = null;
             this.menu.removeAll();

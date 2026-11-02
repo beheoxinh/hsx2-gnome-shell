@@ -122,10 +122,12 @@ export class ScreenshotBox
             return;
 
         this.#cleanupId = GLib.timeout_add(GLib.PRIORITY_DEFAULT, 300, () => {
-            if (!Main?.screenshotUI && !this.#isDragging) {
-                if (this.#dimensionLabel)
-                    this.#dimensionLabel.hide();
+            if (!this.#dimensionLabel) {
+                this.#cleanupId = 0;
+                return GLib.SOURCE_REMOVE;
             }
+            if (!Main?.screenshotUI && !this.#isDragging)
+                this.#dimensionLabel.hide();
             return GLib.SOURCE_CONTINUE;
         });
     }
@@ -325,6 +327,12 @@ export class ScreenshotBox
             reactive: false,
             can_focus: false,
         });
+        // The stage can destroy the label from C (screenshotUI teardown) while the
+        // polling timer below still holds the reference; drop it on 'destroy' so
+        // later hide()/set_position() calls never touch a disposed actor.
+        this.#dimensionLabel.connect('destroy', () => {
+            this.#dimensionLabel = null;
+        });
         global.stage.add_child(this.#dimensionLabel);
     }
 
@@ -344,6 +352,13 @@ export class ScreenshotBox
         this.#dimensionLabel.text = text;
 
         const [selX, selY] = areaSelector.get_transformed_position();
+        if (!Number.isFinite(selX) || !Number.isFinite(selY)) {
+            // get_transformed_position() stays NaN until the selector is mapped;
+            // feeding that to set_position() trips clutter's isnan allocate
+            // assertion and leaves the label unallocated.
+            this.#dimensionLabel.hide();
+            return;
+        }
         const labelW = Math.min(w, 160);
         this.#dimensionLabel.set_position(
             selX + x + Math.round((w - labelW) / 2),

@@ -521,7 +521,11 @@ class CloneTopBar extends St.BoxLayout {
                 try {
                     const ind = Main.panel.statusArea?.[role];
                     if (ind && ind.menu) {
-                        ind.menu.disconnect(id);
+                        // A menu destroyed without closing takes its handlers
+                        // with it; disconnecting a dead id is glib's
+                        // "has no handler with id" warning, not an exception.
+                        if (GObject.signal_handler_is_connected(ind.menu, id))
+                            ind.menu.disconnect(id);
                         ind.menu.sourceActor = ind;
                     }
                 } catch (_e) { /* already disconnected */ }

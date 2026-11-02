@@ -157,6 +157,7 @@ class PanelHostImpl {
                 oldOwned.destroy();
         } catch (_) {}
         this.#owned.set(role, indicator);
+        _watchDestroy(indicator);
         return Main.panel.addToStatusArea(role, indicator, position, boxName);
     }
 

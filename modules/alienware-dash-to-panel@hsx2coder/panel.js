@@ -943,6 +943,7 @@ export const Panel = GObject.registerClass(
     }
 
     vfunc_allocate(box) {
+      Utils.sanitizeBox(box, 'panel')
       let fixed = 0
       let centeredMonitorGroup
       let varSize = box[this.varCoord.c2] - box[this.varCoord.c1]
@@ -959,7 +960,11 @@ export const Panel = GObject.registerClass(
               panelAlloc[this.fixedCoord.c1] + this.geom.fixedPadding
             element.box[this.fixedCoord.c2] =
               panelAlloc[this.fixedCoord.c2] - this.geom.fixedPadding
-            element.natSize = element.actor[this.sizeFunc](-1)[1]
+            element.natSize = Utils.finiteSize(
+              element.actor[this.sizeFunc](-1)[1],
+              0,
+              'panel-element-nat',
+            )
           }
 
           if (!group.isCentered || Pos.checkIfCentered(element.position)) {
@@ -1051,6 +1056,7 @@ export const Panel = GObject.registerClass(
             (currentPosition += element.natSize),
           )
 
+          Utils.sanitizeBox(element.box, 'panel-element')
           element.actor.allocate(element.box)
         })
 
@@ -1098,6 +1104,7 @@ export const Panel = GObject.registerClass(
       }
 
       this.set_allocation(box)
+      Utils.sanitizeBox(panelAlloc, 'panel-inner')
       this.panel.allocate(panelAlloc)
 
       // apply padding to panel's children, after panel allocation

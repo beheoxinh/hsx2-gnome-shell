@@ -329,6 +329,10 @@ const Chart = class SystemMonitor_Chart {
         this.actor.connect('repaint', this._draw.bind(this));
     }
     update() {
+        // Shell teardown destroys the actors from C while our timers may still be
+        // queued; touching tip_labels then logs "already disposed" per label.
+        if (this._disposed)
+            return GLib.SOURCE_REMOVE;
         let data_a = this.parentC.vals;
         if (data_a.length !== this.parentC.colors.length) {
             return;
@@ -550,6 +554,7 @@ const smMountsMonitor = class SystemMonitor_smMountsMonitor {
         this.connected = false;
     }
     destroy() {
+        this._disposed = true;
         this.disconnect();
     }
 }
@@ -1022,7 +1027,10 @@ const TipBox = class SystemMonitor_TipBox {
             this.in_to = GLib.timeout_add(
                 GLib.PRIORITY_DEFAULT,
                 this.extension._Schema.get_int('tooltip-delay-ms'),
-                this.show_tip.bind(this),
+                () => {
+                    this.in_to = 0;
+                    return this.show_tip();
+                },
             );
         }
     }
@@ -1037,7 +1045,10 @@ const TipBox = class SystemMonitor_TipBox {
             this.out_to = GLib.timeout_add(
                 GLib.PRIORITY_DEFAULT,
                 this.extension._Schema.get_int('tooltip-delay-ms'),
-                this.hide_tip.bind(this),
+                () => {
+                    this.out_to = 0;
+                    return this.hide_tip();
+                },
             );
         }
     }
@@ -1226,6 +1237,7 @@ const ElementBase = class SystemMonitor_ElementBase extends TipBox {
     restart_cooldown_timer(max = 0) {
         if (this.graph_scale_cooldown_timer_id) {
             GLib.Source.remove(this.graph_scale_cooldown_timer_id);
+            this.graph_scale_cooldown_timer_id = null;
         }
         this.graph_scale_max_including_cooldown = max;
         this.graph_scale_cooldown_delay_minutes = this.extension._Schema.get_int('graph-cooldown-delay-m');
@@ -1234,8 +1246,12 @@ const ElementBase = class SystemMonitor_ElementBase extends TipBox {
                 GLib.PRIORITY_DEFAULT,
                 this.graph_scale_cooldown_delay_minutes * 60,
                 () => {
+                    // Clear the id before restarting: the restart installs a new
+                    // source, and leaving the firing (already dead) id behind
+                    // makes destroy() report "Source ID not found".
+                    this.graph_scale_cooldown_timer_id = null;
                     this.restart_cooldown_timer();
-                    return GLib.SOURCE_CONTINUE;
+                    return GLib.SOURCE_REMOVE;
                 });
         }
     }
@@ -1272,11 +1288,26 @@ const ElementBase = class SystemMonitor_ElementBase extends TipBox {
         }
         if (this.timeout) {
             GLib.Source.remove(this.timeout);
+            this.timeout = null;
         }
         this.timeout = GLib.timeout_add(
             GLib.PRIORITY_DEFAULT_IDLE,
             interval,
-            this.update.bind(this),
+            () => {
+                // update() bails out early on several paths and can throw on a
+                // half-built graph; both used to drop the source while this.timeout
+                // kept the dead id, which destroy() then reported.
+                if (this._disposed) {
+                    this.timeout = null;
+                    return GLib.SOURCE_REMOVE;
+                }
+                try {
+                    this.update();
+                } catch (e) {
+                    logError(e, '[system-monitor] graph update failed');
+                }
+                return GLib.SOURCE_CONTINUE;
+            },
         );
         this._lastInterval = interval;
     }
@@ -3217,7 +3248,10 @@ export default class SystemMonitorExtension extends Extension {
                             return GLib.SOURCE_CONTINUE;
                         });
                 } else {
-                    GLib.Source.remove(this.menuTimeout);
+                    if (this.menuTimeout) {
+                        GLib.Source.remove(this.menuTimeout);
+                        this.menuTimeout = null;
+                    }
                 }
             }
         );

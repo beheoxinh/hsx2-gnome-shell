@@ -1,4 +1,5 @@
 import { InjectionManager } from "resource:///org/gnome/shell/extensions/extension.js";
+import GObject from "gi://GObject";
 import * as Main from "resource:///org/gnome/shell/ui/main.js";
 export class WindowAttentionManager {
     injectionManager = new InjectionManager();
@@ -12,6 +13,19 @@ export class WindowAttentionManager {
     }
     disable() {
         this.injectionManager.clear();
+        this._disconnectSignals();
+    }
+    _disconnectSignals() {
+        const display = global.display;
+        const attentionHandler = Main.windowAttentionHandler;
+        for (const key of ["_windowDemandsAttentionId", "_windowMarkedUrgentId"]) {
+            const id = attentionHandler[key];
+            if (typeof id !== "number")
+                continue;
+            if (GObject.signal_handler_is_connected(display, id))
+                display.disconnect(id);
+            attentionHandler[key] = undefined;
+        }
     }
     patchHandler() {
         const proto = Object.getPrototypeOf(Main.windowAttentionHandler);
@@ -44,18 +58,13 @@ export class WindowAttentionManager {
         const attentionHandler = Main.windowAttentionHandler;
         const display = global.display;
         const callback = (currentDisplay, window) => attentionHandler._onWindowDemandsAttention(currentDisplay, window);
-        if (typeof display.connectObject === "function" &&
-            typeof display.disconnectObject === "function") {
-            display.disconnectObject(attentionHandler);
-            display.connectObject("window-demands-attention", callback, "window-marked-urgent", callback, attentionHandler);
-            return;
-        }
-        if (typeof attentionHandler._windowDemandsAttentionId === "number") {
-            display.disconnect(attentionHandler._windowDemandsAttentionId);
-        }
-        if (typeof attentionHandler._windowMarkedUrgentId === "number") {
-            display.disconnect(attentionHandler._windowMarkedUrgentId);
-        }
+
+        this._disconnectSignals();
+
+        // Plain connect()/disconnect() with our own ids: connectObject() tracks
+        // handlers on a shared SignalTracker keyed by the tracker object, so
+        // disconnecting through the shell's windowAttentionHandler also tore down
+        // handlers the shell owns and left ids the tracker could no longer find.
         attentionHandler._windowDemandsAttentionId = display.connect("window-demands-attention", callback);
         attentionHandler._windowMarkedUrgentId = display.connect("window-marked-urgent", callback);
     }

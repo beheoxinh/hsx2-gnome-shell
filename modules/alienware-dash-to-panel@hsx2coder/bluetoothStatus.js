@@ -124,6 +124,7 @@ export const BluetoothStatus = GObject.registerClass(
 
       try {
         this._deferredMenuIdleId = GLib.idle_add(GLib.PRIORITY_DEFAULT_IDLE, () => {
+          this._deferredMenuIdleId = null
           this.menu = new PopupMenu.PopupMenu(this, 0.0, St.Side.BOTTOM)
           try { Main.uiGroup.add_child(this.menu.actor); this.menu.actor.hide() } catch (e) {console.warn('[dash-to-panel] _init: ' + ((e && e.message) ? e.message : e)) }
           this._localMgr = new PopupMenu.PopupMenuManager(this)

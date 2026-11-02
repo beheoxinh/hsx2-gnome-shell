@@ -32,6 +32,7 @@ const SUB_SCHEMAS = {
 };
 
 export default class TopbarExtension extends Extension {
+    #settingsRef = null;
     #panel = null;
     #clone = null;
     #clipboard = null;
@@ -47,6 +48,7 @@ export default class TopbarExtension extends Extension {
         PanelHost.enable(shellVersion);
 
         const settings = this.getSettings();
+        this.#settingsRef = settings;
 
         this.#panel = new PanelExtension(settings);
         this.#panel.enable();
@@ -74,10 +76,13 @@ export default class TopbarExtension extends Extension {
     }
 
     disable() {
+        // Extension.getSettings() hands back a fresh Gio.Settings each call, so
+        // disconnecting through it targets an object that never owned the ids.
         for (const id of this.#settingsIds) {
-            try { this.getSettings()?.disconnect(id); } catch (e) {}
+            try { this.#settingsRef?.disconnect(id); } catch (e) {}
         }
         this.#settingsIds = [];
+        this.#settingsRef = null;
         this.#rebuildWidgets(true);
         this.#hostUnwatch?.();
         this.#hostUnwatch = null;
