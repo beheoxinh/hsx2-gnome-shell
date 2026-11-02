@@ -113,10 +113,30 @@ export class VisibleArea {
             let area = ws.get_work_area_for_monitor(monitorIndex);
 
         // calculate the margins due to the difference between the monitor geometry and the work area, ie. the work area margins
-        let marginTop = area.y - geometry.y;
-        let marginLeft = area.x - geometry.x;
-        let marginRight = geometry.width - area.width - marginLeft;
-        let marginBottom = geometry.height - area.height - marginTop;
+        let marginTop = Math.max(0, area.y - geometry.y);
+        let marginLeft = Math.max(0, area.x - geometry.x);
+        let marginRight = Math.max(0, geometry.width - area.width - marginLeft);
+        let marginBottom = Math.max(0, geometry.height - area.height - marginTop);
+
+        // Ensure topbar panel height is always honored on monitors where a top bar is present
+        try {
+            const panelBox = Main.layoutManager?.panelBox;
+            if (panelBox && panelBox.visible) {
+                const primaryIndex = Main.layoutManager.primaryIndex;
+                const pBoxHeight = panelBox.height || 0;
+                if (pBoxHeight > 0) {
+                    if (monitorIndex === primaryIndex) {
+                        marginTop = Math.max(marginTop, pBoxHeight);
+                    } else {
+                        // Check if clone topbar is visible on this monitor
+                        const topbarModule = Main.extensionManager?.lookup?.('alienware-hsx2coder-gnome@hsx2coder.github.com')?.stateObj?._loaded?.get('alienware-topbar@hsx2coder');
+                        if (topbarModule?._cloneManager?.hasCloneOnMonitor?.(monitorIndex) || topbarModule?._cloneManager?._panels?.has?.(monitorIndex)) {
+                            marginTop = Math.max(marginTop, pBoxHeight);
+                        }
+                    }
+                }
+            }
+        } catch (_topbarErr) {}
 
         if (monitorIndex in this._usableAreas) {
             // If the margins for this monitor are bigger than the margins calculated previously,

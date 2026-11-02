@@ -257,8 +257,13 @@ class CancellableChild extends Gio.Cancellable {
     }
 
     _disconnectFromParent() {
-        if (this._connectId && !this._disconnectIdle) {
-            this.parent.disconnect(this._connectId);
+        if (this._disconnectIdle) {
+            GLib.source_remove(this._disconnectIdle);
+            delete this._disconnectIdle;
+        }
+        if (this._connectId) {
+            if (this.parent && GObject.signal_handler_is_connected(this.parent, this._connectId))
+                this.parent.disconnect(this._connectId);
             delete this._connectId;
         }
     }

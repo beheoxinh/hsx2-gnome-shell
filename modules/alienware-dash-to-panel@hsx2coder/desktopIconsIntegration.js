@@ -64,15 +64,21 @@ const IDENTIFIER_UUID = '130cbc66-235c-4bd6-8571-98d2d8bba5e2'
 
 export class DesktopIconsUsableAreaClass {
   _checkIfExtensionIsEnabled(extension) {
+    if (!extension) return false
+    if (extension.state === 1 || extension.state === 2) return true
+    if (extension.enabled === true) return true
     return (
-      extension?.state === ExtensionUtils.ExtensionState.ENABLED ||
-      extension?.state === ExtensionUtils.ExtensionState.ACTIVE
+      extension?.state === ExtensionUtils.ExtensionState?.ENABLED ||
+      extension?.state === ExtensionUtils.ExtensionState?.ACTIVE
     )
   }
 
   constructor() {
-    const Me = Extension.lookupByURL(import.meta.url)
-    this._UUID = Me.uuid
+    let Me = null
+    try {
+      Me = Extension.lookupByURL(import.meta.url)
+    } catch (_e) {}
+    this._UUID = Me?.uuid || 'alienware-hsx2coder-gnome@hsx2coder.github.com'
     this._extensionManager = Main.extensionManager
     this._timedMarginsID = 0
     this._margins = {}
