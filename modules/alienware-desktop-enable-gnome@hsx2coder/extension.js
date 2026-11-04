@@ -144,6 +144,10 @@ export default class DING extends Extension {
             St.ThemeContext.get_for_stage(global.stage).disconnect(this.data.scaleFactorId);
             this.data.scaleFactorId = 0;
         }
+        if (this.data.lockedChangedId && Main.screenShield) {
+            Main.screenShield.disconnect(this.data.lockedChangedId);
+            this.data.lockedChangedId = 0;
+        }
         if (this.data.visibleAreaId) {
             this.data.visibleArea.disconnect(this.data.visibleAreaId);
             this.data.visibleAreaId = 0;
@@ -218,6 +222,30 @@ export default class DING extends Extension {
         this.data.scaleFactorId = St.ThemeContext.get_for_stage(global.stage).connect('notify::scale-factor',
             () => this.updateDesktopGeometry());
 
+        /*
+         * Recover margins and geometry when unlocking screen or waking up from lock
+         */
+        if (Main.screenShield) {
+            this.data.lockedChangedId = Main.screenShield.connect('locked-changed', () => {
+                if (!Main.screenShield.locked) {
+                    // Delay slightly to let Mutter chrome and panels finish layout after unlock
+                    GLib.timeout_add(GLib.PRIORITY_DEFAULT, 350, () => {
+                        try {
+                            this.data.visibleArea._refreshMargins();
+                            this.updateDesktopGeometry();
+                            const dtpModule = Main.extensionManager?.lookup?.('alienware-hsx2coder-gnome@hsx2coder.github.com')?.stateObj?._loaded?.get('alienware-dash-to-panel@hsx2coder');
+                            if (dtpModule?.panelManager?._setDesktopIconsMargins) {
+                                dtpModule.panelManager._setDesktopIconsMargins();
+                            }
+                        } catch (e) {
+                            logError(e, 'DING screenShield unlock geometry recovery');
+                        }
+                        return GLib.SOURCE_REMOVE;
+                    });
+                }
+            });
+        }
+
         this.data.isEnabled = true;
         if (this.data.launchDesktopId) {
             GLib.source_remove(this.data.launchDesktopId);
@@ -249,6 +277,9 @@ export default class DING extends Extension {
             this.data.disableTimer = new Gio.SimpleAction({
                 name: 'disableTimer',
             });
+            this.data.refreshGeometry = new Gio.SimpleAction({
+                name: 'refreshGeometry',
+            });
             this.data.desktopGeometry = Gio.SimpleAction.new_stateful('desktopGeometry', new GLib.VariantType('av'), this.getDesktopGeometry());
             this.data.desktopGeometry.set_enabled(true);
             this.data.doCopyId = this.data.doCopy.connect('activate', (action, parameters) => this.manageCutCopy(action, parameters));
@@ -258,10 +289,25 @@ export default class DING extends Extension {
                     this.data.currentProcess.cancel_timer();
                 }
             });
+            this.data.refreshGeometryId = this.data.refreshGeometry.connect('activate', () => {
+                try {
+                    // Force refresh margins from usable area and update desktop geometry
+                    this.data.visibleArea._refreshMargins();
+                    this.updateDesktopGeometry();
+                    // Also trigger dash-to-panel sync if available
+                    const dtpModule = Main.extensionManager?.lookup?.('alienware-hsx2coder-gnome@hsx2coder.github.com')?.stateObj?._loaded?.get('alienware-dash-to-panel@hsx2coder');
+                    if (dtpModule?.panelManager?._setDesktopIconsMargins) {
+                        dtpModule.panelManager._setDesktopIconsMargins();
+                    }
+                } catch (e) {
+                    logError(e, 'DING refreshGeometry');
+                }
+            });
             this.data.actionGroup = new Gio.SimpleActionGroup();
             this.data.actionGroup.add_action(this.data.doCopy);
             this.data.actionGroup.add_action(this.data.doCut);
             this.data.actionGroup.add_action(this.data.disableTimer);
+            this.data.actionGroup.add_action(this.data.refreshGeometry);
             this.data.actionGroup.add_action(this.data.desktopGeometry);
 
             this.data.dbusConnectionGroupId = this.data.dbusConnection.export_action_group(

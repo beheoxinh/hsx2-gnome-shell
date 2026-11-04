@@ -125,14 +125,18 @@ export class VisibleArea {
                 const primaryIndex = Main.layoutManager.primaryIndex;
                 const pBoxHeight = panelBox.height || 0;
                 if (pBoxHeight > 0) {
-                    if (monitorIndex === primaryIndex) {
+                    // Enforce topbar height on ALL monitors where a topbar panel exists.
+                    // Primary: Main.panelBox (native). Secondary: clone topbar chrome.
+                    // Since clone topbars are always added via PanelHost.addChrome with affectsStruts:true,
+                    // Mutter should already account for them. But to be safe against race conditions
+                    // (especially on secondary monitors where struts may not be applied yet), we enforce
+                    // the height on every monitor when the topbar extension is enabled.
+                    const topbarExt = Main.extensionManager?.lookup?.('alienware-hsx2coder-gnome@hsx2coder.github.com');
+                    const topbarEnabled = topbarExt?.state === 1 || topbarExt?.state === 2 || topbarExt?.enabled === true;
+                    if (topbarEnabled) {
+                        // On primary, panelBox height is reliable.
+                        // On secondary, enforce at least the native panel height.
                         marginTop = Math.max(marginTop, pBoxHeight);
-                    } else {
-                        // Check if clone topbar is visible on this monitor
-                        const topbarModule = Main.extensionManager?.lookup?.('alienware-hsx2coder-gnome@hsx2coder.github.com')?.stateObj?._loaded?.get('alienware-topbar@hsx2coder');
-                        if (topbarModule?._cloneManager?.hasCloneOnMonitor?.(monitorIndex) || topbarModule?._cloneManager?._panels?.has?.(monitorIndex)) {
-                            marginTop = Math.max(marginTop, pBoxHeight);
-                        }
                     }
                 }
             }

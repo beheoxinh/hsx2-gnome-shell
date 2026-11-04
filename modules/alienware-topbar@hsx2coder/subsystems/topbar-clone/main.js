@@ -580,9 +580,6 @@ class ClonePanelBox {
         try {
             Main.uiGroup.set_child_below_sibling(this.panelBox, Main.layoutManager.panelBox);
         } catch (_e) { /* already disconnected */ }
-
-        this._allocationChangedId = this.panelBox.connect('notify::allocation',
-            this._onAllocationChanged.bind(this));
     }
 
     _nativePanelHeight() {

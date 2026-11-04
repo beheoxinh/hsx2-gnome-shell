@@ -1,4 +1,8 @@
 import Gio from "gi://Gio";
+let GioUnix = null;
+try {
+  GioUnix = (await import("gi://GioUnix")).default;
+} catch (_e) {}
 import Shell from "gi://Shell";
 import { MprisConstants } from "./MprisConstants.js";
 
@@ -35,10 +39,11 @@ export class MprisUtils {
     try {
       const desktopEntry = desktopEntries.get(name);
       if (desktopEntry) {
-        let appInfo = Gio.DesktopAppInfo.new(`${desktopEntry}.desktop`);
+        const DesktopAppInfoClass = GioUnix?.DesktopAppInfo || Gio.DesktopAppInfo;
+        let appInfo = DesktopAppInfoClass?.new(`${desktopEntry}.desktop`);
         if (appInfo) return appInfo;
 
-        appInfo = Gio.DesktopAppInfo.new(desktopEntry);
+        appInfo = DesktopAppInfoClass?.new(desktopEntry);
         if (appInfo) return appInfo;
       }
 

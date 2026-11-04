@@ -1187,6 +1187,13 @@ var DesktopManager = class {
 
         let refreshItem = this._createIconMenuItem(_('Refresh'), 'view-refresh-symbolic');
         refreshItem.connect('activate', () => {
+            try {
+                if (DBusUtils.extensionControl) {
+                    DBusUtils.extensionControl.activate_action('refreshGeometry', null);
+                }
+            } catch (err) {
+                print(`Exception triggering refreshGeometry from Refresh menu: ${err.message}`);
+            }
             this._updateDesktop().catch(e => {
                 print(`Exception while updating Desktop after Refresh: ${e.message}\n${e.stack}`);
             });

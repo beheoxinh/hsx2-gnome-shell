@@ -1198,7 +1198,7 @@ class AppIndicatorsIconActor extends St.Icon {
                     `${this.debugId}, Impossible to read image info from ` +
                     `path '${file ? file.get_path() : null}' or name '${name}': ${e}`);
             }
-            throw e;
+            return null;
         }
     }
 

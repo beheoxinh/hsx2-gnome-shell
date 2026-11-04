@@ -111,6 +111,9 @@ class IndicatorBaseStatusIcon extends PanelMenu.Button {
     }
 
     _onDestroy() {
+        if (this.menu && this.menu.isOpen)
+            this.menu.close(false);
+
         if (this._icon)
             this._icon.destroy();
 
@@ -280,6 +283,9 @@ class IndicatorStatusIcon extends BaseStatusIcon {
     }
 
     _onDestroy() {
+        if (this.menu && this.menu.isOpen)
+            this.menu.close(false);
+
         if (this._menuClient) {
             if (this._menuReadyId) {
                 this._menuClient.disconnect(this._menuReadyId);
