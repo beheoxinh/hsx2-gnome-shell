@@ -33,6 +33,11 @@ const displayConfigWrapper = Gio.DBusProxy.makeProxyWrapper(
   </node>`,
 )
 
+// Stable id for the single virtual monitor in a headless/RDP session.
+// Mutter's DisplayConfig can report no monitors there, which made Dash to
+// Panel fall back to defaults on every boot.
+const HEADLESS_MONITOR_ID = 'headless-virtual-0'
+
 // the module variables here are different in the settings dialog (gjs process)
 // and in gnome-shell (gnome-shell process)
 let prefsOpenedId = null
@@ -270,6 +275,19 @@ export function setMonitorsInfo(settings) {
             ids[id] = 1
           })
 
+          if (monitorInfos.length === 0) {
+            // Headless/RDP session: Mutter may expose no monitor through
+            // DisplayConfig even though the shell has a virtual monitor.
+            // Use a stable synthetic id so per-monitor settings survive reboots.
+            monitorInfos.push({
+              id: HEADLESS_MONITOR_ID,
+              product: 'Virtual',
+              primary: true,
+            })
+            monitorIdToIndex[HEADLESS_MONITOR_ID] = 0
+            monitorIndexToId[0] = HEADLESS_MONITOR_ID
+          }
+
           _saveMonitors(settings, monitorInfos)
 
           resolve()
@@ -325,7 +343,58 @@ export function setPanelVisible(settings, monitorIndex, value) {
   setMonitorSetting(settings, 'panel-visible', monitorIndex, value)
 }
 
+const PANEL_MONITOR_SETTINGS = [
+  'panel-sizes',
+  'panel-lengths',
+  'panel-positions',
+  'panel-anchors',
+  'panel-element-positions',
+  'panel-visible',
+]
+
+function isHeadlessMonitorList() {
+  return (
+    availableMonitors.length === 1 &&
+    availableMonitors[0].id === HEADLESS_MONITOR_ID
+  )
+}
+
+function migrateHeadlessMonitorSettings(settings, originals) {
+  if (!isHeadlessMonitorList()) return
+
+  for (const settingName of PANEL_MONITOR_SETTINGS) {
+    let current = getSettingsJson(settings, settingName)
+    if (!current || typeof current !== 'object') continue
+    if (HEADLESS_MONITOR_ID in current) continue
+
+    const original = originals[settingName] || {}
+    const sourceKeys = Object.keys(original).filter(
+      (key) => key !== HEADLESS_MONITOR_ID,
+    )
+    if (sourceKeys.length === 0) continue
+
+    // Prefer a real monitor's saved layout, otherwise use the most recent
+    // virtual-monitor entry. This is only a one-time seed for the stable
+    // headless id; later edits are stored under that id directly.
+    const sourceKey =
+      sourceKeys.find(
+        (key) => !key.startsWith('MetaVendor-') && key !== '-1',
+      ) || sourceKeys[sourceKeys.length - 1]
+
+    current[HEADLESS_MONITOR_ID] = original[sourceKey]
+    setSettingsJson(settings, settingName, current)
+  }
+}
+
 export function adjustMonitorSettings(settings) {
+  const originals = {}
+  if (isHeadlessMonitorList()) {
+    for (const settingName of PANEL_MONITOR_SETTINGS) {
+      const json = getSettingsJson(settings, settingName)
+      if (json && typeof json === 'object') originals[settingName] = {...json}
+    }
+  }
+
   let updateSettings = (settingName) => {
     let monitorSettings = getSettingsJson(settings, settingName)
     let updatedSettings = {}
@@ -341,10 +410,7 @@ export function adjustMonitorSettings(settings) {
     setSettingsJson(settings, settingName, updatedSettings)
   }
 
-  updateSettings('panel-sizes')
-  updateSettings('panel-lengths')
-  updateSettings('panel-positions')
-  updateSettings('panel-anchors')
-  updateSettings('panel-element-positions')
-  updateSettings('panel-visible')
+  PANEL_MONITOR_SETTINGS.forEach(updateSettings)
+
+  migrateHeadlessMonitorSettings(settings, originals)
 }

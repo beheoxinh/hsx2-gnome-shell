@@ -14,6 +14,7 @@
 import * as Config from 'resource:///org/gnome/shell/misc/config.js';
 import {Extension} from 'resource:///org/gnome/shell/extensions/extension.js';
 
+import {isHeadlessSession} from '../../lib/headless.js';
 import {PanelHost} from './subsystems/panel/host.js';
 import {PanelExtension} from './subsystems/panel/extension.js';
 import {TopbarCloneSubsystem} from './subsystems/topbar-clone/main.js';
@@ -46,6 +47,9 @@ export default class TopbarExtension extends Extension {
     enable() {
         const shellVersion = Number.parseInt(Config.PACKAGE_VERSION.split('.')[0]);
         PanelHost.enable(shellVersion);
+
+        if (isHeadlessSession())
+            log('[alienware-topbar] headless session detected: hardware-only toggles disabled');
 
         const settings = this.getSettings();
         this.#settingsRef = settings;

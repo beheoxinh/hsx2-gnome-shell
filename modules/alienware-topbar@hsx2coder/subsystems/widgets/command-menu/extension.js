@@ -177,7 +177,10 @@ export default class CommandMenuExtension extends Extension {
         menus.push(parseMenu(json));
       }
     } catch (err) {
-      if (!file.query_exists(null)) {
+      // A missing config file is the normal "no command menus configured"
+      // case: stay silent. Only a file that exists but fails to parse is a
+      // real error worth logging.
+      if (file.query_exists(null)) {
         logError(err, `${this.uuid}: failed to parse command menu`);
       }
       menus.push({ menu: [] });

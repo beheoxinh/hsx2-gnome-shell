@@ -2585,10 +2585,22 @@ const Thermal = class SystemMonitor_Thermal extends ElementBase {
 
         let label = Schema.get_string(this.elt + '-sensor-label');
         let sfile = this.sensors[label];
-        if (sfile === undefined && this.display_error) {
-            const validLabels = Object.keys(this.sensors).join(', ');
-            sm_log(`Invalid thermal sensor label: "${label}" (valid choices: ${validLabels})`, 'error');
-            this.display_error = false;
+        if (sfile === undefined) {
+            const validLabels = Object.keys(this.sensors);
+            // Hardware labels change between kernels (e.g. an old
+            // "alienware_wmi - CPU" sensor disappears after a driver
+            // update). Pick the first real sensor instead of warning on
+            // every refresh and showing "--" forever.
+            if (validLabels.length > 0) {
+                const fallback = validLabels[0];
+                if (this.display_error) {
+                    sm_log(`Invalid thermal sensor label: "${label}" ` +
+                        `(valid choices: ${validLabels.join(', ')}); ` +
+                        `switching to "${fallback}"`, 'warning');
+                    this.display_error = false;
+                }
+                Schema.set_string(this.elt + '-sensor-label', fallback);
+            }
             return;
         }
         if (!try_read_int_file(sfile, value => this.temperature = Math.round(value / 1000)) && this.display_error) {

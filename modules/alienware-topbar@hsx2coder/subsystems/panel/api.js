@@ -8,6 +8,7 @@
  * @license GPL-3.0-only
  */
 import {addWorkspacesBoxPatch} from '../../../../lib/workspacesBoxLayout.js';
+import {guarded, hasBacklight, isHeadlessSession} from '../../../../lib/headless.js';
 
 const PANEL_POSITION = {
     TOP: 0,
@@ -51,11 +52,14 @@ export class PanelApi
     _backlightToggleShowSignal = undefined;
     _rfkillToggleShowSignal = undefined;
     _quickSettingsCallSignals = undefined;
+
+    #quickSettingsLogged = {};
     _searchActiveSignal = undefined;
     _setMenuOld = undefined;
 
-    constructor(dependencies)
+    constructor(dependencies, shellVersion = null)
     {
+        this.#shellVersion = shellVersion;
         this._main = dependencies['Main'] || null;
         this._backgroundMenu = dependencies['BackgroundMenu'] || null;
         this._search = dependencies['Search'] || null;
@@ -356,36 +360,110 @@ export class PanelApi
      */
     #onQuickSettingsPropertyCall(propertyName, func)
     {
-        const quickSettings = this._main.panel.statusArea.quickSettings;
-        const indicators = quickSettings._indicators;
+        try {
+            const quickSettings = this._main.panel.statusArea.quickSettings;
+            const indicators = quickSettings._indicators;
 
-        if (quickSettings[propertyName]) {
-            func(quickSettings[propertyName]);
+            if (quickSettings[propertyName]) {
+                this.#runQuickSettings(propertyName, func, quickSettings[propertyName]);
+                return;
+            }
+
+            if (!this._quickSettingsCallSignals) {
+                this._quickSettingsCallSignals = {};
+            }
+
+            if (this._quickSettingsCallSignals[propertyName]) {
+                indicators.disconnect(this._quickSettingsCallSignals[propertyName]);
+                this._quickSettingsCallSignals[propertyName] = undefined;
+            }
+
+            this._quickSettingsCallSignals[propertyName] = indicators.connect(
+                (this.#shellVersion >= 46) ? 'child-added' : 'actor-added',
+                () => {
+                    try {
+                        if (!quickSettings[propertyName]) {
+                            return;
+                        }
+
+                        if (this._quickSettingsCallSignals[propertyName]) {
+                            indicators.disconnect(this._quickSettingsCallSignals[propertyName]);
+                            // The handler is one-shot. Clear the id before
+                            // running the callback, otherwise a second
+                            // child-added (or a later property call) would
+                            // disconnect the same closure twice and trip
+                            // g_closure_unref's ref-count assertion.
+                            this._quickSettingsCallSignals[propertyName] = undefined;
+                        }
+
+                        this.#runQuickSettings(propertyName, func, quickSettings[propertyName]);
+                    } catch (e) {
+                        this.#logQuickSettingsOnce(propertyName, e);
+                    }
+                }
+            );
+        } catch (e) {
+            this.#logQuickSettingsOnce(propertyName, e);
+        }
+    }
+
+    /**
+     * Run a quick settings callback, containing any failure. A headless or
+     * hardware-less session has indicators without items, so most of these
+     * callbacks legitimately cannot run there.
+     *
+     * @param {string} propertyName
+     * @param {Function} func
+     * @param {object} indicator
+     *
+     * @returns {void}
+     */
+    #runQuickSettings(propertyName, func, indicator)
+    {
+        try {
+            func(indicator);
+        } catch (e) {
+            this.#logQuickSettingsOnce(propertyName, e);
+        }
+    }
+
+    /**
+     * Log the first failure of a quick settings feature only, so a headless
+     * session doesn't spam the journal on every property change.
+     *
+     * @param {string} propertyName
+     * @param {Error} error
+     *
+     * @returns {void}
+     */
+    #logQuickSettingsOnce(propertyName, error)
+    {
+        if (this.#quickSettingsLogged[propertyName]) {
             return;
         }
 
-        if (!this._quickSettingsCallSignals) {
-            this._quickSettingsCallSignals = {};
+        this.#quickSettingsLogged[propertyName] = true;
+        const where = isHeadlessSession() ? 'headless session' : 'this session';
+        console.warn(`[alienware-topbar] quick settings "${propertyName}" ` +
+            `not available in ${where}: ${error?.message ?? error}`);
+    }
+
+    /**
+     * First item of a quick settings indicator, or null when the session
+     * doesn't provide one (headless: no brightness/night light item).
+     *
+     * @param {object} indicator
+     *
+     * @returns {object|null}
+     */
+    #firstQuickSettingsItem(indicator)
+    {
+        const items = indicator?.quickSettingsItems;
+        if (!Array.isArray(items) || items.length === 0) {
+            return null;
         }
 
-        if (this._quickSettingsCallSignals[propertyName]) {
-            indicators.disconnect(this._quickSettingsCallSignals[propertyName]);
-        }
-
-        this._quickSettingsCallSignals[propertyName] = indicators.connect(
-            (this.#shellVersion >= 46) ? 'child-added' : 'actor-added',
-            () => {
-                if (!quickSettings[propertyName]) {
-                    return;
-                }
-
-                if (this._quickSettingsCallSignals[propertyName]) {
-                    indicators.disconnect(this._quickSettingsCallSignals[propertyName]);
-                }
-
-                func(quickSettings[propertyName]);
-            }
-        );
+        return items[0] ?? null;
     }
 
     /**
@@ -1901,6 +1979,10 @@ export class PanelApi
     quickSettingsAirplaneModeToggleShow()
     {
         this.#onQuickSettingsPropertyCall('_rfkill', (rfkill) => {
+            if (!rfkill?._rfkillToggle) {
+                return;
+            }
+
             if (this._rfkillToggleShowSignal) {
                 rfkill._rfkillToggle.disconnect(this._rfkillToggleShowSignal);
             }
@@ -1929,6 +2011,10 @@ export class PanelApi
         this._rfkillToggleShowSignal;
 
         this.#onQuickSettingsPropertyCall('_rfkill', (rfkill) => {
+            if (!rfkill?._rfkillToggle) {
+                return;
+            }
+
             if (!this.#originals['rfkilToggleVisibleDefaultStatus']) {
                 this.#originals['rfkilToggleVisibleDefaultStatus'] = rfkill._rfkillToggle.visible;
             }
@@ -1959,7 +2045,7 @@ export class PanelApi
     quickSettingsDarkStyleToggleShow()
     {
         this.#onQuickSettingsPropertyCall('_darkMode', (darkMode) => {
-            darkMode.quickSettingsItems[0].show();
+            this.#firstQuickSettingsItem(darkMode)?.show();
         });
     }
 
@@ -1977,7 +2063,7 @@ export class PanelApi
     quickSettingsDarkStyleToggleHide()
     {
         this.#onQuickSettingsPropertyCall('_darkMode', (darkMode) => {
-            darkMode.quickSettingsItems[0].hide();
+            this.#firstQuickSettingsItem(darkMode)?.hide();
         });
     }
 
@@ -1995,7 +2081,7 @@ export class PanelApi
     quickSettingsNightLightToggleShow()
     {
         this.#onQuickSettingsPropertyCall('_nightLight', (nightLight) => {
-            nightLight.quickSettingsItems[0].show();
+            this.#firstQuickSettingsItem(nightLight)?.show();
         });
     }
 
@@ -2013,7 +2099,7 @@ export class PanelApi
     quickSettingsNightLightToggleHide()
     {
         this.#onQuickSettingsPropertyCall('_nightLight', (nightLight) => {
-            nightLight.quickSettingsItems[0].hide();
+            this.#firstQuickSettingsItem(nightLight)?.hide();
         });
     }
 
@@ -2035,7 +2121,7 @@ export class PanelApi
         }
 
         this.#onQuickSettingsPropertyCall('_doNotDisturb', (doNotDisturb) => {
-            doNotDisturb.quickSettingsItems[0].show();
+            this.#firstQuickSettingsItem(doNotDisturb)?.show();
         });
     }
 
@@ -2057,7 +2143,7 @@ export class PanelApi
         }
 
         this.#onQuickSettingsPropertyCall('_doNotDisturb', (doNotDisturb) => {
-            doNotDisturb.quickSettingsItems[0].hide();
+            this.#firstQuickSettingsItem(doNotDisturb)?.hide();
         });
     }
 
@@ -2074,8 +2160,16 @@ export class PanelApi
      */
     quickSettingsBacklightToggleShow()
     {
+        // no panel backlight (desktop / headless RDP) -> nothing to toggle
+        if (isHeadlessSession() || !hasBacklight()) {
+            return;
+        }
+
         this.#onQuickSettingsPropertyCall('_backlight', (backlight) => {
-            let item = backlight.quickSettingsItems[0];
+            const item = this.#firstQuickSettingsItem(backlight);
+            if (!item) {
+                return;
+            }
 
             if (this.#originals['backlightToggleVisibleDefaultStatus'] !== undefined) {
                 item.visible = this.#originals['backlightToggleVisibleDefaultStatus'];
@@ -2103,8 +2197,16 @@ export class PanelApi
     {
         this._backlightToggleShowSignal;
 
+        // no panel backlight (desktop / headless RDP) -> nothing to hide
+        if (isHeadlessSession() || !hasBacklight()) {
+            return;
+        }
+
         this.#onQuickSettingsPropertyCall('_backlight', (backlight) => {
-            let item = backlight.quickSettingsItems[0];
+            const item = this.#firstQuickSettingsItem(backlight);
+            if (!item) {
+                return;
+            }
 
             if (!this.#originals['backlightToggleVisibleDefaultStatus']) {
                 this.#originals['backlightToggleVisibleDefaultStatus'] = item.visible;

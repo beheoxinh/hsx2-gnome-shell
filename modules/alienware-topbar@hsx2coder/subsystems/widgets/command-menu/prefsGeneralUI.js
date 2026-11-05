@@ -192,12 +192,17 @@ export default class GeneralPreferencesPage extends Adw.PreferencesPage {
         });
         dialog.connect("response", (d, response) => {
           if (response === Gtk.ResponseType.OK) {
-            const templateDir = GLib.path_get_dirname(this._imagesDir);
-            const templatePath = GLib.build_filenamev([templateDir, template.sourceFile]);
-            const contents = GLib.file_get_contents(templatePath)[1];
-            const decoder = new TextDecoder();
-            const json = JSON.parse(decoder.decode(contents));
-            addMenu(json);
+            try {
+              const templateDir = GLib.path_get_dirname(this._imagesDir);
+              const templatePath = GLib.build_filenamev([templateDir, template.sourceFile]);
+              const [ok, contents] = GLib.file_get_contents(templatePath);
+              if (!ok) throw new Error(`missing template: ${templatePath}`);
+              const decoder = new TextDecoder();
+              const json = JSON.parse(decoder.decode(contents));
+              addMenu(json);
+            } catch (e) {
+              logError(e, `${this.uuid}: template "${template.name}" unavailable`);
+            }
           }
           d.destroy();
         });

@@ -55,7 +55,7 @@ export default class CapsNumTouchpadPreferences extends ExtensionPreferences {
         settings.bind('show-notifications', showNotifications, 'active', Gio.SettingsBindFlags.DEFAULT);
 
         const shortcutEntry = new Adw.EntryRow({
-            title: 'Shortcut (e.g. <Super>Insert, XF86TouchpadToggle)',
+            title: 'Shortcut (e.g. &lt;Super&gt;Insert, XF86TouchpadToggle)',
         });
 
         let currentShortcuts = settings.get_strv('toggle-shortcut');

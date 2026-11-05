@@ -222,19 +222,35 @@ export const WeatherStatus = GObject.registerClass(
         'User-Agent',
         'alienware-hsx2coder-gnome/1.0 (https://github.com/anomalyco/opencode)',
       )
+      msg.request_headers.append('Accept-Encoding', 'identity')
       if (!msg) return
       _session_().send_and_read_async(
         msg, GLib.PRIORITY_DEFAULT, null,
         (s, res) => {
           try {
             let bytes = s.send_and_read_finish(res)
-            if (!bytes) return
-            let data = JSON.parse(
-              new TextDecoder().decode(bytes.get_data()),
-            )
+            if (!bytes) throw new Error('empty response body')
+            if (msg.status_code < 200 || msg.status_code >= 300)
+              throw new Error(`HTTP ${msg.status_code}`)
+            let text = new TextDecoder().decode(bytes.get_data())
+            let data
+            try {
+              data = JSON.parse(text)
+            } catch (e) {
+              throw new Error(`invalid JSON (${text.length} bytes): ${e.message}`)
+            }
             this._processWeather(data)
+            // A later (successful) fetch may legitimately fail again, so
+            // allow the next failure to be logged once more.
+            this._wxFetchErrorLogged = false
           } catch (e) {
-            logError(e, `${TAG} fetch failed`)
+            // Network/weather failures are expected on flaky links and in
+            // headless sessions; log only the first one per failure streak
+            // instead of spamming the journal every poll.
+            if (!this._wxFetchErrorLogged) {
+              this._wxFetchErrorLogged = true
+              logError(e, `${TAG} fetch failed`)
+            }
           }
         },
       )

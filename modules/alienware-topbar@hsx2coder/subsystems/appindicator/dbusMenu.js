@@ -121,7 +121,16 @@ export class DbusMenuItem extends Signals.EventEmitter {
 
     propertyGetInt(propName) {
         const prop = this.propertyGetVariant(propName);
-        return prop ? prop.get_int32() : 0;
+        if (!prop)
+            return 0;
+        try {
+            return prop.get_int32();
+        } catch {
+            // A broken/third-party menu can publish a non-int32 variant for
+            // an integer property. Don't let a bad D-Bus value trigger the
+            // GLib assertion (and journal spam) on every menu update.
+            return 0;
+        }
     }
 
     propertySet(prop, value) {
