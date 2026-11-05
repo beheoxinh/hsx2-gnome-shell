@@ -691,8 +691,15 @@ var DesktopManager = class {
             this._startRubberband(x, y);
         }
         if (button == 3) {
-            this._prepareMenu();
+            // Show the menu immediately; filling it (templates submenu,
+            // clipboard state) must never delay the popup. The clipboard
+            // read below is asynchronous, but a slow D-Bus or template scan
+            // would still be on the critical path if it ran before popup.
             this._menu.popup_at_pointer(event);
+            GLib.idle_add(GLib.PRIORITY_DEFAULT_IDLE, () => {
+                this._prepareMenu();
+                return GLib.SOURCE_REMOVE;
+            });
         }
     }
 
@@ -709,13 +716,12 @@ var DesktopManager = class {
         this._updateClipBoard();
     }
 
-    _updateClipBoard() {
+    _updateClipBoard(callback = null) {
         let atom = Gdk.Atom.intern('CLIPBOARD', false);
         let atom2 = Gdk.Atom.intern('x-special/gnome-copied-files', false);
         let clipboard = Gtk.Clipboard.get(atom);
         this._isCut = false;
         this._clipboardFiles = null;
-        let text = null;
         /*
             * Before Gnome Shell 40, St API couldn't access binary data in the clipboard, only text data. Also, the
             * original Desktop Icons was a pure extension, so it was limited to what Clutter and St offered. That was
@@ -734,16 +740,33 @@ var DesktopManager = class {
             * To maintain compatibility, we first check if there's binary data in that atom, and if not, we check if
             * there is text data in the old format.
             */
-        if (clipboard.wait_is_target_available(atom2)) {
-            let data = clipboard.wait_for_contents(atom2);
-            text = `x-special/nautilus-clipboard\n${ByteArray.toString(data.get_data())}\n`;
-        } else {
-            text = clipboard.wait_for_text();
-            if (text && !text.endsWith('\n')) {
-                text += '\n';
+        /*
+         * Read the clipboard asynchronously. The previous synchronous calls
+         * (wait_is_target_available / wait_for_contents / wait_for_text) run
+         * a nested event loop and block the whole UI until the Wayland
+         * selection round-trip finishes. Over RDP that round-trip goes
+         * through the remote clipboard channel and can take seconds (or get
+         * cancelled, logging "error reading selection buffer"), which made
+         * the desktop context menu take ages to appear.
+         */
+        clipboard.request_contents(atom2, (clip, data) => {
+            let contents = (data && data.get_data()) || null;
+            if (contents && contents.length) {
+                this._setClipboardContent(
+                    `x-special/nautilus-clipboard\n${ByteArray.toString(contents)}\n`,
+                );
+                callback?.();
+                return;
             }
-        }
-        this._setClipboardContent(text);
+            // no binary nautilus data on the clipboard: fall back to text
+            clip.request_text((clip2, text) => {
+                if (text && !text.endsWith('\n')) {
+                    text += '\n';
+                }
+                this._setClipboardContent(text);
+                callback?.();
+            });
+        });
     }
 
     _setClipboardContent(text) {
@@ -971,8 +994,8 @@ var DesktopManager = class {
             this.doCut();
             return true;
         } else if (isCtrl && ((symbol == Gdk.KEY_V) || (symbol == Gdk.KEY_v))) {
-            this._updateClipBoard();
-            this._doPaste();
+            // the clipboard read is asynchronous now: paste once it completes
+            this._updateClipBoard(() => this._doPaste());
             return true;
         } else if (isAlt && (symbol == Gdk.KEY_Return)) {
             let currentSelection = this.getCurrentSelection(true);
@@ -1027,8 +1050,11 @@ var DesktopManager = class {
             if (selection) {
                 this.fileItemMenu.showMenu(selection[0], event, true);
             } else {
-                this._prepareMenu();
                 this._menu.popup_at_pointer(event);
+                GLib.idle_add(GLib.PRIORITY_DEFAULT_IDLE, () => {
+                    this._prepareMenu();
+                    return GLib.SOURCE_REMOVE;
+                });
             }
             return true;
         } else if (isCtrl && (symbol == Gdk.KEY_plus)) {
