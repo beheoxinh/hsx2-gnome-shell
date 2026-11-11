@@ -783,19 +783,14 @@ export const AlbumArt = GObject.registerClass(
       const sz = _artSize(this._settings);
       const br = Math.round(sz * 0.047);
       const halfSz = Math.round(sz / 2);
-      const ph = "url('resource:///org/gnome/shell/theme/process-working.svg')";
 
       this._normalCoverImage.style = `
         width: ${sz}px; height: ${sz}px; border-radius: ${br}px;
-        background-size: contain; background-position: center;
-        background-repeat: no-repeat;
-        background-image: ${ph}; opacity: 0.3;
+        background-color: rgba(255, 255, 255, 0.08);
       `;
       this._vinylCoverImage.style = `
         width: ${sz}px; height: ${sz}px; border-radius: ${halfSz}px;
-        background-size: 100px; background-position: center;
-        background-repeat: no-repeat;
-        background-image: ${ph}; opacity: 0.3;
+        background-color: rgba(255, 255, 255, 0.08);
       `;
     }
 

@@ -1,6 +1,15 @@
+// Imported first on purpose: lib/guard.js patches GObject.registerClass as a
+// side effect of being evaluated, and ESM evaluates imports in source order, so
+// this guarantees every GObject class in the tree is registered through the
+// patched function.
+import {guardClass} from './lib/guard.js';
+
 import Gio from 'gi://Gio';
+import GLib from 'gi://GLib';
 import St from 'gi://St';
 import {Extension} from 'resource:///org/gnome/shell/extensions/extension.js';
+
+import * as Main from 'resource:///org/gnome/shell/ui/main.js';
 
 import TopbarExtension from './modules/alienware-topbar@hsx2coder/extension.js';
 import DashToPanelExtension from './modules/alienware-dash-to-panel@hsx2coder/extension.js';
@@ -25,6 +34,12 @@ export default class AlienwareSuiteExtension extends Extension {
         this._suiteSettings = null;
         this._loaded = new Map();
         this._signalIds = [];
+        this._deferredEnableId = 0;
+        this._sessionWaitShieldId = 0;
+        this._sessionWaitModeId = 0;
+        this._sessionWaitPollId = 0;
+        this._togglesWatched = false;
+        this._validEnableKeys = null;
     }
 
     enable() {
@@ -47,22 +62,131 @@ export default class AlienwareSuiteExtension extends Extension {
         }
 
         const validKeys = this._suiteSettings.settings_schema.list_keys();
+        this._validEnableKeys = new Set(validKeys);
+
+        // The shell enables an extension as soon as its session mode matches.
+        // During a lock/unlock the mode can flip back and forth, so building
+        // every module (topbar clones, desktop icons, dash) inside that window
+        // puts actors on a stage Mutter is rebuilding -- the teardown of those
+        // actors then deadlocks the shell main loop. Defer until 'user' is the
+        // settled mode instead of trusting the enable() timing.
+        if (!this._isSessionSettled()) {
+            log('[alienware-suite] session not settled, deferring module enable');
+            this._waitForSettledSession();
+            return;
+        }
+
+        this._enableModules();
+    }
+
+    /**
+     * On unlock the shell enables extensions as soon as 'unlock-dialog' is
+     * popped, but ScreenShield only clears `locked` once its slide-out
+     * animation completes. That animation needs painted frames, so with the
+     * outputs in DPMS-off or an RDP session without a client it can take
+     * arbitrarily long. A fixed retry budget gave up and left the session
+     * with no panel/dock/desktop until the next lock, so wait on the actual
+     * signals instead, with a cheap periodic check as a safety net.
+     */
+    _waitForSettledSession() {
+        this._stopWaitingForSession();
+
+        const tryEnable = () => {
+            if (!this._suiteSettings || !this._isSessionSettled())
+                return false;
+            this._stopWaitingForSession();
+            // Let the shell finish the emission that settled the session
+            // before actors are added to the stage.
+            this._deferredEnableId = GLib.idle_add(GLib.PRIORITY_DEFAULT_IDLE, () => {
+                this._deferredEnableId = 0;
+                if (this._suiteSettings && this._isSessionSettled())
+                    this._enableModules();
+                else if (this._suiteSettings)
+                    this._waitForSettledSession();
+                return GLib.SOURCE_REMOVE;
+            });
+            return true;
+        };
+
+        if (Main.screenShield) {
+            this._sessionWaitShieldId = Main.screenShield.connect(
+                'locked-changed', () => tryEnable());
+        }
+        this._sessionWaitModeId = Main.sessionMode.connect(
+            'updated', () => tryEnable());
+        this._sessionWaitPollId = GLib.timeout_add(GLib.PRIORITY_DEFAULT, 500, () => {
+            if (!this._suiteSettings || !this._isSessionSettled())
+                return GLib.SOURCE_CONTINUE;
+            // returning REMOVE below drops this source; don't remove it twice
+            this._sessionWaitPollId = 0;
+            tryEnable();
+            return GLib.SOURCE_REMOVE;
+        });
+    }
+
+    _stopWaitingForSession() {
+        if (this._sessionWaitShieldId) {
+            Main.screenShield?.disconnect(this._sessionWaitShieldId);
+            this._sessionWaitShieldId = 0;
+        }
+        if (this._sessionWaitModeId) {
+            Main.sessionMode.disconnect(this._sessionWaitModeId);
+            this._sessionWaitModeId = 0;
+        }
+        if (this._sessionWaitPollId) {
+            GLib.source_remove(this._sessionWaitPollId);
+            this._sessionWaitPollId = 0;
+        }
+    }
+
+    /** True when the shell is in the settled interactive session. */
+    _isSessionSettled() {
+        const mode = Main.sessionMode?.currentMode;
+        if (mode && mode !== 'user')
+            return false;
+        if (Main.sessionMode?.isLocked)
+            return false;
+        if (Main.screenShield?.locked)
+            return false;
+        return true;
+    }
+
+    _enableModules() {
+        const validKeys = this._validEnableKeys ?? new Set();
         for (const def of MODULES) {
-            if (!validKeys.includes(def.enableKey))
+            if (!validKeys.has(def.enableKey))
+                continue;
+
+            if (this._loaded.has(def.uuid))
                 continue;
 
             if (this._suiteSettings.get_boolean(def.enableKey))
                 this._enableModule(def);
+        }
 
-            const handlerId = this._suiteSettings.connect(
-                `changed::${def.enableKey}`,
-                () => this._reactToToggle(def),
-            );
-            this._signalIds.push(handlerId);
+        // Watch toggles once, regardless of which path enabled the modules.
+        if (!this._togglesWatched) {
+            this._togglesWatched = true;
+            for (const def of MODULES) {
+                if (!validKeys.has(def.enableKey))
+                    continue;
+                const handlerId = this._suiteSettings.connect(
+                    `changed::${def.enableKey}`,
+                    () => this._reactToToggle(def),
+                );
+                this._signalIds.push(handlerId);
+            }
         }
     }
 
     disable() {
+        this._stopWaitingForSession();
+        if (this._deferredEnableId) {
+            GLib.source_remove(this._deferredEnableId);
+            this._deferredEnableId = 0;
+        }
+        this._togglesWatched = false;
+        this._validEnableKeys = null;
         for (const id of this._signalIds)
             this._suiteSettings?.disconnect(id);
         this._signalIds = [];
@@ -220,3 +344,10 @@ export default class AlienwareSuiteExtension extends Extension {
         log(`[alienware-suite] disabled module ${def.uuid}`);
     }
 }
+
+// Wrap the suite itself and every module entry point. Extension subclasses are
+// plain classes, so they do not pass through GObject.registerClass; without
+// this their enable()/disable() bodies would escape the guard layer.
+for (const [uuid, Klass] of Object.entries(CLASS_REGISTRY))
+    guardClass(Klass, uuid);
+guardClass(AlienwareSuiteExtension, 'alienware-suite');

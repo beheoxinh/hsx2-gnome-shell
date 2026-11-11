@@ -236,5 +236,3 @@ class AppIndicatorCustomIconPage extends Adw.PreferencesPage {
             this.listStore.remove(item.get_position());
     }
 });
-
-

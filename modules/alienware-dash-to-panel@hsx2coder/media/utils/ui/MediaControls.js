@@ -128,6 +128,13 @@ export const MediaControls = GObject.registerClass(
       this._playerArtCache = new Map();
       this._isDestroyed = false;
 
+      // Cascade destroy: the shell can tear down the parent menu item without
+      // calling our destroy(). Flag first so late MPRIS callbacks bail out
+      // instead of writing into disposed slot actors.
+      this.connect("destroy", () => {
+        this._isDestroyed = true;
+      });
+
       this._titleScrollLabel = null;
       this._artistScrollLabel = null;
 
@@ -391,6 +398,10 @@ export const MediaControls = GObject.registerClass(
       status,
       textStyle,
     ) {
+      // Slots can be Clutter-disposed by a cascade destroy while our JS object
+      // still looks alive; touching them throws "has been already disposed".
+      if (!slot || slot.is_finalized?.() || this._isDestroyed) return existing ?? null;
+
       if (!enabled) {
         if (existing && existing._destroyed !== true) existing.destroy();
         typeof slot.destroy_all_children === "function" ? slot.destroy_all_children() : slot.remove_all_children();
@@ -458,6 +469,10 @@ export const MediaControls = GObject.registerClass(
     }
 
     _stopTitleLabel() {
+      if (this._isDestroyed || this._titleSlot?.is_finalized?.()) {
+        this._titleScrollLabel = null;
+        return;
+      }
       if (this._titleScrollLabel) {
         this._titleScrollLabel.destroy();
         this._titleScrollLabel = null;
@@ -466,6 +481,10 @@ export const MediaControls = GObject.registerClass(
     }
 
     _stopArtistLabel() {
+      if (this._isDestroyed || this._artistSlot?.is_finalized?.()) {
+        this._artistScrollLabel = null;
+        return;
+      }
       if (this._artistScrollLabel) {
         this._artistScrollLabel.destroy();
         this._artistScrollLabel = null;
@@ -475,6 +494,12 @@ export const MediaControls = GObject.registerClass(
 
     update(info, playerName, manager) {
       if (!info) return;
+      if (this._isDestroyed || this.is_finalized?.() || !this.get_stage()) return;
+      // The MPRIS proxies outlive this widget: MediaController.disable()
+      // destroys the indicator while MprisManager keeps delivering
+      // PropertiesChanged for one more idle. Every actor below is gone by
+      // then, so bail out instead of writing to disposed St nodes.
+      if (this._isDestroyed) return;
 
       const playerChanged = this._currentPlayerName !== playerName;
       this._currentPlayerName = playerName;

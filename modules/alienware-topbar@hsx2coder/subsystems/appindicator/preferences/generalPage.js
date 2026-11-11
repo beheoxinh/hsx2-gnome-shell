@@ -155,5 +155,3 @@ class AppIndicatorGeneralPage extends Adw.PreferencesPage {
         this.group.add(spin);
     }
 });
-
-

@@ -325,8 +325,19 @@ const Chart = class SystemMonitor_Chart {
         for (let i = 0; i < this.parentC.colors.length; i++) {
             this.data[i] = [];
         }
-        themeContext.connect('notify::scale-factor', this.rescale.bind(this));
+        // ThemeContext outlives every enable cycle: keep the id so destroy()
+        // can drop it, otherwise each lock/unlock adds a handler that later
+        // resizes a disposed DrawingArea.
+        this._themeContext = themeContext;
+        this._scaleFactorId = themeContext.connect('notify::scale-factor', this.rescale.bind(this));
         this.actor.connect('repaint', this._draw.bind(this));
+    }
+    destroy() {
+        this._disposed = true;
+        if (this._scaleFactorId) {
+            this._themeContext.disconnect(this._scaleFactorId);
+            this._scaleFactorId = 0;
+        }
     }
     update() {
         // Shell teardown destroys the actors from C while our timers may still be
@@ -573,12 +584,15 @@ const Graph = class SystemMonitor_Graph {
         }
 
         let themeContext = St.ThemeContext.get_for_stage(global.stage);
-        themeContext.connect('notify::scale-factor', this.set_scale.bind(this));
+        this._themeContext = themeContext;
+        this._scaleFactorId = themeContext.connect('notify::scale-factor', this.set_scale.bind(this));
         this.scale_factor = themeContext.scale_factor;
         let interfaceSettings = new Gio.Settings({
             schema: 'org.gnome.desktop.interface'
         });
-        interfaceSettings.connect('changed', this.set_text_scaling.bind(this));
+        this._interfaceSettings = interfaceSettings;
+        this._textScalingId = interfaceSettings.connect('changed::text-scaling-factor',
+            this.set_text_scaling.bind(this));
         this.text_scaling = interfaceSettings.get_double('text-scaling-factor');
         if (!this.text_scaling) {
             this.text_scaling = 1;
@@ -587,6 +601,17 @@ const Graph = class SystemMonitor_Graph {
         this.actor.set_width(this.width * this.scale_factor * this.text_scaling);
         this.actor.set_height(this.height * this.scale_factor * this.text_scaling);
         this.actor.connect('repaint', this._draw.bind(this));
+    }
+    _releaseGraphSignals() {
+        if (this._scaleFactorId) {
+            this._themeContext.disconnect(this._scaleFactorId);
+            this._scaleFactorId = 0;
+        }
+        if (this._textScalingId) {
+            this._interfaceSettings.disconnect(this._textScalingId);
+            this._textScalingId = 0;
+        }
+        this._interfaceSettings = null;
     }
     create_menu_item() {
         this.menu_item = new PopupMenu.PopupBaseMenuItem({ reactive: false });
@@ -719,6 +744,7 @@ const Bar = class SystemMonitor_Bar extends Graph {
             GLib.Source.remove(this._refresh_timeout);
             this._refresh_timeout = null;
         }
+        this._releaseGraphSignals();
     }
 }
 
@@ -882,6 +908,7 @@ const Pie = class SystemMonitor_Pie extends Graph {
             GLib.Source.remove(this._refresh_timeout);
             this._refresh_timeout = null;
         }
+        this._releaseGraphSignals();
     }
 }
 
@@ -1379,6 +1406,9 @@ const ElementBase = class SystemMonitor_ElementBase extends TipBox {
         this.chart.resize(width);
     }
     destroy() {
+        try {
+            this.chart?.destroy?.();
+        } catch (_) {}
         TipBox.prototype.destroy.call(this);
         if (this.timeout) {
             GLib.Source.remove(this.timeout);
@@ -2202,8 +2232,51 @@ const Net = class SystemMonitor_Net extends ElementBase {
         });
         this.speed_in_bits = false;
         this.ifs = [];
-        this.client = NM.Client.new(null);
-        this.update_iface_list();
+        this.client = null;
+        this.NMsigID = [];
+        this._nmDevices = [];
+        this._nmCancellable = new Gio.Cancellable();
+        // NM.Client.new() blocks the shell main loop on a D-Bus round trip to
+        // NetworkManager -- seconds on unlock if NM is busy re-scanning.
+        // Load it async; the /proc fallback below covers the gap.
+        try {
+            NM.Client.new_async(this._nmCancellable, (_src, res) => {
+                let client;
+                try {
+                    client = NM.Client.new_finish(res);
+                } catch (e) {
+                    if (!e.matches?.(Gio.IOErrorEnum, Gio.IOErrorEnum.CANCELLED))
+                        console.error('system-monitor: NM client unavailable: ' + e);
+                    return;
+                }
+                if (this._nmCancellable === null)
+                    return;
+                this.client = client;
+                try {
+                    for (const dev of client.get_devices())
+                        this._watchNmDevice(dev);
+                    // hot-plugged devices (USB tether, VPN, dock NIC) were
+                    // never picked up before
+                    this._nmClientIds = [
+                        client.connect('device-added', (_c, dev) => {
+                            this._watchNmDevice(dev);
+                            this.update_iface_list();
+                        }),
+                        client.connect('device-removed', (_c, dev) => {
+                            this._unwatchNmDevice(dev);
+                            this.update_iface_list();
+                        }),
+                    ];
+                } catch (e) {
+                    console.error('Please install Network Manager Gobject Introspection Bindings: ' + e);
+                }
+                // keep the /proc list if NM reports nothing active yet, as
+                // the old synchronous path did
+                this.update_iface_list(true);
+            });
+        } catch (e) {
+            console.error('system-monitor: NM client unavailable: ' + e);
+        }
 
         if (!this.ifs.length) {
             let net_lines = Shell.get_file_contents_utf8_sync('/proc/net/dev').split('\n');
@@ -2224,28 +2297,59 @@ const Net = class SystemMonitor_Net extends ElementBase {
         this.tip_format([_('KiB/s'), '/s', _('KiB/s'), '/s', '/s']);
         this.update_units();
         this.extension._Schema.connect('changed::' + this.elt + '-speed-in-bits', this.update_units.bind(this));
-        try {
-            let iface_list = this.client.get_devices();
-            this.NMsigID = [];
-            for (let j = 0; j < iface_list.length; j++) {
-                this.NMsigID[j] = iface_list[j].connect('state-changed', this.update_iface_list.bind(this));
-            }
-        } catch (e) {
-            console.error('Please install Network Manager Gobject Introspection Bindings: ' + e);
-        }
         this.update();
+    }
+    _watchNmDevice(dev) {
+        if (this._nmDevices.includes(dev))
+            return;
+        this._nmDevices.push(dev);
+        this.NMsigID.push(dev.connect('state-changed', () => this.update_iface_list()));
+    }
+    _unwatchNmDevice(dev) {
+        const i = this._nmDevices.indexOf(dev);
+        if (i < 0)
+            return;
+        try {
+            dev.disconnect(this.NMsigID[i]);
+        } catch (_) {}
+        this._nmDevices.splice(i, 1);
+        this.NMsigID.splice(i, 1);
+    }
+    destroy() {
+        this._nmCancellable?.cancel();
+        this._nmCancellable = null;
+        if (this.client && this._nmClientIds) {
+            for (const id of this._nmClientIds) {
+                try {
+                    this.client.disconnect(id);
+                } catch (_) {}
+            }
+        }
+        this._nmClientIds = null;
+        for (const dev of [...this._nmDevices])
+            this._unwatchNmDevice(dev);
+        this.client = null;
+        super.destroy();
     }
     update_units() {
         this.speed_in_bits = this.extension._Schema.get_boolean(this.elt + '-speed-in-bits');
     }
-    update_iface_list() {
+    update_iface_list(keepIfEmpty = false) {
+        if (!this.client)
+            return;
         try {
-            this.ifs = [];
-            let iface_list = this.client.get_devices();
-            for (let j = 0; j < iface_list.length; j++) {
-                if (iface_list[j].state === NetworkManager.DeviceState.ACTIVATED) {
-                    this.ifs.push(iface_list[j].get_ip_iface() || iface_list[j].get_iface());
-                }
+            const ifs = [];
+            for (const dev of this.client.get_devices()) {
+                if (dev.state === NetworkManager.DeviceState.ACTIVATED)
+                    ifs.push(dev.get_ip_iface() || dev.get_iface());
+            }
+            if (keepIfEmpty && !ifs.length)
+                return;
+            if (ifs.join('|') !== this.ifs.join('|')) {
+                this.ifs = ifs;
+                // the byte counters of a different interface set are not
+                // comparable with the previous sample
+                this._rebaseline = true;
             }
         } catch (e) {
             console.error('Please install Network Manager Gobject Introspection Bindings');
@@ -2264,6 +2368,14 @@ const Net = class SystemMonitor_Net extends ElementBase {
         }
 
         let time = GLib.get_monotonic_time() * 0.001024;
+        if (this._rebaseline) {
+            // keep showing the previous values for this one tick instead of
+            // a bogus spike (or negative rate) that would rescale the graph
+            this._rebaseline = false;
+            this.last = accum;
+            this.last_time = time;
+            return;
+        }
         let delta = time - this.last_time;
         if (delta > 0) {
             for (let i = 0; i < 5; i++) {
@@ -2891,23 +3003,61 @@ const Gpu = class SystemMonitor_Gpu extends ElementBase {
             this._unitConversion *= 1024 / this._decimals;
         }
     }
+    destroy() {
+        this._gpuDestroyed = true;
+        this._gpuCancellable?.cancel();
+        this._gpuCancellable = null;
+        super.destroy();
+    }
     refresh() {
-        // Run asynchronously, to avoid shell freeze
+        // Run asynchronously, to avoid shell freeze. nvidia-smi can take
+        // longer than the refresh interval (driver wake-up, GPU in D3), so
+        // never stack a second process on top of a running one.
+        if (this._gpuDestroyed)
+            return;
+        if (this._gpuInFlight) {
+            // A wedged nvidia-smi (driver hang) would otherwise freeze the
+            // GPU readout forever; kill it so the next tick starts fresh.
+            if (GLib.get_monotonic_time() - this._gpuStartedAt > 15 * 1000000) {
+                try {
+                    this._gpuProc?.force_exit();
+                } catch (_) {}
+            }
+            return;
+        }
         try {
+            this._gpuCancellable ??= new Gio.Cancellable();
             let path = this.extension.dir ? this.extension.dir.get_child('subsystems').get_child('system-monitor').get_path() : (this.extension.path + '/subsystems/system-monitor');
             let script = ['/usr/bin/env', 'bash', path + '/gpu_usage.sh'];
 
             // Create subprocess and capture STDOUT
             let proc = new Gio.Subprocess({ argv: script, flags: Gio.SubprocessFlags.STDOUT_PIPE });
             proc.init(null);
+            this._gpuInFlight = true;
+            this._gpuProc = proc;
+            this._gpuStartedAt = GLib.get_monotonic_time();
             // Asynchronously call the output handler when script output is ready
-            proc.communicate_utf8_async(null, null, this._handleOutput.bind(this));
+            proc.communicate_utf8_async(null, this._gpuCancellable, this._handleOutput.bind(this));
         } catch (err) {
+            this._gpuInFlight = false;
             console.error(err.message);
         }
     }
     _handleOutput(proc, result) {
-        let [ok, output,] = proc.communicate_utf8_finish(result);
+        this._gpuInFlight = false;
+        this._gpuProc = null;
+        let ok, output;
+        try {
+            [ok, output] = proc.communicate_utf8_finish(result);
+        } catch (e) {
+            if (e.matches?.(Gio.IOErrorEnum, Gio.IOErrorEnum.CANCELLED))
+                proc.force_exit();
+            else if (!this._gpuDestroyed)
+                console.error('gpu_usage.sh invocation failed: ' + e.message);
+            return;
+        }
+        if (this._gpuDestroyed)
+            return;
         if (ok) {
             this._readTemperature(output);
         } else {
@@ -3118,6 +3268,21 @@ export default class SystemMonitorExtension extends Extension {
         this._IconSize = Math.round(PANEL_ICON_SIZE * 4 / 5);
 
         this._Schema = this.getSettings();
+        // Every element connects ~15 'changed::' handlers on this Settings
+        // object and none of them kept the id. Record them centrally so
+        // disable() can drop them all; otherwise each lock/unlock (and each
+        // restartApplet) left a full set firing into destroyed actors.
+        this._schemaSignalIds = [];
+        {
+            const schema = this._Schema;
+            const ids = this._schemaSignalIds;
+            const connect = schema.connect.bind(schema);
+            schema.connect = (...args) => {
+                const id = connect(...args);
+                ids.push(id);
+                return id;
+            };
+        }
 
         this._Style = new smStyleManager(this);
         try {
@@ -3291,7 +3456,15 @@ export default class SystemMonitorExtension extends Extension {
             GLib.Source.remove(this.menuTimeout);
             this.menuTimeout = null;
         }
-        // }
+
+        if (this._Schema && this._schemaSignalIds) {
+            for (const id of this._schemaSignalIds) {
+                try {
+                    this._Schema.disconnect(id);
+                } catch (_) {}
+            }
+            this._schemaSignalIds = [];
+        }
 
         if (this._MountsMonitor) {
             this._MountsMonitor.disconnect();

@@ -135,7 +135,9 @@ export class DesktopIconsUsableAreaClass {
    */
   destroy() {
     if (this._emID) {
-      this._extensionManager.disconnect(this._emID)
+      try {
+        this._extensionManager?.disconnect(this._emID)
+      } catch (_e) {}
       this._emID = 0
     }
     if (this._timedMarginsID) {

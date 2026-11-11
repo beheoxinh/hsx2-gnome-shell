@@ -61,10 +61,19 @@ export default class DashToPanelExtension extends Extension {
     this._realHasOverview = Main.sessionMode.hasOverview
 
     //create an object that persists until gnome-shell is restarted, even if the extension is disabled
-    PERSISTENTSTORAGE = {}
+    // The suite constructs a new instance on every enable (each unlock), so
+    // resetting the pool here dropped the panel menus parked by
+    // Panel._removePanelMenu without destroying them: one QuickSettings +
+    // DateMenu set leaked per monitor per lock cycle. Keep the pool for the
+    // whole shell session so parked menus are actually reused.
+    PERSISTENTSTORAGE ??= {}
+    this._enabled = false
+    this._enableGeneration = 0
   }
 
   async enable() {
+    this._enabled = true
+    const generation = ++this._enableGeneration
     DTP_EXTENSION = this
     // load settings manually so schema source is correct
     const GioSSS = Gio.SettingsSchemaSource
@@ -100,7 +109,18 @@ export default class DashToPanelExtension extends Extension {
     // reset to be safe
     SETTINGS.set_boolean('prefs-opened', false)
 
-    await PanelSettings.init(SETTINGS)
+    try {
+      await PanelSettings.init(SETTINGS)
+    } catch (e) {
+      // A failed DisplayConfig query must not leave the module without
+      // panels: continue with whatever monitor info is cached.
+      logError(e, '[dash-to-panel] monitor info unavailable, using cached state')
+    }
+
+    // The suite does not await enable(). If disable() ran while we were
+    // waiting on Mutter (lock right after unlock), building panels now
+    // would put them on the lock screen with nothing left to remove them.
+    if (!this._enabled || generation !== this._enableGeneration) return
 
     // To remove later, try to map settings using monitor indexes to monitor ids
     PanelSettings.adjustMonitorSettings(SETTINGS)
@@ -193,11 +213,28 @@ export default class DashToPanelExtension extends Extension {
   }
 
   disable() {
+    this._enabled = false
     SETTINGS?.disconnectObject(this)
-    if (ubuntuDockDelayId) GLib.Source.remove(ubuntuDockDelayId)
+    if (ubuntuDockDelayId) {
+      GLib.Source.remove(ubuntuDockDelayId)
+      ubuntuDockDelayId = 0
+    }
 
-    PanelSettings.disable(SETTINGS)
-    panelManager.disable()
+    // Tear the media controller down FIRST. panelManager.disable() destroys
+    // the panel and disposes the indicator actor behind its back; running
+    // controller.disable() afterwards touches that disposed actor
+    // (_removeFromDTP -> get_parent throws) and aborts before
+    // indicator.destroy() runs, leaving a live MPRIS manager firing into a
+    // dead GObject forever ("has been already disposed" storm).
+    if (this._mediaController) {
+      this._mediaController.disable()
+      this._mediaController = null
+    }
+
+    if (SETTINGS) PanelSettings.disable(SETTINGS)
+    // panelManager is still null when disable() lands while enable() is
+    // awaiting monitor info; the rest of the teardown must still run.
+    panelManager?.disable()
     PanelSettings.clearCache()
 
     DTP_EXTENSION = null
@@ -217,10 +254,6 @@ export default class DashToPanelExtension extends Extension {
       startupCompleteHandler = null
     }
 
-    if (this._mediaController) {
-      this._mediaController.disable()
-      this._mediaController = null
-    }
     Main.sessionMode.hasOverview = this._realHasOverview
 
     this._jpHandler?.stop()

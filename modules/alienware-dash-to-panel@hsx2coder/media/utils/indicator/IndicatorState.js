@@ -42,6 +42,7 @@ export class IndicatorState {
     this._maxErrors = 10;
     this._lastErrorTime = 0;
     this._preventLogout = false;
+    this._isDestroyed = false;
   }
 
   get autoSwitchBlocked() {
@@ -81,7 +82,12 @@ export class IndicatorState {
   }
 
   safeExecute(fn) {
-    if (this._sessionChanging || this._safetyLock || this._preventLogout)
+    if (
+      this._isDestroyed ||
+      this._sessionChanging ||
+      this._safetyLock ||
+      this._preventLogout
+    )
       return;
 
     const now = Date.now();
@@ -122,7 +128,11 @@ export class IndicatorState {
   scheduleOperation(fn, delay = 0) {
     const id = GLib.timeout_add(GLib.PRIORITY_DEFAULT_IDLE, delay, () => {
       this._pendingOperations.delete(id);
-      if (!this._sessionChanging && !this._preventLogout) {
+      if (
+        !this._isDestroyed &&
+        !this._sessionChanging &&
+        !this._preventLogout
+      ) {
         this.safeExecute(fn);
       }
       return GLib.SOURCE_REMOVE;
@@ -133,6 +143,13 @@ export class IndicatorState {
   }
 
   destroy() {
+    // Set before touching anything: a pending MPRIS PropertiesChanged
+    // callback can land on the next idle and every actor below is about to
+    // go away. Without this flag updateVisibility() keeps calling
+    // _indicator.show() on a disposed PopupBaseMenuItem.
+    this._isDestroyed = true;
+    this._sessionChanging = true;
+
     if (this._errorRecoveryTimeout) {
       GLib.source_remove(this._errorRecoveryTimeout);
       this._errorRecoveryTimeout = null;

@@ -10,6 +10,21 @@ import { IndicatorState } from "./indicator/IndicatorState.js";
 import { IndicatorEventHandlers } from "./indicator/IndicatorEventHandlers.js";
 import { IndicatorPlayerHandlers } from "./indicator/IndicatorPlayerHandlers.js";
 import { IndicatorUIUpdater } from "./indicator/IndicatorUIUpdater.js";
+import { guardClass } from "../../../../lib/guard.js";
+
+// Plain helper classes never pass through GObject.registerClass, so they get
+// the same error boundary explicitly. MediaIndicator itself is a GObject class
+// and is wrapped automatically by the registerClass patch.
+for (const [Klass, tag] of [
+  [MprisManager, "MprisManager"],
+  [MediaControls, "MediaControls"],
+  [PanelUI, "PanelUI"],
+  [IndicatorState, "IndicatorState"],
+  [IndicatorEventHandlers, "IndicatorEventHandlers"],
+  [IndicatorPlayerHandlers, "IndicatorPlayerHandlers"],
+  [IndicatorUIUpdater, "IndicatorUIUpdater"],
+])
+  guardClass(Klass, tag);
 
 export const MediaIndicator = GObject.registerClass(
   class MediaIndicator extends PanelMenu.Button {
@@ -23,6 +38,39 @@ export const MediaIndicator = GObject.registerClass(
       this._settings = settings;
       this._extension = extension;
       this._state = new IndicatorState();
+
+      // Safety net: if the actor is destroyed by its parent instead of through
+      // our destroy(), still mark the state dead so MPRIS callbacks stop
+      // touching it. Without this the manager keeps calling into a finalized
+      // GObject and floods the journal with "has been already disposed".
+      // A cascade destroy (panelBox.destroy() on a panel reset with a
+      // standalone panel) never calls our JS destroy() override, so the
+      // MPRIS manager -- DBus subscriptions plus a 1 s position poll -- must
+      // be released here too, or one manager leaks per panel reset.
+      this.connect('destroy', () => {
+        try {
+          this._state._isDestroyed = true;
+          this._state._sessionChanging = true;
+          this._state._safetyLock = true;
+        } catch (_e) {}
+        try {
+          this._manager?.destroy();
+        } catch (_e) {}
+        this._manager = null;
+        if (this._state?._settingsChangedId && this._settings) {
+          try {
+            this._settings.disconnect(this._state._settingsChangedId);
+          } catch (_e) {}
+          this._state._settingsChangedId = 0;
+        }
+        for (const key of ['_applyHideSourceId', '_initSourceId',
+          '_reinitSourceId', '_reinitDelaySourceId']) {
+          if (this[key]) {
+            GLib.Source.remove(this[key]);
+            this[key] = null;
+          }
+        }
+      });
 
       this._panelUI = new PanelUI(this);
       this._controls = new MediaControls(settings);
@@ -193,35 +241,48 @@ export const MediaIndicator = GObject.registerClass(
     }
 
     async _initManager() {
-      try {
-        this._manager = new MprisManager();
-        this._manager.setSettings(this._settings);
+      if (this._state._isDestroyed) return;
 
-        await this._manager.init({
-          added: (name) =>
-            this._state.safeExecute(() =>
-              this._playerHandlers.onPlayerAdded(name),
-            ),
-          removed: (name) =>
-            this._state.safeExecute(() =>
-              this._playerHandlers.onPlayerRemoved(name),
-            ),
-          changed: (name) =>
-            this._state.safeExecute(() =>
-              this._playerHandlers.onPlayerChanged(name),
-            ),
-          seeked: (name, position) =>
-            this._state.safeExecute(() =>
-              this._playerHandlers.onSeeked(name, position),
-            ),
+      try {
+        const manager = new MprisManager();
+        this._manager = manager;
+        manager.setSettings(this._settings);
+
+        // Capture plain JS references, NOT `this`. These closures outlive the
+        // indicator: a disposed GObject throws on ANY property access, so
+        // `this._state` inside a callback would throw before safeExecute's own
+        // guard could run. `state`/`handlers` are ordinary JS objects and stay
+        // readable after the indicator is disposed.
+        const state = this._state;
+        const handlers = this._playerHandlers;
+        const guarded = (fn) => (name, position) => {
+          if (state._isDestroyed) return;
+          state.safeExecute(() => fn(name, position));
+        };
+
+        await manager.init({
+          added: guarded((name) => handlers.onPlayerAdded(name)),
+          removed: guarded((name) => handlers.onPlayerRemoved(name)),
+          changed: guarded((name) => handlers.onPlayerChanged(name)),
+          seeked: guarded((name, position) => handlers.onSeeked(name, position)),
         });
+
+        // destroy() can run while init() is still awaited (lock/unlock tears the
+        // module down). Without this check the freshly created manager would be
+        // assigned onto a dead indicator and kept alive by its DBus subscriptions,
+        // which fires player callbacks into disposed actors forever.
+        if (this._state._isDestroyed || this._manager !== manager) {
+          manager.destroy();
+          if (this._manager === manager) this._manager = null;
+          return;
+        }
 
         this._state._managerInitialized = true;
 
-        const players = this._manager.getPlayers();
+        const players = manager.getPlayers();
         if (players.length > 0) {
           for (const name of players) {
-            const info = this._manager.getPlayerInfo(name);
+            const info = manager.getPlayerInfo(name);
             if (info && info.status === "Playing") {
               this._state._currentPlayer = name;
               break;
@@ -238,12 +299,49 @@ export const MediaIndicator = GObject.registerClass(
 
         this._state._isInitializing = false;
       } catch (e) {
+        // A failed manager init leaves the media widget blank; without a log
+        // that state is indistinguishable from "no players running".
+        console.warn('[dash-to-panel] _initManager failed: ' +
+          ((e && e.message) ? e.message : e));
         this._state._isInitializing = false;
         this._state._managerInitialized = false;
       }
     }
 
     destroy() {
+      // Re-entrant guards: destroy() is called both by MediaController.disable()
+      // and by MediaController's own 'destroy' signal handler.
+      if (this._destroyedOnce) return;
+      this._destroyedOnce = true;
+
+      // Set every death flag BEFORE touching any widget: an MPRIS
+      // PropertiesChanged callback can land on this same main-loop iteration,
+      // between controls.destroy() and state.destroy(). If _isDestroyed is
+      // not already true at that point, safeExecute() lets the callback
+      // through and it writes to actors that are already disposed.
+      if (this._state) {
+        this._state._isDestroyed = true;
+        this._state._sessionChanging = true;
+        this._state._safetyLock = true;
+        this._state._preventLogout = true;
+      }
+      if (this._controls) this._controls._isDestroyed = true;
+      if (this._panelUI) this._panelUI._isDestroyed = true;
+      if (this._uiUpdater) this._uiUpdater._isDestroyed = true;
+
+      // Kill the MPRIS manager FIRST. It owns the DBus subscriptions; if any
+      // later teardown step throws on an already-disposed actor, the callbacks
+      // would otherwise keep firing into dead widgets forever. That abort --
+      // controls.destroy() throwing on a Clutter-disposed child -- is exactly
+      // what leaked the manager and produced tens of thousands of
+      // "has been already disposed" errors after a lock/unlock cycle.
+      try {
+        this._manager?.destroy();
+      } catch (e) {
+        console.warn('[dash-to-panel] destroy manager: ' + ((e && e.message) ? e.message : e));
+      }
+      this._manager = null;
+
       try {
         this._setDefaultPlayerVisible(true);
       } catch (_e) {console.warn('[dash-to-panel] destroy: ' + ((_e && _e.message) ? _e.message : _e)) }
@@ -277,41 +375,36 @@ export const MediaIndicator = GObject.registerClass(
         this._menuStateChangedId = null;
       }
 
-      if (this._state._settingsChangedId) {
-        this._settings.disconnect(this._state._settingsChangedId);
+      if (this._state._settingsChangedId && this._settings) {
+        try {
+          this._settings.disconnect(this._state._settingsChangedId);
+        } catch (e) {
+          console.warn('[dash-to-panel] disconnect settings failed: ' +
+            ((e && e.message) ? e.message : e));
+        }
         this._state._settingsChangedId = 0;
       }
 
-      if (this._eventHandlers) {
-        this._eventHandlers.destroy();
-        this._eventHandlers = null;
+      // Each step is isolated: an already-disposed actor throws, and an
+      // unguarded throw here would skip every step after it -- including
+      // super.destroy(), which leaves the indicator's own actors alive.
+      const steps = [
+        () => { if (this._eventHandlers) { this._eventHandlers.destroy(); this._eventHandlers = null; } },
+        () => { if (this._playerHandlers) { this._playerHandlers.destroy(); this._playerHandlers = null; } },
+        () => { if (this._controls) { this._controls.destroy(); this._controls = null; } },
+        () => { if (this._panelUI) { this._panelUI.destroy(); this._panelUI = null; } },
+        () => { if (this._state) { this._state.destroy(); } },
+        () => { if (this._manager) { this._manager.destroy(); this._manager = null; } },
+        () => super.destroy(),
+      ];
+      for (const step of steps) {
+        try {
+          step();
+        } catch (e) {
+          console.warn('[dash-to-panel] indicator teardown step failed: ' +
+            ((e && e.message) ? e.message : e));
+        }
       }
-
-      if (this._playerHandlers) {
-        this._playerHandlers.destroy();
-        this._playerHandlers = null;
-      }
-
-      if (this._controls) {
-        this._controls.destroy();
-        this._controls = null;
-      }
-
-      if (this._panelUI) {
-        this._panelUI.destroy();
-        this._panelUI = null;
-      }
-
-      if (this._state) {
-        this._state.destroy();
-      }
-
-      if (this._manager) {
-        this._manager.destroy();
-        this._manager = null;
-      }
-
-      super.destroy();
     }
   },
 );

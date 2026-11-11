@@ -24,6 +24,7 @@ export class TopbarCloneSubsystem {
         this._workareasChangedId = 0;
         this._rebuildIdleId = 0;
         this._syncGeometryIdle = 0;
+        this._sessionModeId = 0;
     }
 
     enable() {
@@ -43,11 +44,11 @@ export class TopbarCloneSubsystem {
                 () => this._syncGeometry());
             if (Main.screenShield) {
                 Main.screenShield.connectObject('locked-changed', () => {
-                    if (Main.screenShield.locked) {
-                        this._teardown();
-                    } else {
+                    // Do not destroy chrome from the lock animation callback.
+                    // GNOME will disable this user-session extension through
+                    // SessionMode; destroying here races Mutter's stage rebuild.
+                    if (!Main.screenShield.locked)
                         this._scheduleRebuild();
-                    }
                 }, this);
             }
             this._settingsChangedIds.push(
@@ -56,6 +57,18 @@ export class TopbarCloneSubsystem {
                 this._settings.connect('changed::clone-show-tray',
                     () => this._scheduleRebuild()),
             );
+        }
+
+        // The clone may be skipped while the session mode is not 'user'
+        // (lock screen, unlock animation). Rebuild as soon as the session is
+        // settled again, otherwise the second monitor stays without a topbar.
+        if (!this._sessionModeId) {
+            this._sessionModeId = Main.sessionMode.connect('updated', () => {
+                if (!Main.sessionMode.isLocked &&
+                    Main.sessionMode.currentMode === 'user' &&
+                    !Main.screenShield?.locked)
+                    this._scheduleRebuild();
+            });
         }
 
         this._syncEnabledState();
@@ -97,6 +110,10 @@ export class TopbarCloneSubsystem {
             global.display.disconnect(this._workareasChangedId);
             this._workareasChangedId = 0;
         }
+        if (this._sessionModeId) {
+            Main.sessionMode.disconnect(this._sessionModeId);
+            this._sessionModeId = 0;
+        }
         if (Main.screenShield) {
             Main.screenShield.disconnectObject(this);
         }
@@ -116,7 +133,17 @@ export class TopbarCloneSubsystem {
         // on top of them leaks a clone panel per toggle
         this._teardown();
 
+        // Never build while the session is locked or the shell is in a
+        // transition. The lock screen animates the stage away and back; adding
+        // chrome in that window makes Mutter rebuild stage views while the
+        // actors have no allocation, and the next teardown of those actors
+        // deadlocks the shell main loop.
         if (Main.screenShield?.locked)
+            return;
+        if (Main.sessionMode?.isLocked)
+            return;
+        if (Main.sessionMode?.currentMode &&
+            Main.sessionMode.currentMode !== 'user')
             return;
 
         const monitors = Main.layoutManager.monitors || [];
@@ -328,8 +355,10 @@ class SizedClone extends Clutter.Clone {
                     this.queue_relayout();
             });
             this._srcAllocId = src.connect('notify::allocation', () => {
-                if (this.source && !this._isDestroyed)
-                    this.queue_relayout();
+                // Do not trigger relayout from notify::allocation. During
+                // lock/unlock Mutter may still be rebuilding stage views;
+                // queueing relayout here can create an allocation storm and
+                // block the shell main loop.
             });
         }
     }

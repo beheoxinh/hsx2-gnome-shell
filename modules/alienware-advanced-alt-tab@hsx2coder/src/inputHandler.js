@@ -40,13 +40,16 @@ export class InputHandler {
     }
 
     clean() {
-        // remove all local timeouts
-        Object.values(this._timeoutIds).forEach(id => {
-            if (id)
-                GLib.source_remove(id);
-        });
-
-        this._restoreOverlayKey();
+        try {
+            // remove all local timeouts
+            Object.values(this._timeoutIds ?? {}).forEach(id => {
+                if (id)
+                    GLib.source_remove(id);
+            });
+            this._timeoutIds = {};
+        } finally {
+            this._restoreOverlayKey();
+        }
     }
 
     _remapOverlayKeyIfNeeded() {
@@ -55,7 +58,12 @@ export class InputHandler {
                 // do this only for the first run
                 this._superRemapped = true;
                 const overlaySettings = new Gio.Settings({ schema_id: 'org.gnome.mutter' });
-                this._originalOverlayKey = overlaySettings.get_string('overlay-key');
+                let original = overlaySettings.get_string('overlay-key');
+                // An earlier crash may have left our '' in dconf; saving that
+                // as the "original" would make the loss of Super permanent.
+                if (!original)
+                    original = overlaySettings.get_default_value('overlay-key')?.unpack() || 'Super';
+                this._originalOverlayKey = original;
                 overlaySettings.set_string('overlay-key', '');
 
                 this._overlayKeyInitTime = Date.now();
@@ -70,6 +78,7 @@ export class InputHandler {
             if (this._originalOverlayKey) {
                 const overlaySettings = new Gio.Settings({ schema_id: 'org.gnome.mutter' });
                 overlaySettings.set_string('overlay-key', this._originalOverlayKey);
+                this._originalOverlayKey = null;
             }
         } catch (e) {
             logError(e, 'AltTab inputHandler:_restoreOverlayKey');

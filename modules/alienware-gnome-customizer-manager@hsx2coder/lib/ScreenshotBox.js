@@ -1,5 +1,4 @@
 import GLib from 'gi://GLib';
-import Gtk from 'gi://Gtk';
 import St from 'gi://St';
 import {InjectionManager} from 'resource:///org/gnome/shell/extensions/extension.js';
 import * as Main from 'resource:///org/gnome/shell/ui/main.js';
@@ -16,8 +15,6 @@ export class ScreenshotBox
     #handleOpacities = null;
     #attemptCount = 0;
     #capturing = false;
-    #cssProvider = null;
-    #gdk = null;
     #dimensionLabel = null;
     #isDragging = false;
     #dragUpdateId = 0;
@@ -27,14 +24,11 @@ export class ScreenshotBox
     constructor(dependencies)
     {
         this.#settings = dependencies['Settings'] || null;
-        this.#gdk = dependencies['Gdk'] || null;
-        // the CSS is cosmetic; if Gtk is unavailable in this process the rest
-        // of the module must still work
-        try {
-            this.#cssProvider = new Gtk.CssProvider();
-        } catch (e) {
-            logError(e, '[ScreenshotBox] no CssProvider, selection styling disabled');
-        }
+        // No Gtk/Gdk here: the shell paints with St, so a Gtk.CssProvider never
+        // reached the screenshot UI, and loading Gtk into the compositor
+        // process is unsupported (it can initialise a second display
+        // connection). The preselected box is hidden through actor opacity in
+        // #clearSelection() instead.
     }
 
     enable()
@@ -55,7 +49,6 @@ export class ScreenshotBox
             'changed::remove-preselected-box',
             () => {
                 this.#refreshRemovePreselectedBox();
-                this.#applyCss();
                 if (this.#areaSelector)
                     this.#applyPatch(this.#areaSelector);
             },
@@ -69,7 +62,6 @@ export class ScreenshotBox
         );
 
         this.#addScreenshotUICleanupMonitor();
-        this.#applyCss();
         this.#patchWhenReady();
     }
 
@@ -96,7 +88,6 @@ export class ScreenshotBox
         }
 
         this.#settings?.disconnectObject(this);
-        this.#removeCss();
 
         this.#injectionManager = null;
         this.#handleOpacities = null;
@@ -132,72 +123,6 @@ export class ScreenshotBox
         });
     }
 
-    #applyCss()
-    {
-        if (!this.#removePreselectedBox) {
-            this.#removeCss();
-            return;
-        }
-
-        if (!this.#cssProvider || !this.#gdk)
-            return;
-
-        const display = this.#gdk.Display.get_default();
-        if (!display)
-            return;
-
-        try {
-            this.#cssProvider.load_from_data(`
-                .screenshot-ui-area-indicator-selection {
-                    border: 2px dashed rgba(180, 180, 180, 0.9) !important;
-                    border-radius: 0 !important;
-                    background-color: transparent !important;
-                    box-shadow: none !important;
-                }
-                .screenshot-ui-area-selector-handle {
-                    width: 0 !important;
-                    height: 0 !important;
-                    min-width: 0 !important;
-                    min-height: 0 !important;
-                    padding: 0 !important;
-                    margin: 0 !important;
-                    background: transparent !important;
-                    border: 0 !important;
-                    box-shadow: none !important;
-                    opacity: 0 !important;
-                    pointer-events: none !important;
-                }
-            `, -1);
-
-            Gtk.StyleContext.add_provider_for_display(
-                display,
-                this.#cssProvider,
-                Gtk.STYLE_PROVIDER_PRIORITY_APPLICATION
-            );
-        } catch (e) {
-            logError(e, '[ScreenshotBox] failed to install selection CSS');
-        }
-    }
-
-    #removeCss()
-    {
-        if (!this.#cssProvider || !this.#gdk)
-            return;
-
-        const display = this.#gdk.Display.get_default();
-        if (!display)
-            return;
-
-        try {
-            Gtk.StyleContext.remove_provider_for_display(
-                display,
-                this.#cssProvider
-            );
-        } catch (e) {
-            logError(e, '[ScreenshotBox] failed to remove selection CSS');
-        }
-    }
-
     #patchWhenReady()
     {
         const maxAttempts = 20;
@@ -231,8 +156,6 @@ export class ScreenshotBox
     {
         this.#restore();
         this.#areaSelector = areaSelector;
-
-        this.#applyCss();
 
         if (this.#removePreselectedBox && areaSelector.reset && this.#injectionManager) {
             this.#injectionManager.overrideMethod(areaSelector, 'reset',

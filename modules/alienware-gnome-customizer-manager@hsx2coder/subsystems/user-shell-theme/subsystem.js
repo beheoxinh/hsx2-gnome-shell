@@ -1,4 +1,5 @@
 import Gio from 'gi://Gio';
+import GLib from 'gi://GLib';
 
 import * as Main from 'resource:///org/gnome/shell/ui/main.js';
 
@@ -60,6 +61,13 @@ export class UserShellThemeSubsystem {
     }
 
     _changeTheme() {
+        // Theme reload mutates every shell actor. Never do that while Mutter is
+        // entering unlock-dialog or rebuilding the stage after lock; DisplayConfig
+        // is synchronous there and a reload can block the shell main loop.
+        if (Main.sessionMode?.isLocked ||
+            Main.sessionMode?.currentMode === 'unlock-dialog')
+            return;
+
         let stylesheet = null;
         const themeName = this._settings.get_string(SETTINGS_KEY);
         try {
@@ -81,15 +89,25 @@ export class UserShellThemeSubsystem {
             });
             stylesheet = found;
 
-            if (stylesheet) {
-                log(`[UserShellTheme] loading user theme: ${stylesheet}`);
-            } else {
+            if (!stylesheet) {
                 log('loading default theme (stylesheet not resolved yet, skip loadTheme)');
                 return;
             }
+
+            // Re-applying an identical stylesheet costs a full shell theme
+            // reload (every actor re-styled). The module is re-enabled on every
+            // lock/unlock cycle, so without this check the theme reload runs on
+            // each transition -- exactly when mutter is rebuilding stage views.
+            if (this._appliedStylesheet === stylesheet ||
+                globalThis.__alienwareAppliedShellTheme === stylesheet)
+                return;
+
+            log(`[UserShellTheme] loading user theme: ${stylesheet}`);
             Main.setThemeStylesheet(stylesheet);
             try {
                 Main.loadTheme();
+                this._appliedStylesheet = stylesheet;
+                globalThis.__alienwareAppliedShellTheme = stylesheet;
             } catch (e) {
                 log(`[UserShellTheme] loadTheme failed, will retry on next change: ${e.message}`);
             }

@@ -265,11 +265,25 @@ export const WindowSwitcherPopup = {
     },
 
     show(backward, binding, mask) {
-
-        try {
         if (this._updateInProgress)
             return false;
         this._updateInProgress = true;
+
+        // Every exit path has to clear the flag: an exception or an empty
+        // item list used to leave it set, so the popup (already holding the
+        // modal grab on first run) could never be shown or torn down again
+        // and the keyboard stayed captured until the shell was restarted.
+        try {
+            return this._showInternal(backward, binding, mask);
+        } catch (e) {
+            logError(e, 'ALTTAB-POPUP');
+            return false;
+        } finally {
+            this._updateInProgress = false;
+        }
+    },
+
+    _showInternal(backward, binding, mask) {
 
         this._inputHandler._remapOverlayKeyIfNeeded();
 
@@ -315,13 +329,9 @@ export const WindowSwitcherPopup = {
         this._showSearchCaptionIfNeeded();
 
         this._firstRun = false;
-        this._updateInProgress = false;
         this._switcherList._updateMouseControls(this._mouseHoveringItemIndex);
 
         return true;
-            } catch (e) {
-            logError(e, 'ALTTAB-POPUP');
-        }
     },
 
     _pushModalCustom() {
@@ -749,6 +759,15 @@ export const WindowSwitcherPopup = {
         this._destroyed = true;
         this._doNotUpdateOnNewWindow = true;
 
+        // First, before anything below can throw: the Super key is remapped
+        // to '' in dconf while the popup is up, and a throw later in this
+        // handler used to skip the restore and leave Super dead for good.
+        try {
+            this._inputHandler?.clean();
+        } catch (e) {
+            logError(e, 'AltTab: restoring overlay-key failed');
+        }
+
         this._popModal();
 
         // Remove connections
@@ -780,7 +799,14 @@ export const WindowSwitcherPopup = {
         this._destroyWinPreview();
 
         if (this._wsTmb) {
-            this.remove_child(this._wsTmb);
+            // remove_child() alone orphaned the ThumbnailsBox with all its
+            // workspace/window signal handlers still connected.
+            this._wsTmb._dropPlaceholder = { hide: () => {} };
+            try {
+                this._wsTmb.destroy();
+            } catch (e) {
+                logError(e, 'AltTab: destroying workspace thumbnails');
+            }
             this._wsTmb = null;
         }
 
@@ -794,13 +820,14 @@ export const WindowSwitcherPopup = {
             this._switcherList = null;
         }
 
-        this._inputHandler?.clean();
         this._inputHandler = null;
 
         this._actions?.clean();
         this._actions = null;
 
-        Main.layoutManager.aatws = null;
+        // a newer popup may already have registered itself
+        if (Main.layoutManager.aatws === this)
+            Main.layoutManager.aatws = null;
     },
 
     _destroyWinPreview() {

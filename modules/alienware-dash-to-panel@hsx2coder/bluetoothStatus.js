@@ -66,6 +66,7 @@ export const BluetoothStatus = GObject.registerClass(
 
     _init() {
       super._init({ reactive: true, track_hover: true })
+      this._isDestroyed = false
       this.add_style_class_name('panel-button')
 
       this._devices = []
@@ -189,17 +190,29 @@ export const BluetoothStatus = GObject.registerClass(
 
     _connectAndPoll() {
       try {
-        this._omProxy = Gio.DBusProxy.new_for_bus_sync(
+        // Async proxy creation: new_for_bus_sync blocks the shell main loop,
+        // and bluez can be unresponsive right after lock/suspend.
+        Gio.DBusProxy.new_for_bus(
           Gio.BusType.SYSTEM, Gio.DBusProxyFlags.NONE, null,
-          BLUEZ_SERVICE, BLUEZ_ROOT, DBUS_OM_IFACE, null,
-        )
-        this._poll()
-        this._timerId = GLib.timeout_add_seconds(
-          GLib.PRIORITY_DEFAULT, POLL_INTERVAL_SEC, () => {
-            try { this._poll() } catch (e) {
-              logError(e, `${TAG} poll failed`)
+          BLUEZ_SERVICE, BLUEZ_ROOT, DBUS_OM_IFACE,
+          null,
+          (_source, res) => {
+            if (this._isDestroyed) return
+            try {
+              this._omProxy = Gio.DBusProxy.new_for_bus_finish(res)
+            } catch (e) {
+              logError(e, `${TAG} connect failed`)
+              return
             }
-            return GLib.SOURCE_CONTINUE
+            this._poll()
+            this._timerId = GLib.timeout_add_seconds(
+              GLib.PRIORITY_DEFAULT, POLL_INTERVAL_SEC, () => {
+                try { this._poll() } catch (e) {
+                  logError(e, `${TAG} poll failed`)
+                }
+                return GLib.SOURCE_CONTINUE
+              },
+            )
           },
         )
       } catch (e) {
@@ -223,6 +236,7 @@ export const BluetoothStatus = GObject.registerClass(
     }
 
     _attachToDTP() {
+      if (this._isDestroyed) return
       if (this.get_parent()) return
       if (
         !global.dashToPanel ||
@@ -231,8 +245,11 @@ export const BluetoothStatus = GObject.registerClass(
       ) {
         if (global.dashToPanel) {
           let id = global.dashToPanel.connect('panels-created', () => {
-            global.dashToPanel.disconnect(id)
-            this._attachToDTP()
+            try { global.dashToPanel?.disconnect(id) } catch (_e) {}
+            if (this._isDestroyed) return
+            try { this._attachToDTP() } catch (e) {
+              logError(e, `${TAG} attach failed`)
+            }
           })
         }
         return
@@ -255,15 +272,37 @@ export const BluetoothStatus = GObject.registerClass(
     }
 
     _poll() {
-      let result
+      if (this._pollInFlight || !this._omProxy || this._isDestroyed)
+        return
+      this._pollInFlight = true
       try {
-        result = this._omProxy.call_sync(
+        // Async call: call_sync with a 5s timeout ran inside the shell main
+        // loop every 3s. When bluez stopped answering (lock, suspend, adapter
+        // reset) the whole desktop froze for up to five seconds at a time.
+        this._omProxy.call(
           'GetManagedObjects', null,
           Gio.DBusCallFlags.NONE, CALL_TIMEOUT, null,
+          (proxy, res) => {
+            this._pollInFlight = false
+            if (this._isDestroyed) return
+            let result
+            try {
+              result = proxy.call_finish(res)
+            } catch (_e) { return }
+            if (!result) return
+            try {
+              this._applyObjects(result)
+            } catch (e) {
+              logError(e, `${TAG} apply objects failed`)
+            }
+          },
         )
-      } catch (_e) { return }
-      if (!result) return
+      } catch (_e) {
+        this._pollInFlight = false
+      }
+    }
 
+    _applyObjects(result) {
       let objects
       try {
         let unpacked = result.deep_unpack()
@@ -471,6 +510,7 @@ export const BluetoothStatus = GObject.registerClass(
     }
 
     destroy() {
+      this._isDestroyed = true
       if (this._deferredMenuIdleId) {
         try { GLib.Source.remove(this._deferredMenuIdleId); } catch (_) {}
         this._deferredMenuIdleId = null;

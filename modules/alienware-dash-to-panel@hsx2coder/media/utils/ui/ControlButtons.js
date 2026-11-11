@@ -94,17 +94,25 @@ export const ControlButtons = GObject.registerClass(
       this._settings = settings;
       this._widthChangedId = 0;
       this._orderChangedId = 0;
+      this._isDestroyed = false;
+
+      // A parent actor can be destroyed by the shell (menu teardown) without
+      // calling our destroy(). Without this flag the MPRIS callbacks keep
+      // mutating buttons that Clutter already disposed.
+      this.connect("destroy", () => {
+        this._isDestroyed = true;
+      });
 
       this._buildUI();
 
       if (this._settings) {
         this._widthChangedId = this._settings.connect(
           "changed::popup-width",
-          () => this._applyMetrics(),
+          () => { if (!this._isDestroyed) this._applyMetrics(); },
         );
         this._orderChangedId = this._settings.connect(
           "changed::popup-button-order",
-          () => this._reorderChildren(),
+          () => { if (!this._isDestroyed) this._reorderChildren(); },
         );
       }
     }
@@ -264,6 +272,7 @@ export const ControlButtons = GObject.registerClass(
     }
 
     updateButtons(info) {
+      if (this._isDestroyed) return;
       // Play/pause icon
       if (this._playBtn.child) {
         this._playBtn.child.icon_name =
@@ -311,6 +320,7 @@ export const ControlButtons = GObject.registerClass(
     }
 
     destroy() {
+      this._isDestroyed = true;
       if (this._widthChangedId && this._settings) {
         this._settings.disconnect(this._widthChangedId);
         this._widthChangedId = 0;

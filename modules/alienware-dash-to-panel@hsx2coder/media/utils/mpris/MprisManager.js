@@ -396,7 +396,9 @@ export class MprisManager {
 
     return new Promise((resolve, reject) => {
       try {
-        this._bus.call_sync(
+        // Async call: call_sync blocks the shell main loop, and the slider
+        // fires this on every drag event.
+        this._bus.call(
           name,
           "/org/mpris/MediaPlayer2",
           "org.mpris.MediaPlayer2.Player",
@@ -406,9 +408,17 @@ export class MprisManager {
           Gio.DBusCallFlags.NONE,
           50,
           null,
+          (_source, res) => {
+            try {
+              this._bus.call_finish(res);
+              this._errorCounts.set(name, 0);
+              resolve();
+            } catch (e) {
+              this._player.handlePlayerError(name, e, "setPosition");
+              reject(e);
+            }
+          },
         );
-        this._errorCounts.set(name, 0);
-        resolve();
       } catch (e) {
         this._player.handlePlayerError(name, e, "setPosition");
         reject(e);

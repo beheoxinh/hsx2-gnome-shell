@@ -38,6 +38,13 @@ function is_wayland_compositor() {
            Meta.is_wayland_compositor();
 }
 
+// Once per shell process; see the constructor.
+let _oldProcessesKilled = false;
+
+// Respawn backoff for the desktop helper process.
+const RESPAWN_HEALTHY_US = 30 * 1000000;
+const RESPAWN_MAX_DELAY_MS = 60 * 1000;
+
 export default class DING extends Extension {
     constructor(metadata) {
         super(metadata);
@@ -67,8 +74,19 @@ export default class DING extends Extension {
         * any old DING instance. That's why it must be here, in init(),
         * and not in enable() or disable() (disable already guarantees that
         * the current instance is killed).
+        *
+        * The suite builds a new instance of this class on every unlock, and
+        * the scan below is async: run on each construction it raced the
+        * launch in enable() and could kill the freshly started desktop.
+        * Only the first construction in this shell process can find
+        * leftovers from a previous shell, so run it once.
         */
-        this.doKillAllOldDesktopProcesses();
+        if (!_oldProcessesKilled) {
+            _oldProcessesKilled = true;
+            this.doKillAllOldDesktopProcesses();
+        }
+        this.data.fastFailures = 0;
+        this.data.unlockRecoveryId = 0;
     }
 
     enable() {
@@ -172,6 +190,14 @@ export default class DING extends Extension {
             GLib.source_remove(this.data.dbusTimeoutId);
             this.data.dbusTimeoutId = 0;
         }
+        if (this.data.unlockRecoveryId) {
+            GLib.source_remove(this.data.unlockRecoveryId);
+            this.data.unlockRecoveryId = 0;
+        }
+        if (this.data.launchDesktopId) {
+            GLib.source_remove(this.data.launchDesktopId);
+            this.data.launchDesktopId = 0;
+        }
     }
 
     /**
@@ -229,7 +255,12 @@ export default class DING extends Extension {
             this.data.lockedChangedId = Main.screenShield.connect('locked-changed', () => {
                 if (!Main.screenShield.locked) {
                     // Delay slightly to let Mutter chrome and panels finish layout after unlock
-                    GLib.timeout_add(GLib.PRIORITY_DEFAULT, 350, () => {
+                    if (this.data.unlockRecoveryId)
+                        GLib.source_remove(this.data.unlockRecoveryId);
+                    this.data.unlockRecoveryId = GLib.timeout_add(GLib.PRIORITY_DEFAULT, 350, () => {
+                        this.data.unlockRecoveryId = 0;
+                        if (!this.data.isEnabled)
+                            return GLib.SOURCE_REMOVE;
                         try {
                             this.data.visibleArea._refreshMargins();
                             this.updateDesktopGeometry();
@@ -247,8 +278,10 @@ export default class DING extends Extension {
         }
 
         this.data.isEnabled = true;
+        this.data.fastFailures = 0;
         if (this.data.launchDesktopId) {
             GLib.source_remove(this.data.launchDesktopId);
+            this.data.launchDesktopId = 0;
         }
 
         /*
@@ -371,7 +404,8 @@ export default class DING extends Extension {
         // kill the desktop program. It will be reloaded automatically.
         if (this.data.currentProcess && this.data.currentProcess.subprocess) {
             this.data.currentProcess.cancel_timer();
-            this.data.currentProcess.cancellable.cancel();
+            // null once the process has already exited
+            this.data.currentProcess.cancellable?.cancel();
             this.data.currentProcess.subprocess.send_signal(15);
         }
         this.data.currentProcess = null;
@@ -505,7 +539,10 @@ export default class DING extends Extension {
                 }
 
                 let path = `gjs ${GLib.build_filenamev([this.path, 'app', 'ding.js'])}`;
-                if (contents.startsWith(path)) {
+                // The scan is async and can still be running when enable()
+                // launches the new helper: never kill our own process.
+                const ownPid = this.data.currentProcess?.subprocess?.get_identifier?.();
+                if (contents.startsWith(path) && entry !== ownPid) {
                     let proc = new Gio.Subprocess({argv: ['/bin/kill', entry]});
                     proc.init(null);
                     proc.wait_async(null, () => this._killOldDesktopProcesses(entries, index));
@@ -521,6 +558,28 @@ export default class DING extends Extension {
      *
      * @param reloadTime
      */
+    /**
+     * Delay before the next respawn. A helper that ran for a while and then
+     * died comes back at once; one that keeps dying young (no display for
+     * Gtk, RDP session without a client, the 3 s window-detection kill) backs
+     * off 1, 2, 4 ... 60 s instead of spawning a gjs+Gtk process every
+     * second forever.
+     *
+     * @param {boolean} healthy whether the last process stayed up long enough
+     * @returns {number} milliseconds
+     */
+    _nextRespawnDelay(healthy) {
+        if (healthy) {
+            this.data.fastFailures = 0;
+            return 1;
+        }
+        this.data.fastFailures = (this.data.fastFailures ?? 0) + 1;
+        const delay = Math.min(1000 * 2 ** (this.data.fastFailures - 1), RESPAWN_MAX_DELAY_MS);
+        if (this.data.fastFailures === 6)
+            console.warn(`DING: desktop process keeps exiting, retrying every ${RESPAWN_MAX_DELAY_MS / 1000}s at most`);
+        return delay;
+    }
+
     doRelaunch(reloadTime) {
         this.data.currentProcess = null;
         this.data.x11Manager.setWaylandClient(null);
@@ -557,7 +616,7 @@ export default class DING extends Extension {
         this.data.currentProcess = new LaunchSubprocess(0, 'DING');
         this.data.currentProcess.set_cwd(GLib.get_home_dir());
         if (this.data.currentProcess.spawnv(argv) === null) {
-            this.doRelaunch(1000);
+            this.doRelaunch(this._nextRespawnDelay(false));
             return;
         }
         this.data.x11Manager.setWaylandClient(this.data.currentProcess);
@@ -569,22 +628,20 @@ export default class DING extends Extension {
         * too fast if it has a bug that makes it fail continuously, avoiding filling the journal too fast.
         */
         this.data.currentProcess.subprocess.wait_async(null, (obj, res) => {
-            let delta = GLib.get_monotonic_time() - this.data.launchTime;
-            if (delta < 1000000) {
-                // If the process is dying over and over again, ensure that it isn't respawn faster than once per second
-                var reloadTime = 1000;
-            } else {
-                // but if the process just died after having run for at least one second, reload it ASAP
-                var reloadTime = 1;
+            const delta = GLib.get_monotonic_time() - this.data.launchTime;
+            try {
+                obj.wait_finish(res);
+            } catch (e) {
+                logError(e, 'DING wait');
             }
-            obj.wait_finish(res);
             if (!this.data.currentProcess || obj !== this.data.currentProcess.subprocess) {
                 return;
             }
-            if (obj.get_if_exited()) {
-                obj.get_exit_status();
-            }
-            this.doRelaunch(reloadTime);
+            // A clean exit after the first second is an orderly shutdown of
+            // the helper, not a crash loop: respawn at once as before.
+            const cleanExit = obj.get_if_exited() && obj.get_exit_status() === 0;
+            const healthy = delta >= RESPAWN_HEALTHY_US || (cleanExit && delta >= 1000000);
+            this.doRelaunch(this._nextRespawnDelay(healthy));
         });
             } catch (e) {
             logError(e, 'DING');

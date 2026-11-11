@@ -224,7 +224,11 @@ export default class AATWS extends Extension {
         }
         altTabPopup._modifierMask = 0;
         altTabPopup._positionPointer = false;
-        altTabPopup.show();
+        // show() returns false when there is nothing to switch to or it
+        // failed; the popup may already hold the modal grab by then, so it
+        // must be destroyed or the keyboard stays captured.
+        if (!altTabPopup.show())
+            altTabPopup.destroy();
     }
 
     _updateHotTrigger() {

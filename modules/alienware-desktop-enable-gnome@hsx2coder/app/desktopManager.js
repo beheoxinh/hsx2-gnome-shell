@@ -691,15 +691,8 @@ var DesktopManager = class {
             this._startRubberband(x, y);
         }
         if (button == 3) {
-            // Show the menu immediately; filling it (templates submenu,
-            // clipboard state) must never delay the popup. The clipboard
-            // read below is asynchronous, but a slow D-Bus or template scan
-            // would still be on the critical path if it ran before popup.
+            this._prepareMenu();
             this._menu.popup_at_pointer(event);
-            GLib.idle_add(GLib.PRIORITY_DEFAULT_IDLE, () => {
-                this._prepareMenu();
-                return GLib.SOURCE_REMOVE;
-            });
         }
     }
 
@@ -1050,11 +1043,8 @@ var DesktopManager = class {
             if (selection) {
                 this.fileItemMenu.showMenu(selection[0], event, true);
             } else {
+                this._prepareMenu();
                 this._menu.popup_at_pointer(event);
-                GLib.idle_add(GLib.PRIORITY_DEFAULT_IDLE, () => {
-                    this._prepareMenu();
-                    return GLib.SOURCE_REMOVE;
-                });
             }
             return true;
         } else if (isCtrl && (symbol == Gdk.KEY_plus)) {
@@ -1290,6 +1280,7 @@ var DesktopManager = class {
         this._menu.add(this._showDesktopInFilesMenuItem);
 
         this._menu.show_all();
+        this._prepareMenu();
     }
 
     _createIconMenuItem(label, iconName) {

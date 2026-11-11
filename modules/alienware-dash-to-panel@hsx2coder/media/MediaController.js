@@ -48,6 +48,19 @@ export default class MediaController {
   }
 
   enable() {
+    // Destroy any indicator left over from a previous enable() that was never
+    // fully torn down. An orphaned indicator keeps its MPRIS manager alive and
+    // fires callbacks into disposed actors forever (the
+    // "has been already disposed" storm seen after a lock/logout cycle).
+    this._enabled = false;
+    if (this._indicator) {
+      try { this._indicator.destroy(); } catch (_e) {}
+    }
+    this._indicator = null;
+    this._indicatorDestroyId = 0;
+    this._addedToDTP = false;
+    this._enabled = true;
+
     this._repositionDebounceId = null;
     this._settingsChangedId = 0;
     this._hideDefaultChangedId = null;
@@ -104,24 +117,39 @@ export default class MediaController {
   }
 
   disable() {
+    // Block every late signal handler before any teardown: a 'panels-created'
+    // emission that arrives mid-teardown must not build a new indicator on a
+    // controller that is already disabled (that orphan then survives the
+    // whole session with a live MPRIS manager).
+    this._enabled = false;
+
     if (this._settingsChangedId && this._settings) {
       this._settings.disconnect(this._settingsChangedId);
       this._settingsChangedId = 0;
     }
 
-    if (this._hideDefaultChangedId) {
-      this._settings.disconnect(this._hideDefaultChangedId);
+    if (this._hideDefaultChangedId && this._settings) {
+      try {
+        this._settings.disconnect(this._hideDefaultChangedId);
+      } catch (_e) {}
       this._hideDefaultChangedId = null;
     }
 
     this._removeFromDTP();
 
-    if (this._dtpPanelsId && global.dashToPanel) {
-      global.dashToPanel.disconnect(this._dtpPanelsId);
+    if (this._dtpPanelsId) {
+      // Unconditional: gating on global.dashToPanel leaked the connection when
+      // the dash-to-panel module was already gone, so 'panels-created' fired
+      // into this dead controller later.
+      try {
+        global.dashToPanel?.disconnect(this._dtpPanelsId);
+      } catch (_e) {}
       this._dtpPanelsId = 0;
     }
-    if (this._dtpChangedId && this._dtpSettings) {
-      this._dtpSettings.disconnect(this._dtpChangedId);
+    if (this._dtpChangedId) {
+      try {
+        this._dtpSettings?.disconnect(this._dtpChangedId);
+      } catch (_e) {}
       this._dtpChangedId = 0;
     }
 
@@ -148,7 +176,7 @@ export default class MediaController {
     }
     if (global.dashToPanel && !this._dtpPanelsId) {
       this._dtpPanelsId = global.dashToPanel.connect('panels-created', () => {
-        this._addToDTP();
+        if (this._enabled) this._addToDTP();
       });
     }
   }
@@ -160,8 +188,22 @@ export default class MediaController {
   }
 
   _addToDTP() {
+    if (!this._enabled) return;
     if (!global.dashToPanel || !global.dashToPanel.panels) return;
     if (!this._showForDtPSettings()) return;
+
+    // Drop a reference to an indicator disposed behind our back (its actor was
+    // destroyed with the panel instead of through disable()). Reusing it throws
+    // on every property access and leaks the MPRIS manager.
+    if (this._indicator) {
+      let alive = true;
+      try { this._indicator.get_parent(); } catch (_e) { alive = false; }
+      if (!alive) {
+        this._indicator = null;
+        this._indicatorDestroyId = 0;
+        this._addedToDTP = false;
+      }
+    }
 
     if (!this._indicator) {
       this._indicator = new MediaIndicator(this._settings, this);
@@ -196,8 +238,12 @@ export default class MediaController {
   _removeFromDTP() {
     if (!this._addedToDTP || !this._indicator) return;
 
-    const parent = this._indicator.get_parent();
-    if (parent) parent.remove_child(this._indicator);
+    try {
+      const parent = this._indicator.get_parent();
+      if (parent) parent.remove_child(this._indicator);
+    } catch (_e) {
+      // The actor was disposed with the panel already; nothing left to detach.
+    }
     this._addedToDTP = false;
   }
 

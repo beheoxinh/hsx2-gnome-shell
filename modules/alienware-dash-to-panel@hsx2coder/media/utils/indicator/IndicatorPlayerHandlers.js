@@ -94,6 +94,7 @@ export class IndicatorPlayerHandlers {
 
   _performUpdate(name) {
     if (
+      this._indicator._state._isDestroyed ||
       this._indicator._state._isInitializing ||
       this._indicator._state._sessionChanging
     )

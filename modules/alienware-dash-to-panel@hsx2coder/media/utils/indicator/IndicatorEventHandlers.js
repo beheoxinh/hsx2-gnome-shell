@@ -179,6 +179,15 @@ export class IndicatorEventHandlers {
 
         this._indicator._panelUI.stopScrolling();
 
+        // Keep all MPRIS work paused for the entire lock/unlock-dialog phase.
+        // Resuming after a fixed delay is unsafe: Mutter can still be rebuilding
+        // the lock screen and its stage views after the session update signal.
+        if (Main.sessionMode.isLocked ||
+            Main.sessionMode.currentMode === "unlock-dialog") {
+          this._indicator._manager?.pauseOperations();
+          return;
+        }
+
         if (this._pauseOperationsTimeout) {
           GLib.source_remove(this._pauseOperationsTimeout);
           this._pauseOperationsTimeout = null;

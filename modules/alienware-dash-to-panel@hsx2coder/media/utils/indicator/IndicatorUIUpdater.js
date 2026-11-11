@@ -167,8 +167,12 @@ export class IndicatorUIUpdater {
 
   updateUI() {
     if (
+      this._isDestroyed ||
       this._indicator._state._isDestroyed ||
-      this._indicator._state._sessionChanging
+      this._indicator._state._sessionChanging ||
+      this._indicator._controls?._isDestroyed ||
+      this._indicator._controls?.is_finalized?.() ||
+      !this._indicator._controls?.get_stage?.()
     )
       return;
 

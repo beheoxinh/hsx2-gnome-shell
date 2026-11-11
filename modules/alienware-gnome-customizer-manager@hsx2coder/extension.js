@@ -13,7 +13,6 @@ import GLib from 'gi://GLib';
 import GObject from 'gi://GObject';
 import Meta from 'gi://Meta';
 import St from 'gi://St';
-import Gdk from 'gi://Gdk';
 
 import * as Main from 'resource:///org/gnome/shell/ui/main.js';
 import * as Panel from 'resource:///org/gnome/shell/ui/panel.js';
@@ -58,7 +57,6 @@ export default class GnomeCustomizerManagerExtension extends Extension {
             {
                 Main,
                 St,
-                Gdk,
                 Clutter,
                 GLib,
                 Meta,
@@ -138,7 +136,6 @@ class CustomizerManager {
         this.#api = api;
         this.#screenshotBox = new ScreenshotBox({
             Settings: this.#settings,
-            Gdk: Gdk,
         });
         this.#workspace = new WorkspaceControl(this.#settings, api);
     }

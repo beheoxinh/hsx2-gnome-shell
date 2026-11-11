@@ -52,8 +52,25 @@ export class CancellablePromise extends Promise {
         this._cancellationId = cancellable.connect(() => {
             const id = this._cancellationId;
             this._cancellationId = 0;
-            if (GObject.signal_handler_is_connected(cancellable, id))
-                cancellable.disconnect(id);
+            // NEVER call cancellable.disconnect() from inside the 'cancelled'
+            // handler. g_cancellable_cancel() emits that signal while holding
+            // the cancellable's internal mutex, and g_cancellable_disconnect()
+            // locks the same non-recursive mutex -> permanent self-deadlock in
+            // the shell main loop (observed as gnome-shell stuck in futex_wait
+            // during screen lock, requiring a reboot).
+            // Defer the disconnect until after the emission returns.
+            if (id && GObject.signal_handler_is_connected(cancellable, id)) {
+                GLib.idle_add(GLib.PRIORITY_DEFAULT, () => {
+                    if (GObject.signal_handler_is_connected(cancellable, id)) {
+                        try {
+                            cancellable.disconnect(id);
+                        } catch (_e) {
+                            /* already gone */
+                        }
+                    }
+                    return GLib.SOURCE_REMOVE;
+                });
+            }
             this.cancel();
         });
 
@@ -61,8 +78,23 @@ export class CancellablePromise extends Promise {
     }
 
     _cleanup() {
-        if (this._cancellationId)
-            this._cancellable.disconnect(this._cancellationId);
+        const id = this._cancellationId;
+        if (!id)
+            return;
+        this._cancellationId = 0;
+        const cancellable = this._cancellable;
+        // Same hazard as the cancelled handler: this runs while the promise is
+        // rejected, which can happen inside the cancellable's emission.
+        GLib.idle_add(GLib.PRIORITY_DEFAULT, () => {
+            if (GObject.signal_handler_is_connected(cancellable, id)) {
+                try {
+                    cancellable.disconnect(id);
+                } catch (_e) {
+                    /* already gone */
+                }
+            }
+            return GLib.SOURCE_REMOVE;
+        });
     }
 
     get cancellable() {
@@ -167,17 +199,21 @@ export class SignalConnectionPromise extends CancellablePromise {
 
     _cleanup() {
         if (this._id) {
-            let disconnectSignal;
+            try {
+                let disconnectSignal;
 
-            if (this._object instanceof GObject.Object)
-                disconnectSignal = id => GObject.signal_handler_disconnect(this._object, id);
-            else
-                disconnectSignal = id => this._object.disconnect(id);
+                if (this._object instanceof GObject.Object)
+                    disconnectSignal = id => GObject.signal_handler_disconnect(this._object, id);
+                else
+                    disconnectSignal = id => this._object.disconnect(id);
 
-            disconnectSignal(this._id);
-            if (this._destroyId) {
-                disconnectSignal(this._destroyId);
-                this._destroyId = 0;
+                disconnectSignal(this._id);
+                if (this._destroyId) {
+                    disconnectSignal(this._destroyId);
+                    this._destroyId = 0;
+                }
+            } catch (_e) {
+                /* object may already be finalized or disposed */
             }
             this._object = null;
             this._id = 0;

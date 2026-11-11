@@ -179,6 +179,15 @@ export const SwitcherList = GObject.registerClass({
     }
 
     _onDestroy() {
+        // Set flag first: windowSwitcherPopup checks this._switcherList._isDestroyed
+        // before calling destroy(), and a disposed-but-flagless list makes it
+        // call destroy() twice -> "has been already disposed" errors.
+        this._isDestroyed = true;
+        if (this._items) {
+            for (const it of this._items) {
+                if (it) it._isDestroyed = true;
+            }
+        }
         this.icons.forEach(icon => {
             if (icon.app?.cachedWindows) {
                 icon.app.cachedWindows.forEach(w => {
@@ -191,6 +200,9 @@ export const SwitcherList = GObject.registerClass({
     }
 
     vfunc_get_preferred_height() {
+        if (this._isDestroyed)
+            return [0, 0];
+
         let maxChildMin = 0;
         let maxChildNat = 0;
 
@@ -198,9 +210,13 @@ export const SwitcherList = GObject.registerClass({
             const item = this._items[i];
             if (!item || item._isDestroyed || item.is_finalized?.())
                 continue;
-            let [childMin, childNat] = item.get_preferred_height(-1);
-            maxChildMin = Math.max(childMin, maxChildMin);
-            maxChildNat = Math.max(childNat, maxChildNat);
+            try {
+                let [childMin, childNat] = item.get_preferred_height(-1);
+                maxChildMin = Math.max(childMin, maxChildMin);
+                maxChildNat = Math.max(childNat, maxChildNat);
+            } catch (_) {
+                continue;
+            }
         }
 
         if (this._squareItems) {
@@ -234,6 +250,9 @@ export const SwitcherList = GObject.registerClass({
     }
 
     vfunc_allocate(box) {
+        if (this._isDestroyed)
+            return;
+
         let themeNode = this.get_theme_node();
         let contentBox = themeNode.get_content_box(box);
         const spacing = themeNode.get_padding(St.Side.BOTTOM);
@@ -279,6 +298,9 @@ export const SwitcherList = GObject.registerClass({
     }
 
     highlight(index) {
+        if (this._isDestroyed)
+            return;
+
         if (this._items[this._highlighted]) {
             this._items[this._highlighted].remove_style_pseudo_class('selected');
             if (this._opt.colorStyle.STYLE)

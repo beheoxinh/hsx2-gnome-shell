@@ -120,9 +120,33 @@ export const PanelManager = class {
     this._desktopIconsUsableArea =
       new DesktopIconsIntegration.DesktopIconsUsableAreaClass()
 
+    this._disabled = false
+    this._lastMarginsTarget = null
+    this._lastMarginsSignature = null
+
+    // The call above ran before the usable-area client existed, so nothing
+    // was sent; publish now instead of waiting for the first 3 s tick.
+    this._setDesktopIconsMargins()
+
+    // Safety net for the desktop module losing our margins (it builds a new
+    // usable-area object on each of its enables, and being part of the same
+    // suite it never triggers extension-state-changed). Only resend when the
+    // receiver or the panel geometry actually changed: resending every 3 s
+    // made the desktop helper re-layout over D-Bus forever.
     this._marginsTimerId = GLib.timeout_add(
       GLib.PRIORITY_DEFAULT, 3000, () => {
-        this._setDesktopIconsMargins()
+        const uuid = this._desktopIconsUsableArea?._UUID
+        const target = uuid
+          ? Main.extensionManager.lookup(uuid)?.stateObj?.DesktopIconsUsableArea ?? null
+          : null
+        const signature = this._getMarginsSignature()
+        if (
+          target !== this._lastMarginsTarget ||
+          signature !== this._lastMarginsSignature
+        )
+          this._setDesktopIconsMargins()
+        this._lastMarginsTarget = target
+        this._lastMarginsSignature = signature
         return GLib.SOURCE_CONTINUE
       })
 
@@ -284,26 +308,12 @@ export const PanelManager = class {
       [
         Utils.DisplayWrapper.getMonitorManager(),
         'monitors-changed',
-        async () => {
-          if (Main.layoutManager.primaryMonitor) {
-            await PanelSettings.setMonitorsInfo(SETTINGS).catch((e) =>
-              console.log(e),
-            )
-            this._scheduleReset()
-          }
-        },
+        () => this._onMonitorsChanged(),
       ],
       [
         Main.layoutManager,
         'monitors-changed',
-        async () => {
-          if (Main.layoutManager.primaryMonitor) {
-            await PanelSettings.setMonitorsInfo(SETTINGS).catch((e) =>
-              console.log(e),
-            )
-            this._scheduleReset()
-          }
-        },
+        () => this._onMonitorsChanged(),
       ],
     )
 
@@ -402,6 +412,8 @@ export const PanelManager = class {
 
     if (reset) return
 
+    this._disabled = true
+
     this._injectionManager.clear()
 
     this._setKeyBindings(false)
@@ -451,6 +463,12 @@ export const PanelManager = class {
   }
 
   _emptyFunc() {}
+
+  _getMarginsSignature() {
+    return (this.allPanels || [])
+      .map((p) => `${p.monitor?.index}:${p.geom?.position}:${p.geom?.outerSize}`)
+      .join('|')
+  }
 
   _setDesktopIconsMargins() {
     this._desktopIconsUsableArea?.resetMargins()
@@ -745,7 +763,22 @@ export const PanelManager = class {
     return panel
   }
 
+  async _onMonitorsChanged() {
+    if (this._disabled || !Main.layoutManager.primaryMonitor) return
+
+    // SETTINGS is nulled by the extension's disable(); capture it now.
+    const settings = SETTINGS
+    await PanelSettings.setMonitorsInfo(settings).catch((e) => console.log(e))
+
+    // Monitors commonly change around lock (DPMS, dock unplug, RDP resize):
+    // a reply that lands after disable() must not re-arm a reset on a
+    // manager whose panels are already gone.
+    if (this._disabled) return
+    this._scheduleReset()
+  }
+
   _scheduleReset() {
+    if (this._disabled) return
     if (this._resetTimeoutId) {
       GLib.source_remove(this._resetTimeoutId)
       this._resetTimeoutId = 0
