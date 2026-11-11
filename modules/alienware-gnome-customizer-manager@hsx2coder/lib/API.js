@@ -6,6 +6,12 @@
  * @license    GPL-3.0-only
  */
 
+import {
+    detachShellAttentionHandlers,
+    restoreShellAttentionHandlers,
+    setFocusOnDemand,
+} from './attentionHandlers.js';
+
 const XY_POSITION = {
     TOP_START: 0,
     TOP_CENTER: 1,
@@ -591,12 +597,12 @@ export class API
         this._displayWindowMarkedUrgentSignal
         = display.connect('window-marked-urgent', demandFunction);
 
-        // since removing '_windowDemandsAttentionId' doesn't have any effect
-        // we remove the original signal and re-connect it on disable
-        let signalId = this.#getSignalId(global.display, 'window-demands-attention');
-        let signalId2 = this.#getSignalId(global.display, 'window-marked-urgent');
-        display.disconnect(signalId);
-        display.disconnect(signalId2);
+        // The shell's notification handlers are detached through the shared
+        // ref-counted helper. The old "first handler found" lookup removed
+        // whichever handler was oldest (possibly another component's) and
+        // logged "has no handler with id" when that one was already gone.
+        this._shellAttentionDetached = detachShellAttentionHandlers();
+        setFocusOnDemand(true);
             } catch (e) {
             logError(e, 'GCM-API');
         }
@@ -624,16 +630,15 @@ export class API
         display.disconnect(this._displayWindowMarkedUrgentSignal);
         this._displayWindowDemandsAttentionSignal = null;
         this._displayWindowMarkedUrgentSignal = null;
+        setFocusOnDemand(false);
 
-        let wah = this._main.windowAttentionHandler;
-        wah._windowDemandsAttentionId = display.connect(
-            'window-demands-attention',
-            wah._onWindowDemandsAttention.bind(wah)
-        );
-        wah._windowDemandsAttentionId = display.connect(
-            'window-marked-urgent',
-            wah._onWindowDemandsAttention.bind(wah)
-        );
+        // Used to connect two more shell handlers on every disable, without
+        // ever removing them (the second id even overwrote the first), so
+        // each toggle/lock cycle stacked another notification per event.
+        if (this._shellAttentionDetached) {
+            this._shellAttentionDetached = false;
+            restoreShellAttentionHandlers();
+        }
             } catch (e) {
             logError(e, 'GCM-API');
         }

@@ -223,7 +223,7 @@ export const MediaControls = GObject.registerClass(
       const align = _infoAlign(this._settings);
 
       const headerBox = new St.BoxLayout({
-        style: "margin-bottom: 20px; spacing: 8px;",
+        style: "margin-bottom: 14px; spacing: 8px;",
         x_align: Clutter.ActorAlign.CENTER,
         x_expand: true,
       });
@@ -271,7 +271,9 @@ export const MediaControls = GObject.registerClass(
       // Info box: alignment controlled by info-align-center setting
       this._infoBox = new St.BoxLayout({
         vertical: true,
-        style: "spacing: 4px; margin-top: 16px; margin-bottom: 16px;",
+        // AlbumArt no longer carries its own bottom margins (it had 24 px
+        // twice over), so this is the single gap between cover and text.
+        style: "spacing: 2px; margin-top: 18px; margin-bottom: 12px;",
         x_align: align,
         x_expand: true,
       });

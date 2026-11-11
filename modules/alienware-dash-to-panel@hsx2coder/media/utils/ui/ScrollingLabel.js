@@ -4,7 +4,17 @@ import Pango from "gi://Pango";
 import St from "gi://St";
 import GLib from "gi://GLib";
 
-const FRAME_MS = 16; // ~60 fps
+const FRAME_MS = 16; // fastest tick (~60 fps)
+
+// Move by whole pixels at the slowest rate that keeps the configured speed.
+// Sub-pixel steps every 16 ms (e.g. 0.32 px at 20 px/s) forced a full panel
+// repaint 60x/s for motion the eye can't resolve; one 1 px step per tick
+// looks the same and repaints only as often as the text actually moves.
+function tickParams(speed) {
+  const step = Math.max(1, Math.ceil((speed * FRAME_MS) / 1000));
+  const interval = Math.max(FRAME_MS, Math.round((1000 * step) / speed));
+  return { interval, step };
+}
 
 export const ScrollingLabel = GObject.registerClass(
   { GTypeName: "AMCScrollingLabel" },
@@ -45,13 +55,14 @@ export const ScrollingLabel = GObject.registerClass(
       this._pauseMs = Math.max(0, params.scrollPauseTime ?? 1200);
       this._textStyle = params.textStyle ?? "";
 
-      this._pxPerFrame = (this._speed / 1000) * FRAME_MS;
+      this._tick = tickParams(this._speed);
       this._oneWidth = 0;
 
       this._measureId = null;
       this._pauseId = null;
       this._tickId = null;
       this._mappedSigId = null;
+      this._resumeOnMapId = null;
 
       this._buildUI();
     }
@@ -105,8 +116,11 @@ export const ScrollingLabel = GObject.registerClass(
       const labelW = this._label.width;
 
       if (!this._isScrolling || labelW <= this._viewW || this._viewW <= 0) {
-        this._label.x_align = Clutter.ActorAlign.CENTER;
-        this._label.x_expand = true;
+        // This widget has the default fixed layout, which ignores x_align,
+        // so short text used to sit at the left of a viewport-wide box no
+        // matter what. Shrink to the text instead and let the parent slot's
+        // alignment (info-align-center) place it.
+        this.set_width(Math.min(Math.ceil(labelW), this._viewW));
         return;
       }
 
@@ -157,14 +171,23 @@ export const ScrollingLabel = GObject.registerClass(
       if (this._destroyed || !this._label) return;
       if (this._tickId !== null) return;
 
-      this._tickId = GLib.timeout_add(GLib.PRIORITY_DEFAULT, FRAME_MS, () => {
+      const { interval, step } = this._tick;
+      this._tickId = GLib.timeout_add(GLib.PRIORITY_DEFAULT, interval, () => {
         try {
           if (this._paused || this._destroyed || !this._label) {
             this._tickId = null;
             return GLib.SOURCE_REMOVE;
           }
 
-          const next = this._label.translation_x - this._pxPerFrame;
+          // Hidden (closed popup, panel on a locked screen…): stop waking up
+          // and continue from the same offset once shown again.
+          if (!this.is_mapped()) {
+            this._tickId = null;
+            this._resumeWhenMapped();
+            return GLib.SOURCE_REMOVE;
+          }
+
+          const next = Math.round(this._label.translation_x) - step;
 
           if (-next >= this._oneWidth) {
             this._label.translation_x = 0;
@@ -181,6 +204,22 @@ export const ScrollingLabel = GObject.registerClass(
         }
         return GLib.SOURCE_CONTINUE;
       });
+    }
+
+    _resumeWhenMapped() {
+      if (this._destroyed || this._resumeOnMapId !== null) return;
+      this._resumeOnMapId = this.connect("notify::mapped", () => {
+        if (!this.is_mapped()) return;
+        this._cancelResumeOnMap();
+        if (!this._paused && this._oneWidth > 0) this._startTick();
+      });
+    }
+
+    _cancelResumeOnMap() {
+      if (this._resumeOnMapId !== null) {
+        this.disconnect(this._resumeOnMapId);
+        this._resumeOnMapId = null;
+      }
     }
 
     pauseScrolling() {
@@ -202,6 +241,7 @@ export const ScrollingLabel = GObject.registerClass(
       this._stopAll();
       this._oneWidth = 0;
       this._origText = text;
+      this.set_width(this._viewW); // undo a shrink-to-text from _measure
       if (this._label) {
         this._label.text = text;
         this._label.translation_x = 0;
@@ -212,7 +252,13 @@ export const ScrollingLabel = GObject.registerClass(
     setScrollSpeed(pxPerSec) {
       if (this._destroyed) return;
       this._speed = Math.max(10, pxPerSec);
-      this._pxPerFrame = (this._speed / 1000) * FRAME_MS;
+      this._tick = tickParams(this._speed);
+      // A running tick keeps its old interval; restart it with the new one.
+      if (this._tickId !== null) {
+        GLib.source_remove(this._tickId);
+        this._tickId = null;
+        this._startTick();
+      }
     }
 
     setTextStyle(style) {
@@ -223,6 +269,7 @@ export const ScrollingLabel = GObject.registerClass(
     }
 
     _stopTickAndPause() {
+      this._cancelResumeOnMap();
       if (this._tickId !== null) {
         GLib.source_remove(this._tickId);
         this._tickId = null;

@@ -85,6 +85,8 @@ export const MediaIndicator = GObject.registerClass(
       });
       this._menuItem.add_child(this._controls);
       this.menu.addMenuItem(this._menuItem);
+      // Rounded "now playing" card look, see .amc-media-popup in stylesheet
+      this.menu.box?.add_style_class_name("amc-media-popup");
 
       this._eventHandlers.connectControlSignals();
 

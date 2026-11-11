@@ -3,6 +3,7 @@ import Gio from "gi://Gio";
 import GLib from "gi://GLib";
 import Clutter from "gi://Clutter";
 import { ScrollingLabel } from "../ui/ScrollingLabel.js";
+import { addPressFeedback } from "../ui/motion.js";
 import { resolveGicon, applyMonochromeToIcon } from "../icon/IconResolver.js";
 import { playerConstant } from "../ui/playerConstant.js";
 
@@ -295,6 +296,9 @@ export class PanelUI {
       reactive: true,
     });
     btn.set_child(new St.Icon({ icon_name: iconName, icon_size: 14 }));
+    // Press "click" only: a hover scale would overflow the panel height.
+    // Handlers live on the button itself and go away with it.
+    addPressFeedback(btn, { hover: 1, press: 0.82 });
     return btn;
   }
 

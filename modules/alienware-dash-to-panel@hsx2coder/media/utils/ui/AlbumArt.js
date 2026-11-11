@@ -7,6 +7,7 @@ import Graphene from "gi://Graphene";
 import Cairo from "cairo";
 
 import { Tonearm } from "./widgets/tonearm.js";
+import { addPressFeedback, fadeIn } from "./motion.js";
 import {
   resolveCanonicalIds,
   isVinylEnabledForIds,
@@ -17,6 +18,7 @@ import {
   labelForId,
 } from "./helper/vinylHelpers.js";
 
+const SPIN_TRANSITION = "amc-vinyl-spin";
 const COVER_CACHE_MAX = 100;
 const COVER_DIR_MAX_FILES = 300;
 const COVER_DIR_MAX_AGE_S = 30 * 24 * 3600;
@@ -64,6 +66,18 @@ function _pruneCoverDir(dir) {
   );
 }
 
+// Frame behind the (non-vinyl) cover. Wide thumbnails (e.g. browser video)
+// are letterboxed with `contain`, so the frame needs a real fill: the old
+// `linear-gradient()` value is not St CSS and left it transparent.
+function _normalFrameStyle(sz, br) {
+  return `
+    width: ${sz}px; height: ${sz}px; border-radius: ${br}px;
+    padding: 0; border: none;
+    background-color: rgba(127,127,127,0.12);
+    box-shadow: 0 10px 28px rgba(0,0,0,0.42);
+  `;
+}
+
 /** @param {Gio.Settings} settings @returns {number} */
 function _artSize(settings) {
   try {
@@ -83,7 +97,6 @@ export const AlbumArt = GObject.registerClass(
     _init(settings, manager = null, playerName = null) {
       super._init({
         x_align: Clutter.ActorAlign.CENTER,
-        style: "margin-bottom: 24px;",
       });
 
       this._settings = settings;
@@ -106,6 +119,16 @@ export const AlbumArt = GObject.registerClass(
       this._clickTimeout = null;
 
       this._buildUI();
+
+      // Mutter keeps advancing a transition on an unmapped actor (verified
+      // in a headless shell), which would keep the frame clock ticking at
+      // the display rate while the popup is closed. Spin only while shown;
+      // _isRotating keeps the intent so it resumes on the next map.
+      this.connect("notify::mapped", () => {
+        if (this._isDestroyed) return;
+        if (!this.mapped) this._stopRotationInterval();
+        else if (this._isRotating && this._vinylMode) this._startSpin();
+      });
 
       this._settingsChangedId = this._settings.connect(
         "changed::vinyl-app-ids",
@@ -408,25 +431,19 @@ export const AlbumArt = GObject.registerClass(
 
       this._normalContainer = new St.BoxLayout({
         x_align: Clutter.ActorAlign.CENTER,
-        style: "margin-bottom: 24px;",
         reactive: true,
       });
 
       this._normalButton = new St.Button({
         style_class: "media-album-art",
-        style: `
-          width: ${sz}px;
-          height: ${sz}px;
-          border-radius: ${br}px;
-          box-shadow: 0 8px 24px rgba(0,0,0,0.4);
-          background: linear-gradient(135deg,
-            rgba(255,255,255,0.05) 0%,
-            rgba(255,255,255,0.02) 100%);
-          padding: 0;
-          border: none;
-        `,
+        style: _normalFrameStyle(sz, br),
         can_focus: false,
-        track_hover: false,
+        track_hover: true,
+      });
+      // Gentle lift on hover: the cover is clickable (vinyl / lyrics)
+      this._normalFeedbackOff = addPressFeedback(this._normalButton, {
+        hover: 1.015,
+        press: 0.985,
       });
 
       this._normalCoverImage = new St.Widget({
@@ -436,7 +453,6 @@ export const AlbumArt = GObject.registerClass(
         style: `
           border-radius: ${br}px;
           background-size: cover;
-          background-position: center;
           background-repeat: no-repeat;
         `,
         reactive: false,
@@ -503,7 +519,6 @@ export const AlbumArt = GObject.registerClass(
         style: `
           border-radius: ${halfSz}px;
           background-size: cover;
-          background-position: center;
           background-repeat: no-repeat;
         `,
         reactive: false,
@@ -550,13 +565,7 @@ export const AlbumArt = GObject.registerClass(
 
       //  Resize structural widgets
 
-      this._normalButton.style = `
-        width: ${sz}px; height: ${sz}px; border-radius: ${br}px;
-        box-shadow: 0 8px 24px rgba(0,0,0,0.4);
-        background: linear-gradient(135deg,
-          rgba(255,255,255,0.05) 0%, rgba(255,255,255,0.02) 100%);
-        padding: 0; border: none;
-      `;
+      this._normalButton.style = _normalFrameStyle(sz, br);
       this._normalCoverImage.set_width(sz);
       this._normalCoverImage.set_height(sz);
 
@@ -762,21 +771,20 @@ export const AlbumArt = GObject.registerClass(
         border-radius: ${br}px;
         background-image: url('${imageUrl}');
         background-size: contain;
-        background-position: center;
         background-repeat: no-repeat;
       `;
+      // (no background-position: St only takes lengths there and logged a
+      // warning per cover for "center"; images are centered by default)
       const vinylStyle = `
         width: ${sz}px;
         height: ${sz}px;
         border-radius: ${halfSz}px;
         background-image: url('${imageUrl}');
         background-size: cover;
-        background-position: center;
         background-repeat: no-repeat;
       `;
 
-      this._normalCoverImage.style = normalStyle;
-      this._vinylCoverImage.style = vinylStyle;
+      this._applyCoverStyle({ normal: normalStyle, vinyl: vinylStyle });
       // bounded: one entry per distinct cover played in this session
       if (this._coverCache.size >= COVER_CACHE_MAX && !this._coverCache.has(imageUrl))
         this._coverCache.delete(this._coverCache.keys().next().value);
@@ -787,8 +795,13 @@ export const AlbumArt = GObject.registerClass(
     }
 
     _applyCoverStyle(styles) {
+      const changed = this._normalCoverImage.style !== styles.normal;
       this._normalCoverImage.style = styles.normal;
       this._vinylCoverImage.style = styles.vinyl;
+      // Soft cross-in on track change instead of a hard swap (no-op while
+      // the popup is closed).
+      if (changed)
+        fadeIn(this._vinylMode ? this._vinylCoverImage : this._normalCoverImage);
     }
 
     _downloadCover(url) {
@@ -865,21 +878,36 @@ export const AlbumArt = GObject.registerClass(
       if (this._isRotating) return;
 
       this._isRotating = true;
-      const speed = this._settings.get_int("album-art-rotation-speed");
-      const interval = 50;
-      const degPerInterval = (360 / (speed * 1000)) * interval;
+      this._startSpin();
+    }
 
-      this._rotationInterval = GLib.timeout_add(
-        GLib.PRIORITY_LOW,
-        interval,
-        () => {
-          if (this._isDestroyed || !this._isRotating) return GLib.SOURCE_REMOVE;
-          this._rotationAngle = (this._rotationAngle + degPerInterval) % 360;
-          if (this._rotatingContainer)
-            this._rotatingContainer.rotation_angle_z = this._rotationAngle;
-          return GLib.SOURCE_CONTINUE;
-        },
-      );
+    // The spin is a repeating Clutter transition instead of a 50 ms GLib
+    // timer: it is driven by the frame clock, so it is smooth at the
+    // display's refresh rate, and it only advances while the disc is on
+    // screen. The old timer kept rewriting rotation_angle_z (and woke the
+    // shell 20x/s) whenever a vinyl player was playing, popup open or not.
+    _startSpin() {
+      const actor = this._rotatingContainer;
+      if (!actor || this._isDestroyed) return;
+      this._stopRotationInterval();
+      if (!this.mapped) return; // notify::mapped starts it when shown
+
+      let seconds = 20;
+      try {
+        seconds = Math.max(1, this._settings.get_int("album-art-rotation-speed"));
+      } catch (_e) {}
+
+      const from = this._rotationAngle % 360;
+      const spin = new Clutter.PropertyTransition({
+        property_name: "rotation-angle-z",
+        duration: seconds * 1000,
+        repeat_count: -1,
+        progress_mode: Clutter.AnimationMode.LINEAR,
+      });
+      spin.set_from(from);
+      spin.set_to(from + 360);
+      actor.add_transition(SPIN_TRANSITION, spin);
+      this._rotationInterval = spin;
     }
 
     stopRotation() {
@@ -899,10 +927,16 @@ export const AlbumArt = GObject.registerClass(
     }
 
     _stopRotationInterval() {
-      if (this._rotationInterval) {
-        GLib.Source.remove(this._rotationInterval);
-        this._rotationInterval = null;
-      }
+      if (!this._rotationInterval) return;
+      this._rotationInterval = null;
+      const actor = this._rotatingContainer;
+      if (!actor) return;
+      // Freeze where the disc currently is, so pause/resume continues from
+      // the same angle instead of snapping.
+      const angle = actor.rotation_angle_z % 360;
+      actor.remove_transition(SPIN_TRANSITION);
+      this._rotationAngle = angle;
+      actor.rotation_angle_z = angle;
     }
 
     /**
@@ -941,6 +975,8 @@ export const AlbumArt = GObject.registerClass(
         this._sizeChangedId = 0;
       }
 
+      this._normalFeedbackOff?.();
+      this._normalFeedbackOff = null;
       this._normalButton?.disconnectObject(this);
       this._vinylButton?.disconnectObject(this);
       this._normalContainer?.disconnectObject(this);

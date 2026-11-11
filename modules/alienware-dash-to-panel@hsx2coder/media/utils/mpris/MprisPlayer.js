@@ -289,7 +289,14 @@ export class MprisPlayer {
 
     if (signals && proxy) {
       for (const [signalType, signalId] of signals) {
-        proxy.disconnect(signalId);
+        // "seeked" comes from proxy.connectSignal(): a GJS-side id (1, 2...)
+        // that must go through disconnectSignal(). Passing it to the GObject
+        // disconnect() logged "has no handler with id '1'" on every player
+        // removal and left the Seeked handler (and its closure) alive.
+        try {
+          if (signalType === "seeked") proxy.disconnectSignal(signalId);
+          else proxy.disconnect(signalId);
+        } catch (_e) {}
       }
       this._manager._proxySignals.delete(name);
     }

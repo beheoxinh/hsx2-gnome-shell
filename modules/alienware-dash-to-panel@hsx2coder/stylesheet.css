@@ -257,11 +257,24 @@
    position tick and the progress bar never paints. Defining them here keeps the
    media widget independent of the active shell theme. */
 .amc-media-progress-bar {
+	/* fixed height so the handle growing on hover never shifts the layout */
+	height: 16px;
+	color: -st-accent-color;
+	-slider-handle-radius: 0px;
 	-barlevel-height: 4px;
-	-barlevel-background-color: rgba(255, 255, 255, 0.25);
-	-barlevel-active-background-color: rgba(255, 255, 255, 0.85);
+	-barlevel-background-color: rgba(127, 127, 127, 0.28);
+	-barlevel-active-background-color: -st-accent-color;
 	-barlevel-overdrive-color: #e01b24;
 	-barlevel-overdrive-separator-width: 1px;
+}
+
+/* Hover/drag: thicker bar + visible handle, so it reads as draggable */
+.amc-media-progress-bar:hover,
+.amc-media-progress-bar:active {
+	color: st-lighten(-st-accent-color, 8%);
+	-slider-handle-radius: 6px;
+	-barlevel-height: 6px;
+	-barlevel-active-background-color: st-lighten(-st-accent-color, 4%);
 }
 
 
@@ -400,51 +413,88 @@
     opacity: 0.7;
 }
 
-/* Control buttons */
-.media-button-modern {
-    padding: 12px;
-    border-radius: 12px;
-    background-color: rgba(0, 0, 0, 0.08);
-    transition-property: background-color, transform;
-    transition-duration: 200ms;
+/* ------------------------------------------------------------------
+ * Media popup (redesign)
+ * Geometry (sizes, radii) is set inline from popup-width; everything
+ * visual lives here. Colors follow the GNOME accent color and the
+ * popup's own foreground so both light and dark shell themes work.
+ * Scale on hover/press is animated in JS (utils/ui/motion.js).
+ * ------------------------------------------------------------------ */
+
+/* Popup surface: softer, rounder card than the theme's square menus */
+.popup-menu-content.amc-media-popup {
+    border-radius: 20px;
+    padding: 14px 4px 16px;
+    box-shadow: 0 12px 36px rgba(0, 0, 0, 0.45);
 }
 
-.media-button-modern:hover {
-    background-color: rgba(0, 0, 0, 0.12);
+.amc-media-popup .popup-menu-item {
+    padding: 0 10px;
 }
 
-.media-button-modern:active {
-    background-color: rgba(0, 0, 0, 0.15);
+/* Transport row */
+.amc-ctl-row {
+    padding-top: 2px;
 }
 
-/* Active shuffle / repeat  Spotify green accent */
-.media-button-modern.shuffle-active,
-.media-button-modern.repeat-active {
-    background-color: rgba(29, 185, 84, 0.2);
+.amc-ctl-btn {
+    padding: 0;
+    border-radius: 999px;
+    background-color: transparent;
+    transition-duration: 160ms;
 }
 
-.media-button-modern.shuffle-active StIcon,
-.media-button-modern.repeat-active StIcon {
-    color: #1db954;
+.amc-ctl-btn:hover {
+    background-color: rgba(127, 127, 127, 0.18);
 }
 
-/* Play button */
-.media-play-button-modern {
-    padding: 16px;
-    border-radius: 50%;
-    background-color: rgba(0, 0, 0, 0.12);
-    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.2);
-    transition-property: background-color, transform, box-shadow;
-    transition-duration: 200ms;
+.amc-ctl-btn:active {
+    background-color: rgba(127, 127, 127, 0.28);
 }
 
-.media-play-button-modern:hover {
-    background-color: rgba(0, 0, 0, 0.18);
-    box-shadow: 0 6px 20px rgba(0, 0, 0, 0.3);
+.amc-ctl-btn:focus {
+    box-shadow: inset 0 0 0 2px st-transparentize(-st-accent-color, 0.3);
 }
 
-.media-play-button-modern:active {
-    background-color: rgba(0, 0, 0, 0.22);
+/* Shuffle / repeat engaged: accent icon on a faint accent pill */
+.amc-ctl-btn.amc-toggle-on {
+    color: -st-accent-color;
+    background-color: st-transparentize(-st-accent-color, 0.84);
+}
+
+.amc-ctl-btn.amc-toggle-on:hover {
+    background-color: st-transparentize(-st-accent-color, 0.74);
+}
+
+/* Play / pause: solid accent disc */
+.amc-ctl-btn.amc-ctl-play {
+    color: -st-accent-fg-color;
+    background-color: -st-accent-color;
+    box-shadow: 0 6px 18px st-transparentize(-st-accent-color, 0.55);
+}
+
+.amc-ctl-btn.amc-ctl-play:hover {
+    color: -st-accent-fg-color;
+    background-color: st-lighten(-st-accent-color, 6%);
+    box-shadow: 0 8px 24px st-transparentize(-st-accent-color, 0.4);
+}
+
+.amc-ctl-btn.amc-ctl-play:active {
+    background-color: st-darken(-st-accent-color, 6%);
+    box-shadow: 0 3px 10px st-transparentize(-st-accent-color, 0.6);
+}
+
+.amc-ctl-btn.amc-ctl-play:focus {
+    box-shadow: 0 6px 18px st-transparentize(-st-accent-color, 0.55),
+                inset 0 0 0 2px rgba(255, 255, 255, 0.55);
+}
+
+/* Time labels under the progress bar (dimmed via actor opacity in JS,
+   so they keep the theme's foreground color in light and dark themes) */
+.amc-time-label {
+    font-size: 11px;
+    font-weight: 600;
+    font-feature-settings: "tnum";
 }
 
 /* Panel media buttons */
@@ -455,12 +505,14 @@
     transition-duration: 150ms;
 }
 
+/* neutral grey reads on both light and dark panels (black 10% was
+   invisible on the dark panel) */
 .panel-media-button:hover {
-    background-color: rgba(0, 0, 0, 0.1);
+    background-color: rgba(127, 127, 127, 0.22);
 }
 
 .panel-media-button:active {
-    background-color: rgba(0, 0, 0, 0.15);
+    background-color: rgba(127, 127, 127, 0.32);
 }
 
 /* Popup menu controls */

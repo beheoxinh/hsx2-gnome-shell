@@ -19,7 +19,7 @@ export const ProgressSlider = GObject.registerClass(
     _init() {
       super._init({
         vertical: true,
-        style: "spacing: 10px; margin-bottom: 20px;",
+        style: "spacing: 4px; margin-bottom: 14px;",
       });
 
       this._updateInterval = null;
@@ -107,15 +107,18 @@ export const ProgressSlider = GObject.registerClass(
 
       const timeBox = new St.BoxLayout({ style: "margin: 0 8px;" });
 
+      // Styled by .amc-time-label (tabular digits so the width does not
+      // jitter every second). Dimmed via opacity: St CSS has no
+      // color-mix(), the old inline value was dropped by the parser.
       this._currentTimeLabel = new St.Label({
         text: "0:00",
-        style:
-          "font-size:12px;font-weight:600;color:color-mix(in srgb,currentColor 70%,transparent);",
+        style_class: "amc-time-label",
+        opacity: 175,
       });
       this._totalTimeLabel = new St.Label({
         text: "0:00",
-        style:
-          "font-size:12px;font-weight:600;color:color-mix(in srgb,currentColor 50%,transparent);",
+        style_class: "amc-time-label",
+        opacity: 125,
         x_align: Clutter.ActorAlign.END,
         x_expand: true,
       });

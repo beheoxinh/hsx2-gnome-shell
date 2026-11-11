@@ -843,7 +843,9 @@ function _tabActiveStyle(dark) {
 }
 
 function _tabIdleStyle(_dark) {
-  return "padding: 6px 10px; border-radius: 9px;";
+  // Same 1px border box as the hover/active states (transparent here), so
+  // hovering a tab no longer grows it by 2px and nudges its neighbours.
+  return "padding: 6px 10px; border-radius: 9px; border: 1px solid transparent;";
 }
 
 function _tabHoverStyle(dark) {

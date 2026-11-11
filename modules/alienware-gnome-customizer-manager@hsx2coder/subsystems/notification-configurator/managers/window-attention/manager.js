@@ -1,6 +1,7 @@
 import { InjectionManager } from "resource:///org/gnome/shell/extensions/extension.js";
 import GObject from "gi://GObject";
 import * as Main from "resource:///org/gnome/shell/ui/main.js";
+import { detachShellAttentionHandlers, restoreShellAttentionHandlers, isFocusOnDemand } from "../../../../lib/attentionHandlers.js";
 export class WindowAttentionManager {
     injectionManager = new InjectionManager();
     hooks = [];
@@ -24,8 +25,7 @@ export class WindowAttentionManager {
         if (this._shellHandlersRemoved)
             return;
         try {
-            global.display.disconnectObject(Main.windowAttentionHandler);
-            this._shellHandlersRemoved = true;
+            this._shellHandlersRemoved = detachShellAttentionHandlers();
         }
         catch (error) {
             console.error("[WindowAttentionManager] could not detach shell handlers", error);
@@ -35,13 +35,9 @@ export class WindowAttentionManager {
         if (!this._shellHandlersRemoved)
             return;
         this._shellHandlersRemoved = false;
-        const handler = Main.windowAttentionHandler;
         try {
             // prototype is unpatched again here (injectionManager.clear ran first)
-            global.display.connectObject(
-                "window-demands-attention", handler._onWindowDemandsAttention.bind(handler),
-                "window-marked-urgent", handler._onWindowDemandsAttention.bind(handler),
-                handler);
+            restoreShellAttentionHandlers();
         }
         catch (error) {
             console.error("[WindowAttentionManager] could not restore shell handlers", error);
@@ -89,7 +85,13 @@ export class WindowAttentionManager {
     reconnectSignals() {
         const attentionHandler = Main.windowAttentionHandler;
         const display = global.display;
-        const callback = (currentDisplay, window) => attentionHandler._onWindowDemandsAttention(currentDisplay, window);
+        const callback = (currentDisplay, window) => {
+            // focus-on-demand owns these events: it focuses the window, so a
+            // notification would only flash up (see attentionHandlers.js)
+            if (isFocusOnDemand())
+                return;
+            attentionHandler._onWindowDemandsAttention(currentDisplay, window);
+        };
 
         this._disconnectSignals();
         this._removeShellHandlers();

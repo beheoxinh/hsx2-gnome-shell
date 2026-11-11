@@ -1,8 +1,16 @@
 import St from "gi://St";
 import GObject from "gi://GObject";
 import Clutter from "gi://Clutter";
+import { addPressFeedback } from "./motion.js";
 
-//  Size helpers
+// Transport controls for the media popup.
+//
+// Look & feel lives in the module stylesheet (.amc-ctl-*): round, borderless
+// secondary buttons that only show a surface on hover/press, and a solid
+// accent-colored play button. Only geometry (derived from popup-width) is
+// set inline. Hover/press scale is animated by motion.addPressFeedback; the
+// old inline `transform: scale()` / `linear-gradient()` / `50%` radius were
+// not St CSS and were silently ignored.
 
 /** @param {Gio.Settings|null} s  @returns {number} popup width in px */
 function _pw(s) {
@@ -14,36 +22,25 @@ function _pw(s) {
   }
 }
 
+const _clamp = (v, lo, hi) => Math.max(lo, Math.min(hi, v));
+
 function _metrics(s) {
   const pw = _pw(s);
   const sidePad = Math.round(pw * 0.04); // ~14 px at 340
-  const total = pw - sidePad * 2;
-  const spacing = Math.max(4, Math.round(total * 0.04));
-  const btnW = Math.round((total - spacing * 4) / 5);
-  const btnH = Math.round(btnW * 0.82); // slight portrait shape
-  const iconSm = Math.max(14, Math.round(btnW * 0.38)); // shuffle / repeat
-  const iconMd = Math.max(16, Math.round(btnW * 0.44)); // prev / next
-  const iconLg = Math.max(20, Math.round(btnW * 0.52)); // play/pause
-  const playW = Math.round(btnW * 1.18); // play button slightly larger
-  const playH = playW;
-  const radius = Math.round(btnW * 0.3); // rounded rect
-  const padV = Math.max(8, Math.round(btnH * 0.22));
-  const padH = Math.max(8, Math.round(btnW * 0.18));
-  const playPad = Math.max(10, Math.round(playW * 0.22));
-
+  const sec = _clamp(Math.round(pw * 0.13), 36, 54); // 44 at 340
+  const play = _clamp(Math.round(pw * 0.19), 52, 78); // 65 at 340
+  const spacing = Math.max(
+    4,
+    Math.floor((pw - sidePad * 2 - sec * 4 - play) / 4),
+  );
   return {
+    sidePad,
     spacing,
-    btnW,
-    btnH,
-    iconSm,
-    iconMd,
-    iconLg,
-    playW,
-    playH,
-    radius,
-    padV,
-    padH,
-    playPad,
+    sec,
+    play,
+    iconToggle: Math.round(sec * 0.42), // shuffle / repeat
+    iconSkip: Math.round(sec * 0.5), // prev / next
+    iconPlay: Math.round(play * 0.4),
   };
 }
 
@@ -59,15 +56,48 @@ function _btnOrder(s) {
     const VALID = new Set(DEFAULT);
     const seen = new Set();
     const out = [];
-    for (const id of raw.split(",").map(t => t.trim()).filter(Boolean)) {
-      if (VALID.has(id) && !seen.has(id)) { out.push(id); seen.add(id); }
+    for (const id of raw.split(",").map((t) => t.trim()).filter(Boolean)) {
+      if (VALID.has(id) && !seen.has(id)) {
+        out.push(id);
+        seen.add(id);
+      }
     }
-    for (const id of DEFAULT) { if (!seen.has(id)) out.push(id); }
+    for (const id of DEFAULT) {
+      if (!seen.has(id)) out.push(id);
+    }
     return out;
   } catch (_e) {
     return DEFAULT;
   }
 }
+
+const SPEC = {
+  shuffle: {
+    icon: "media-playlist-shuffle-symbolic",
+    size: "iconToggle",
+    a11y: "Shuffle",
+  },
+  previous: {
+    icon: "media-skip-backward-symbolic",
+    size: "iconSkip",
+    a11y: "Previous track",
+  },
+  play: { icon: "media-playback-start-symbolic", size: "iconPlay", a11y: "Play" },
+  next: { icon: "media-skip-forward-symbolic", size: "iconSkip", a11y: "Next track" },
+  repeat: {
+    icon: "media-playlist-repeat-symbolic",
+    size: "iconToggle",
+    a11y: "Repeat",
+  },
+};
+
+const SIGNAL_FOR = {
+  shuffle: "shuffle",
+  previous: "previous",
+  play: "play-pause",
+  next: "next",
+  repeat: "repeat",
+};
 
 export const ControlButtons = GObject.registerClass(
   {
@@ -86,15 +116,18 @@ export const ControlButtons = GObject.registerClass(
      */
     _init(settings = null) {
       super._init({
-        x_align: Clutter.ActorAlign.FILL,
+        style_class: "amc-ctl-row",
+        x_align: Clutter.ActorAlign.CENTER,
+        y_align: Clutter.ActorAlign.CENTER,
         x_expand: true,
-        style: "padding-left: 0; padding-right: 0;",
       });
 
       this._settings = settings;
       this._widthChangedId = 0;
       this._orderChangedId = 0;
       this._isDestroyed = false;
+      this._buttons = {};
+      this._feedback = [];
 
       // A parent actor can be destroyed by the shell (menu teardown) without
       // calling our destroy(). Without this flag the MPRIS callbacks keep
@@ -108,219 +141,106 @@ export const ControlButtons = GObject.registerClass(
       if (this._settings) {
         this._widthChangedId = this._settings.connect(
           "changed::popup-width",
-          () => { if (!this._isDestroyed) this._applyMetrics(); },
+          () => {
+            if (!this._isDestroyed) this._applyMetrics();
+          },
         );
         this._orderChangedId = this._settings.connect(
           "changed::popup-button-order",
-          () => { if (!this._isDestroyed) this._reorderChildren(); },
+          () => {
+            if (!this._isDestroyed) this._addChildrenInOrder();
+          },
         );
       }
     }
 
     _buildUI() {
-      const m = _metrics(this._settings);
-
-      // Container spacing and side padding
-      this.style = `spacing: ${m.spacing}px; padding: 0 ${Math.round(_pw(this._settings) * 0.04)}px;`;
-
-      this._shuffleBtn = this._makeSecondaryBtn(
-        "media-playlist-shuffle-symbolic",
-        m.iconSm,
-        m,
-      );
-      this._shuffleBtn.connect("clicked", () => this.emit("shuffle"));
-
-      this._prevBtn = this._makeSecondaryBtn(
-        "media-skip-backward-symbolic",
-        m.iconMd,
-        m,
-      );
-      this._prevBtn.connect("clicked", () => this.emit("previous"));
-
-      this._playBtn = this._makePlayBtn(
-        "media-playback-start-symbolic",
-        m.iconLg,
-        m,
-      );
-      this._playBtn.connect("clicked", () => this.emit("play-pause"));
-
-      this._nextBtn = this._makeSecondaryBtn(
-        "media-skip-forward-symbolic",
-        m.iconMd,
-        m,
-      );
-      this._nextBtn.connect("clicked", () => this.emit("next"));
-
-      this._repeatBtn = this._makeSecondaryBtn(
-        "media-playlist-repeat-symbolic",
-        m.iconSm,
-        m,
-      );
-      this._repeatBtn.connect("clicked", () => this.emit("repeat"));
-
-      this._addChildrenInOrder();
-    }
-
-    /** Map a button id string to the corresponding St.Button widget. */
-    _btnForId(id) {
-      switch (id) {
-        case "shuffle":  return this._shuffleBtn;
-        case "previous": return this._prevBtn;
-        case "play":     return this._playBtn;
-        case "next":     return this._nextBtn;
-        case "repeat":   return this._repeatBtn;
-        default:         return null;
+      for (const id of Object.keys(SPEC)) {
+        const isPlay = id === "play";
+        const btn = new St.Button({
+          style_class: isPlay ? "amc-ctl-btn amc-ctl-play" : "amc-ctl-btn",
+          child: new St.Icon({
+            icon_name: SPEC[id].icon,
+            style_class: "amc-ctl-icon",
+          }),
+          can_focus: true,
+          track_hover: true,
+          y_align: Clutter.ActorAlign.CENTER,
+          accessible_name: SPEC[id].a11y,
+        });
+        btn.connect("clicked", () => this.emit(SIGNAL_FOR[id]));
+        this._feedback.push(
+          addPressFeedback(btn, isPlay ? { hover: 1.05, press: 0.9 } : {}),
+        );
+        this._buttons[id] = btn;
       }
+
+      // Keep the historical field names: other code may still poke them.
+      this._shuffleBtn = this._buttons.shuffle;
+      this._prevBtn = this._buttons.previous;
+      this._playBtn = this._buttons.play;
+      this._nextBtn = this._buttons.next;
+      this._repeatBtn = this._buttons.repeat;
+
+      this._applyMetrics();
+      this._addChildrenInOrder();
     }
 
     /** Add (or re-order) children according to the current order setting. */
     _addChildrenInOrder() {
-      // Remove all existing children first (safe no-op on first build)
-      this.remove_all_children();
+      for (const child of this.get_children()) this.remove_child(child);
       for (const id of _btnOrder(this._settings)) {
-        const btn = this._btnForId(id);
+        const btn = this._buttons[id];
         if (btn) this.add_child(btn);
       }
     }
 
-    /** Called live when popup-button-order changes. */
-    _reorderChildren() {
-      this._addChildrenInOrder();
-    }
-
-    // Live resize
-
     _applyMetrics() {
       const m = _metrics(this._settings);
-      const pw = _pw(this._settings);
+      this.style = `spacing: ${m.spacing}px; padding: 0 ${m.sidePad}px;`;
 
-      this.style = `spacing: ${m.spacing}px; padding: 0 ${Math.round(pw * 0.04)}px;`;
-
-      this._resizeSecondary(this._shuffleBtn, m);
-      this._resizeSecondary(this._prevBtn, m);
-      this._resizePlay(this._playBtn, m);
-      this._resizeSecondary(this._nextBtn, m);
-      this._resizeSecondary(this._repeatBtn, m);
+      for (const [id, btn] of Object.entries(this._buttons)) {
+        const d = id === "play" ? m.play : m.sec;
+        const r = Math.round(d / 2);
+        btn.style = `width: ${d}px; height: ${d}px; border-radius: ${r}px;`;
+        if (btn.child) btn.child.icon_size = m[SPEC[id].size];
+      }
     }
 
-    _resizeSecondary(btn, m) {
-      btn.style = _secondaryStyle(m);
-      btn.set_width(m.btnW);
-      btn.set_height(m.btnH);
-      if (btn.child) btn.child.icon_size = m.iconSm;
-    }
-
-    _resizePlay(btn, m) {
-      btn.style = _playStyle(m);
-      btn.set_width(m.playW);
-      btn.set_height(m.playH);
-      if (btn.child) btn.child.icon_size = m.iconLg;
-    }
-
-    //  Button factories
-
-    _makeSecondaryBtn(iconName, iconSize, m) {
-      const btn = new St.Button({
-        style_class: "media-button-modern",
-        style: _secondaryStyle(m),
-        width: m.btnW,
-        height: m.btnH,
-        x_expand: true,
-        child: new St.Icon({
-          icon_name: iconName,
-          icon_size: iconSize,
-          style_class: "media-icon",
-        }),
-        can_focus: true,
-        track_hover: true,
-      });
-
-      btn.connect("enter-event", () => {
-        btn.style = _secondaryHoverStyle(m);
-      });
-      btn.connect("leave-event", () => {
-        btn.style = _secondaryStyle(m);
-      });
-
-      return btn;
-    }
-
-    _makePlayBtn(iconName, iconSize, m) {
-      const btn = new St.Button({
-        style_class: "media-play-button-modern",
-        style: _playStyle(m),
-        width: m.playW,
-        height: m.playH,
-        x_expand: true,
-        child: new St.Icon({
-          icon_name: iconName,
-          icon_size: iconSize,
-          style: "color: #ffffff;",
-        }),
-        can_focus: true,
-        track_hover: true,
-      });
-
-      btn.connect("enter-event", () => {
-        btn.style = _playHoverStyle(m);
-      });
-      btn.connect("leave-event", () => {
-        btn.style = _playStyle(m);
-      });
-
-      return btn;
+    _setToggle(btn, on) {
+      if (on) btn.add_style_class_name("amc-toggle-on");
+      else btn.remove_style_class_name("amc-toggle-on");
+      btn.toggle_mode = false;
+      btn.checked = on; // exposes the state to screen readers
     }
 
     updateButtons(info) {
       if (this._isDestroyed) return;
-      // Play/pause icon
+
+      const playing = info.status === "Playing";
       if (this._playBtn.child) {
-        this._playBtn.child.icon_name =
-          info.status === "Playing"
-            ? "media-playback-pause-symbolic"
-            : "media-playback-start-symbolic";
+        this._playBtn.child.icon_name = playing
+          ? "media-playback-pause-symbolic"
+          : "media-playback-start-symbolic";
       }
+      this._playBtn.accessible_name = playing ? "Pause" : "Play";
 
-      // Shuffle
-      const m = _metrics(this._settings);
+      this._setToggle(this._shuffleBtn, !!info.shuffle);
 
-      if (info.shuffle) {
-        this._shuffleBtn.add_style_class_name("active");
-        this._shuffleBtn.style = _activeStyle(m);
-        if (this._shuffleBtn.child) this._shuffleBtn.child.style = "color: #1db954;";
-      } else {
-        this._shuffleBtn.remove_style_class_name("active");
-        this._shuffleBtn.style = _secondaryStyle(m);
-        if (this._shuffleBtn.child) {
-          this._shuffleBtn.child.style_class = "media-icon";
-          this._shuffleBtn.child.style = "";
-        }
+      const loop = info.loopStatus;
+      if (this._repeatBtn.child) {
+        this._repeatBtn.child.icon_name =
+          loop === "Track"
+            ? "media-playlist-repeat-song-symbolic"
+            : "media-playlist-repeat-symbolic";
       }
-
-      //  Repeat
-      if (info.loopStatus === "Track") {
-        if (this._repeatBtn.child) this._repeatBtn.child.icon_name = "media-playlist-repeat-song-symbolic";
-        this._repeatBtn.add_style_class_name("active");
-        this._repeatBtn.style = _activeStyle(m);
-        if (this._repeatBtn.child) this._repeatBtn.child.style = "color: #1db954;";
-      } else if (info.loopStatus === "Playlist") {
-        if (this._repeatBtn.child) this._repeatBtn.child.icon_name = "media-playlist-repeat-symbolic";
-        this._repeatBtn.add_style_class_name("active");
-        this._repeatBtn.style = _activeStyle(m);
-        if (this._repeatBtn.child) this._repeatBtn.child.style = "color: #1db954;";
-      } else {
-        if (this._repeatBtn.child) this._repeatBtn.child.icon_name = "media-playlist-repeat-symbolic";
-        this._repeatBtn.remove_style_class_name("active");
-        this._repeatBtn.style = _secondaryStyle(m);
-        if (this._repeatBtn.child) {
-          this._repeatBtn.child.style_class = "media-icon";
-          this._repeatBtn.child.style = "";
-        }
-      }
+      this._setToggle(this._repeatBtn, loop === "Track" || loop === "Playlist");
     }
 
     destroy() {
       this._isDestroyed = true;
+      for (const off of this._feedback) off();
+      this._feedback = [];
       if (this._widthChangedId && this._settings) {
         this._settings.disconnect(this._widthChangedId);
         this._widthChangedId = 0;
@@ -333,60 +253,3 @@ export const ControlButtons = GObject.registerClass(
     }
   },
 );
-
-function _secondaryStyle(m) {
-  return `
-    width: ${m.btnW}px;
-    height: ${m.btnH}px;
-    padding: ${m.padV}px ${m.padH}px;
-    border-radius: ${m.radius}px;
-    background-color: rgba(127,127,127,0.15);
-    border: 1px solid rgba(127,127,127,0.10);
-  `;
-}
-
-function _secondaryHoverStyle(m) {
-  return `
-    width: ${m.btnW}px;
-    height: ${m.btnH}px;
-    padding: ${m.padV}px ${m.padH}px;
-    border-radius: ${m.radius}px;
-    background-color: rgba(127,127,127,0.25);
-    border: 1px solid rgba(127,127,127,0.20);
-    transform: scale(1.05);
-  `;
-}
-
-function _activeStyle(m) {
-  return `
-    width: ${m.btnW}px;
-    height: ${m.btnH}px;
-    padding: ${m.padV}px ${m.padH}px;
-    border-radius: ${m.radius}px;
-    background-color: rgba(29,185,84,0.20);
-    border: 1px solid rgba(29,185,84,0.30);
-  `;
-}
-
-function _playStyle(m) {
-  return `
-    width: ${m.playW}px;
-    height: ${m.playH}px;
-    padding: ${m.playPad}px;
-    border-radius: 50%;
-    background: linear-gradient(135deg,rgba(255,255,255,0.20) 0%,rgba(255,255,255,0.10) 100%);
-    box-shadow: 0 4px 16px rgba(0,0,0,0.30);
-  `;
-}
-
-function _playHoverStyle(m) {
-  return `
-    width: ${m.playW}px;
-    height: ${m.playH}px;
-    padding: ${m.playPad}px;
-    border-radius: 50%;
-    background: linear-gradient(135deg,rgba(255,255,255,0.25) 0%,rgba(255,255,255,0.15) 100%);
-    box-shadow: 0 6px 20px rgba(0,0,0,0.40);
-    transform: scale(1.08);
-  `;
-}
