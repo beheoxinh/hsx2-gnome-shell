@@ -19,7 +19,6 @@ export class ScreenshotBox
     #isDragging = false;
     #dragUpdateId = 0;
     #origUpdateRect = null;
-    #cleanupId = 0;
 
     constructor(dependencies)
     {
@@ -72,10 +71,9 @@ export class ScreenshotBox
             this.#retryId = 0;
         }
 
-        if (this.#cleanupId) {
-            GLib.source_remove(this.#cleanupId);
-            this.#cleanupId = 0;
-        }
+        try {
+            Main?.screenshotUI?.disconnectObject?.(this);
+        } catch (_e) {}
 
         this.#stopDragUpdate();
         this.#isDragging = false;
@@ -109,18 +107,27 @@ export class ScreenshotBox
 
     #addScreenshotUICleanupMonitor()
     {
-        if (this.#cleanupId)
+        // Event-driven instead of a 300 ms poll for the whole session. The
+        // old poll tested `!Main.screenshotUI`, which is never true, so it
+        // woke the shell 3x a second and still left the label on screen
+        // after the UI closed.
+        const ui = Main?.screenshotUI;
+        if (!ui?.connectObject)
             return;
-
-        this.#cleanupId = GLib.timeout_add(GLib.PRIORITY_DEFAULT, 300, () => {
-            if (!this.#dimensionLabel) {
-                this.#cleanupId = 0;
-                return GLib.SOURCE_REMOVE;
-            }
-            if (!Main?.screenshotUI && !this.#isDragging)
-                this.#dimensionLabel.hide();
-            return GLib.SOURCE_CONTINUE;
-        });
+        const onClosed = () => {
+            this.#isDragging = false;
+            this.#stopDragUpdate();
+            this.#dimensionLabel?.hide();
+        };
+        try {
+            ui.connectObject('closed', onClosed, this);
+        } catch (_e) {
+            // older shells without ::closed
+            ui.connectObject('notify::visible', () => {
+                if (!ui.visible)
+                    onClosed();
+            }, this);
+        }
     }
 
     #patchWhenReady()

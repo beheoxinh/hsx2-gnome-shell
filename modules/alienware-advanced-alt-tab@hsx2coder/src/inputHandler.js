@@ -49,6 +49,11 @@ export class InputHandler {
             this._timeoutIds = {};
         } finally {
             this._restoreOverlayKey();
+            // The layout is only reset on the window-activation paths. A popup
+            // torn down any other way (Esc, screen lock, suite disable) left
+            // the remembered AATWS layout active, so the unlock password was
+            // typed in the wrong layout. setInput(true) is a no-op once reset.
+            this.setInput(true);
         }
     }
 

@@ -71,8 +71,19 @@ export class UserShellThemeSubsystem {
         let stylesheet = null;
         const themeName = this._settings.get_string(SETTINGS_KEY);
         try {
-            if (!themeName)
+            if (!themeName) {
+                // '' means "Default". Returning early here left the previous
+                // custom stylesheet active, so choosing Default did nothing.
+                // Reload only if a custom theme is actually applied: on a
+                // plain lock/unlock with Default selected this stays a no-op.
+                if (this._appliedStylesheet || globalThis.__alienwareAppliedShellTheme) {
+                    Main.setThemeStylesheet(null);
+                    Main.loadTheme();
+                    this._appliedStylesheet = null;
+                    globalThis.__alienwareAppliedShellTheme = null;
+                }
                 return;
+            }
 
             const stylesheetPaths = getThemeDirs()
                 .map(dir => `${dir}/${themeName}/gnome-shell/gnome-shell.css`);

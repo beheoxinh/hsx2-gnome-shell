@@ -40,7 +40,9 @@ function _apparent(t, rh, ws) {
 
 let _session = null
 function _session_() {
-  if (!_session) _session = new Soup.Session()
+  // Bounded timeouts: a stalled link must not keep requests (and the
+  // callbacks that touch our actors) alive indefinitely.
+  if (!_session) _session = new Soup.Session({ timeout: 20, idle_timeout: 30 })
   return _session
 }
 
@@ -63,6 +65,8 @@ export const WeatherStatus = GObject.registerClass(
       this._lon = null
       this._timerId = 0
       this._geoPending = false
+      this._wxPending = false
+      this._cancellable = new Gio.Cancellable()
       try {
         let box = new St.BoxLayout({
           style_class: 'panel-status-menu-box',
@@ -119,7 +123,8 @@ export const WeatherStatus = GObject.registerClass(
           },
         )
 
-        GLib.idle_add(GLib.PRIORITY_DEFAULT_IDLE, () => {
+        this._attachIdleId = GLib.idle_add(GLib.PRIORITY_DEFAULT_IDLE, () => {
+          this._attachIdleId = 0
           this._attachToDTP()
           return GLib.SOURCE_REMOVE
         })
@@ -182,10 +187,12 @@ export const WeatherStatus = GObject.registerClass(
         uri: GLib.Uri.parse('http://ip-api.com/json/', 0),
       })
       if (!msg) { this._geoPending = false; return }
+      const cancellable = this._cancellable
       _session_().send_and_read_async(
-        msg, GLib.PRIORITY_DEFAULT, null,
+        msg, GLib.PRIORITY_DEFAULT, cancellable,
         (s, res) => {
           this._geoPending = false
+          if (cancellable.is_cancelled()) return
           try {
             let bytes = s.send_and_read_finish(res)
             if (!bytes) { this._fallbackCoords(); return }
@@ -223,10 +230,16 @@ export const WeatherStatus = GObject.registerClass(
         'alienware-hsx2coder-gnome/1.0 (https://github.com/anomalyco/opencode)',
       )
       msg.request_headers.append('Accept-Encoding', 'identity')
-      if (!msg) return
+      // one request at a time: the poll timer must not stack fetches
+      // behind a slow response
+      if (this._wxPending || !this._cancellable) return
+      this._wxPending = true
+      const cancellable = this._cancellable
       _session_().send_and_read_async(
-        msg, GLib.PRIORITY_DEFAULT, null,
+        msg, GLib.PRIORITY_DEFAULT, cancellable,
         (s, res) => {
+          this._wxPending = false
+          if (cancellable.is_cancelled()) return
           try {
             let bytes = s.send_and_read_finish(res)
             if (!bytes) throw new Error('empty response body')
@@ -414,6 +427,12 @@ export const WeatherStatus = GObject.registerClass(
     }
 
     destroy() {
+      try { this._cancellable?.cancel() } catch (_) {}
+      this._cancellable = null
+      if (this._attachIdleId) {
+        try { GLib.source_remove(this._attachIdleId) } catch (_) {}
+        this._attachIdleId = 0
+      }
       if (this._deferredMenuIdleId) {
         try { GLib.Source.remove(this._deferredMenuIdleId); } catch (_) {}
         this._deferredMenuIdleId = null;

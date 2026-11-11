@@ -1106,7 +1106,11 @@ class AppIndicatorsIconActor extends St.Icon {
         const iconData = this._getIconData(iconName, themePath, iconSize, iconScaling);
         const loadingId = iconData.file ? iconData.file.get_path() : id;
 
-        const cancellable = await this._getIconLoadingCancellable(iconType, id);
+        // Register and clean up under the SAME key. Registering under `id`
+        // while the finally below deleted `loadingId` left file-based icons
+        // in the map forever: every later update of that icon was rejected
+        // with "Already in progress" and the icon froze.
+        const cancellable = await this._getIconLoadingCancellable(iconType, loadingId);
         try {
             gicon = await this._createIconByIconData(iconData, iconSize,
                 iconScaling, cancellable);

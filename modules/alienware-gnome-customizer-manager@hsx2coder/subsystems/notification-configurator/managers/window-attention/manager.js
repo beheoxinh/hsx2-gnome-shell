@@ -14,6 +14,38 @@ export class WindowAttentionManager {
     disable() {
         this.injectionManager.clear();
         this._disconnectSignals();
+        this._restoreShellHandlers();
+    }
+    // The shell connects `this._onWindowDemandsAttention.bind(this)` in its
+    // constructor, i.e. the ORIGINAL function, tracked under the handler
+    // object. Overriding the prototype does not reach that bound copy, so
+    // leaving it connected next to ours showed every notification twice.
+    _removeShellHandlers() {
+        if (this._shellHandlersRemoved)
+            return;
+        try {
+            global.display.disconnectObject(Main.windowAttentionHandler);
+            this._shellHandlersRemoved = true;
+        }
+        catch (error) {
+            console.error("[WindowAttentionManager] could not detach shell handlers", error);
+        }
+    }
+    _restoreShellHandlers() {
+        if (!this._shellHandlersRemoved)
+            return;
+        this._shellHandlersRemoved = false;
+        const handler = Main.windowAttentionHandler;
+        try {
+            // prototype is unpatched again here (injectionManager.clear ran first)
+            global.display.connectObject(
+                "window-demands-attention", handler._onWindowDemandsAttention.bind(handler),
+                "window-marked-urgent", handler._onWindowDemandsAttention.bind(handler),
+                handler);
+        }
+        catch (error) {
+            console.error("[WindowAttentionManager] could not restore shell handlers", error);
+        }
     }
     _disconnectSignals() {
         const display = global.display;
@@ -60,11 +92,11 @@ export class WindowAttentionManager {
         const callback = (currentDisplay, window) => attentionHandler._onWindowDemandsAttention(currentDisplay, window);
 
         this._disconnectSignals();
+        this._removeShellHandlers();
 
-        // Plain connect()/disconnect() with our own ids: connectObject() tracks
-        // handlers on a shared SignalTracker keyed by the tracker object, so
-        // disconnecting through the shell's windowAttentionHandler also tore down
-        // handlers the shell owns and left ids the tracker could no longer find.
+        // Plain connect()/disconnect() with our own ids, so our handlers are
+        // never mixed into the shell's SignalTracker entry for the handler
+        // object (which _removeShellHandlers/_restoreShellHandlers manage).
         attentionHandler._windowDemandsAttentionId = display.connect("window-demands-attention", callback);
         attentionHandler._windowMarkedUrgentId = display.connect("window-marked-urgent", callback);
     }

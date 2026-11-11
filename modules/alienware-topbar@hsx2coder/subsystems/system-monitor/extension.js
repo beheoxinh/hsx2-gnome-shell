@@ -221,13 +221,11 @@ function try_read_int_file(filename, callback) {
 // Returns used blocks, total blocks (matching `df` Size column), and
 // available blocks (matching `df` Avail column). Percentage is computed
 // separately as `used / (used + avail)` to match `df` Use%.
-function calc_usage(statfs) {
-    const used = statfs.blocks - statfs.bfree;
-    return {
-        used,
-        total: statfs.blocks,
-        avail: statfs.bavail
-    };
+// Same MB/GB formatting the disk bars always used, for byte counts.
+function format_bytes(size) {
+    if (size < 1024 * 1024 * 1024)
+        return (size / (1024 * 1024)).toFixed(1) + 'MB';
+    return (size / (1024 * 1024 * 1024)).toFixed(1) + 'GB';
 }
 
 const smStyleManager = class SystemMonitor_smStyleManager {
@@ -577,7 +575,13 @@ const Graph = class SystemMonitor_Graph {
         this.actor = new St.DrawingArea({ style_class: this.extension._Style.get('sm-chart'), reactive: false });
         this.width = width;
         this.height = height;
-        this.gtop = new GTop.glibtop_fsusage();
+        // Disk usage is read off the paint path (see _maybeRefreshFs): a
+        // statvfs() on a hung NFS/SMB mount used to block inside _draw and
+        // freeze the whole compositor.
+        this._fsCache = new Map();
+        this._fsInFlight = new Set();
+        this._fsLast = 0;
+        this._fsCancellable = new Gio.Cancellable();
         this.colors = ['#888', '#aaa', '#ccc'];
         for (let color in this.colors) {
             this.colors[color] = color_from_string(this.colors[color]);
@@ -602,7 +606,49 @@ const Graph = class SystemMonitor_Graph {
         this.actor.set_height(this.height * this.scale_factor * this.text_scaling);
         this.actor.connect('repaint', this._draw.bind(this));
     }
+    /**
+     * Start async filesystem queries (GIO worker threads) for the mounts
+     * whose previous query has finished; repaint as results arrive. Called
+     * from _draw, so it only runs while the menu is actually painted.
+     */
+    _maybeRefreshFs() {
+        const now = GLib.get_monotonic_time();
+        if (now - this._fsLast < 1500000 || !this._fsCancellable)
+            return;
+        this._fsLast = now;
+        for (const mount of this.mounts) {
+            // a hung mount keeps one worker busy, never a growing pile
+            if (this._fsInFlight.has(mount))
+                continue;
+            this._fsInFlight.add(mount);
+            const cancellable = this._fsCancellable;
+            Gio.File.new_for_path(mount).query_filesystem_info_async(
+                'filesystem::size,filesystem::free,filesystem::used',
+                GLib.PRIORITY_LOW, cancellable, (file, res) => {
+                    this._fsInFlight.delete(mount);
+                    try {
+                        const info = file.query_filesystem_info_finish(res);
+                        const total = info.get_attribute_uint64('filesystem::size');
+                        const avail = info.get_attribute_uint64('filesystem::free');
+                        const used = info.has_attribute('filesystem::used')
+                            ? info.get_attribute_uint64('filesystem::used')
+                            : Math.max(0, total - avail);
+                        this._fsCache.set(mount, {used, total, avail});
+                    } catch (e) {
+                        if (e.matches?.(Gio.IOErrorEnum, Gio.IOErrorEnum.CANCELLED))
+                            return;
+                    }
+                    if (!cancellable.is_cancelled())
+                        this.actor.queue_repaint();
+                });
+        }
+    }
+    _fsUsage(mount) {
+        return this._fsCache.get(mount) ?? {used: 0, total: 0, avail: 0};
+    }
     _releaseGraphSignals() {
+        this._fsCancellable?.cancel();
+        this._fsCancellable = null;
         if (this._scaleFactorId) {
             this._themeContext.disconnect(this._scaleFactorId);
             this._scaleFactorId = 0;
@@ -661,13 +707,13 @@ const Bar = class SystemMonitor_Bar extends Graph {
         let [width, height] = this.actor.get_surface_size();
         let cr = this.actor.get_context();
 
+        this._maybeRefreshFs();
         let x0 = width / 8;
         let y0 = thickness / 2;
         cr.setLineWidth(thickness);
         cr.setFontSize(fontsize);
         for (let mount in this.mounts) {
-            GTop.glibtop_get_fsusage(this.gtop, this.mounts[mount]);
-            const { used, total, avail } = calc_usage(this.gtop);
+            const { used, total, avail } = this._fsUsage(this.mounts[mount]);
             const perc_full = (used + avail) > 0 ? (used / (used + avail)) : 0;
 
             const get_color_for_perc = (p) => {
@@ -697,17 +743,8 @@ const Bar = class SystemMonitor_Bar extends Graph {
                 text = text.split('/').pop();
             }
 
-            const block_size = this.gtop.block_size;
-            let format_size = (blocks) => {
-                let size = blocks * block_size;
-                if (size < 1024 * 1024 * 1024) {
-                    return (size / (1024 * 1024)).toFixed(1) + 'MB';
-                }
-                return (size / (1024 * 1024 * 1024)).toFixed(1) + 'GB';
-            };
-
-            const used_str = format_size(used);
-            const total_str = format_size(total);
+            const used_str = format_bytes(used);
+            const total_str = format_bytes(total);
             const perc_str = Math.round(perc_full * 100) + '%';
 
             text += `  used ${used_str}/${total_str}`;
@@ -789,13 +826,13 @@ const Pie = class SystemMonitor_Pie extends Graph {
         }
         let thickness = ring_width / 1.5;
 
+        this._maybeRefreshFs();
         cr.setLineWidth(thickness);
         cr.setFontSize(fontsize);
         let r = (height - ring_width) / 2;
         let y = (ring_width + fontsize) / 2;
         for (let mount in this.mounts) {
-            GTop.glibtop_get_fsusage(this.gtop, this.mounts[mount]);
-            const { used, total, avail } = calc_usage(this.gtop);
+            const { used, total, avail } = this._fsUsage(this.mounts[mount]);
             const perc_full = (used + avail) > 0 ? (used / (used + avail)) : 0;
 
             const get_color_for_perc = (p) => {
@@ -849,17 +886,8 @@ const Pie = class SystemMonitor_Pie extends Graph {
             cr.moveTo(0, y);
             cr.showText(text);
 
-            const block_size = this.gtop.block_size;
-            let format_size = (blocks) => {
-                let size = blocks * block_size;
-                if (size < 1024 * 1024 * 1024) {
-                    return (size / (1024 * 1024)).toFixed(1) + 'MB';
-                }
-                return (size / (1024 * 1024 * 1024)).toFixed(1) + 'GB';
-            };
-
-            const used_str = format_size(used);
-            const total_str = format_size(total);
+            const used_str = format_bytes(used);
+            const total_str = format_bytes(total);
             const perc_str = Math.round(perc_full * 100) + '%';
 
             let curve_text = `used ${used_str}/${total_str} (${perc_str})`;

@@ -171,6 +171,10 @@ export const ProgressSlider = GObject.registerClass(
         1000,
         () => {
           if (this._isDestroyed) return GLib.SOURCE_REMOVE;
+          // Nobody sees the slider while the popup is closed: skip the
+          // D-Bus Position query and label writes until it is shown again
+          // (the open path calls startPositionUpdate, which syncs at once).
+          if (!this.is_mapped()) return GLib.SOURCE_CONTINUE;
           if (!this._sliderDragging && this._isPlaying)
             this._updateSliderPosition();
           return GLib.SOURCE_CONTINUE;

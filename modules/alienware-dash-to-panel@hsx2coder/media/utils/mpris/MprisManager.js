@@ -12,6 +12,7 @@ export class MprisManager {
     this._desktopEntries = new Map();
     this._instanceMetadata = new Map();
     this._playerPositions = new Map();
+    this._positionStamps = new Map();
     this._subscriptions = [];
     this._onPlayerAdded = null;
     this._onPlayerRemoved = null;
@@ -129,6 +130,7 @@ export class MprisManager {
 
   stopPositionPolling(name) {
     this._pollingPlayers.delete(name);
+    this._positionStamps.delete(name);
 
     if (this._pollingPlayers.size === 0 && this._positionPollingInterval) {
       GLib.source_remove(this._positionPollingInterval);
@@ -164,11 +166,18 @@ export class MprisManager {
           const reply = conn.call_finish(result);
           const position = reply.deep_unpack()[0].unpack();
           const oldPosition = this._playerPositions.get(name) || 0;
+          const now = GLib.get_monotonic_time();
+          const lastStamp = this._positionStamps.get(name) ?? now;
+          this._positionStamps.set(name, now);
+          this._playerPositions.set(name, position);
 
-          if (Math.abs(position - oldPosition) > 500000) {
-            this._playerPositions.set(name, position);
+          // Normal playback advances ~1 s per tick; comparing against the
+          // raw previous value fired a full indicator update every second
+          // while anything played, menu closed or not. Only a real jump
+          // (seek or track change the player did not signal) needs one.
+          const expected = oldPosition + (now - lastStamp);
+          if (Math.abs(position - expected) > 1500000)
             this._onPlayerChanged?.(name);
-          }
         } catch (e) {
           this.stopPositionPolling(name);
         }

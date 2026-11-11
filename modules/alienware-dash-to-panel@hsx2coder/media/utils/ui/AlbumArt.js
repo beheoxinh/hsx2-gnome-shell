@@ -17,6 +17,53 @@ import {
   labelForId,
 } from "./helper/vinylHelpers.js";
 
+const COVER_CACHE_MAX = 100;
+const COVER_DIR_MAX_FILES = 300;
+const COVER_DIR_MAX_AGE_S = 30 * 24 * 3600;
+let _coverPruneStarted = false;
+
+/**
+ * Downloaded covers used to accumulate in ~/.cache/mpris-covers forever.
+ * Once per shell process, keep the newest COVER_DIR_MAX_FILES files that are
+ * younger than COVER_DIR_MAX_AGE_S. Fully async at low priority.
+ * @param {string} dir
+ */
+function _pruneCoverDir(dir) {
+  if (_coverPruneStarted) return;
+  _coverPruneStarted = true;
+  const folder = Gio.File.new_for_path(dir);
+  folder.enumerate_children_async(
+    "standard::name,time::modified",
+    Gio.FileQueryInfoFlags.NOFOLLOW_SYMLINKS,
+    GLib.PRIORITY_LOW, null,
+    (src, res) => {
+      let en;
+      try { en = src.enumerate_children_finish(res); } catch (_e) { return; }
+      const files = [];
+      const step = () => en.next_files_async(64, GLib.PRIORITY_LOW, null, (e, r) => {
+        let infos = [];
+        try { infos = e.next_files_finish(r); } catch (_e) {}
+        if (infos.length > 0) {
+          for (const i of infos)
+            files.push([i.get_name(), i.get_attribute_uint64("time::modified")]);
+          step();
+          return;
+        }
+        en.close_async(GLib.PRIORITY_LOW, null, null);
+        const now = Date.now() / 1000;
+        files.sort((a, b) => b[1] - a[1]);
+        files.forEach(([name, mtime], idx) => {
+          if (idx < COVER_DIR_MAX_FILES && now - mtime < COVER_DIR_MAX_AGE_S) return;
+          folder.get_child(name).delete_async(GLib.PRIORITY_LOW, null, (f, rr) => {
+            try { f.delete_finish(rr); } catch (_e) {}
+          });
+        });
+      });
+      step();
+    },
+  );
+}
+
 /** @param {Gio.Settings} settings @returns {number} */
 function _artSize(settings) {
   try {
@@ -730,6 +777,9 @@ export const AlbumArt = GObject.registerClass(
 
       this._normalCoverImage.style = normalStyle;
       this._vinylCoverImage.style = vinylStyle;
+      // bounded: one entry per distinct cover played in this session
+      if (this._coverCache.size >= COVER_CACHE_MAX && !this._coverCache.has(imageUrl))
+        this._coverCache.delete(this._coverCache.keys().next().value);
       this._coverCache.set(imageUrl, {
         normal: normalStyle,
         vinyl: vinylStyle,
@@ -752,6 +802,7 @@ export const AlbumArt = GObject.registerClass(
         "mpris-covers",
       ]);
       GLib.mkdir_with_parents(cacheDir, 0o755);
+      _pruneCoverDir(cacheDir);
       const cachePath = GLib.build_filenamev([cacheDir, hash]);
       const cacheFile = Gio.File.new_for_path(cachePath);
 

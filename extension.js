@@ -308,7 +308,23 @@ export default class AlienwareSuiteExtension extends Extension {
                 suiteExt.openPreferences();
             };
 
-            instance.enable();
+            const pending = instance.enable();
+            // dash-to-panel's enable() is async; a rejection after its first
+            // await never reaches the catch below, so clean up from here.
+            if (pending && typeof pending.then === 'function') {
+                pending.catch(e => {
+                    logError(e, `[alienware-suite] async enable of ${def.uuid} failed`);
+                    if (this._loaded.get(def.uuid) !== instance)
+                        return;
+                    try {
+                        instance.disable();
+                    } catch (cleanupError) {
+                        logError(cleanupError,
+                            `[alienware-suite] cleanup of ${def.uuid} also failed`);
+                    }
+                    this._loaded.delete(def.uuid);
+                });
+            }
 
             log(`[alienware-suite] enabled module ${def.uuid}`);
         } catch (e) {
@@ -348,6 +364,10 @@ export default class AlienwareSuiteExtension extends Extension {
 // Wrap the suite itself and every module entry point. Extension subclasses are
 // plain classes, so they do not pass through GObject.registerClass; without
 // this their enable()/disable() bodies would escape the guard layer.
+// enable()/disable() of the modules stay unwrapped on purpose: the suite's
+// _enableModule()/_disableModule() already catch, and only an exception that
+// reaches them triggers the partial-enable cleanup. Swallowing it inside the
+// module left half-enabled modules with actors nobody removed.
 for (const [uuid, Klass] of Object.entries(CLASS_REGISTRY))
-    guardClass(Klass, uuid);
+    guardClass(Klass, uuid, {skip: ['enable', 'disable']});
 guardClass(AlienwareSuiteExtension, 'alienware-suite');

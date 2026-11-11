@@ -16,7 +16,10 @@ const DBUS_OM_IFACE = 'org.freedesktop.DBus.ObjectManager'
 const DEVICE_IFACE = 'org.bluez.Device1'
 const BATTERY_IFACE = 'org.bluez.Battery1'
 const CALL_TIMEOUT = 5000
-const POLL_INTERVAL_SEC = 3
+// Updates are driven by bluez signals; the poll is only a safety net for a
+// missed signal (bluez restart, adapter reset).
+const POLL_INTERVAL_SEC = 60
+const SIGNAL_DEBOUNCE_MS = 400
 const PANEL_WIDTH = 200
 
 function _deviceIcon(dev) {
@@ -45,6 +48,26 @@ function _batteryColor(pct) {
   if (pct >= 40) return '#ff9800'
   if (pct >= 20) return '#ff5722'
   return '#f44336'
+}
+
+const DEVICE_KEYS = ['Connected', 'Name', 'Alias', 'Icon', 'Class']
+
+// Discovery floods PropertiesChanged (RSSI, ManufacturerData...); only the
+// properties the indicator shows are worth a GetManagedObjects round trip.
+function _isRelevantSignal(signal, params) {
+  try {
+    if (signal === 'InterfacesAdded' || signal === 'InterfacesRemoved')
+      return true
+    if (signal !== 'PropertiesChanged') return false
+    const iface = params.get_child_value(0).unpack()
+    if (iface === BATTERY_IFACE) return true
+    if (iface !== DEVICE_IFACE) return false
+    const changed = params.get_child_value(1).deep_unpack()
+    const invalidated = params.get_child_value(2).deep_unpack()
+    return DEVICE_KEYS.some(k => k in changed || invalidated.includes(k))
+  } catch (_e) {
+    return true
+  }
 }
 
 function gv(v) {
@@ -77,6 +100,10 @@ export const BluetoothStatus = GObject.registerClass(
       this._animId = 0
       this._currentDevice = null
       this._signals = []
+      this._bluezSubId = 0
+      this._debounceId = 0
+      this._initIdleId = 0
+      this._cancellable = new Gio.Cancellable()
 
       try {
         this._myBox = new St.BoxLayout({
@@ -145,7 +172,8 @@ export const BluetoothStatus = GObject.registerClass(
       }
 
       try {
-        GLib.idle_add(GLib.PRIORITY_DEFAULT_IDLE, () => {
+        this._initIdleId = GLib.idle_add(GLib.PRIORITY_DEFAULT_IDLE, () => {
+          this._initIdleId = 0
           try { this._connectAndPoll() } catch (e) {
             logError(e, `${TAG} init poll failed`)
           }
@@ -193,9 +221,12 @@ export const BluetoothStatus = GObject.registerClass(
         // Async proxy creation: new_for_bus_sync blocks the shell main loop,
         // and bluez can be unresponsive right after lock/suspend.
         Gio.DBusProxy.new_for_bus(
-          Gio.BusType.SYSTEM, Gio.DBusProxyFlags.NONE, null,
-          BLUEZ_SERVICE, BLUEZ_ROOT, DBUS_OM_IFACE,
+          Gio.BusType.SYSTEM,
+          Gio.DBusProxyFlags.DO_NOT_LOAD_PROPERTIES |
+            Gio.DBusProxyFlags.DO_NOT_CONNECT_SIGNALS,
           null,
+          BLUEZ_SERVICE, BLUEZ_ROOT, DBUS_OM_IFACE,
+          this._cancellable,
           (_source, res) => {
             if (this._isDestroyed) return
             try {
@@ -203,6 +234,20 @@ export const BluetoothStatus = GObject.registerClass(
             } catch (e) {
               logError(e, `${TAG} connect failed`)
               return
+            }
+            // One subscription for every bluez signal (InterfacesAdded/
+            // Removed, PropertiesChanged on Connected/Battery1.Percentage);
+            // bursts are coalesced into a single GetManagedObjects.
+            try {
+              this._bluezSubId = this._omProxy.get_connection().signal_subscribe(
+                BLUEZ_SERVICE, null, null, null, null,
+                Gio.DBusSignalFlags.NONE,
+                (_c, _s, _p, _i, signal, params) => {
+                  if (_isRelevantSignal(signal, params)) this._schedulePoll()
+                },
+              )
+            } catch (e) {
+              logError(e, `${TAG} signal subscribe failed`)
             }
             this._poll()
             this._timerId = GLib.timeout_add_seconds(
@@ -271,9 +316,26 @@ export const BluetoothStatus = GObject.registerClass(
       }
     }
 
+    _schedulePoll() {
+      if (this._isDestroyed || this._debounceId) return
+      this._debounceId = GLib.timeout_add(
+        GLib.PRIORITY_DEFAULT, SIGNAL_DEBOUNCE_MS, () => {
+          this._debounceId = 0
+          this._poll()
+          return GLib.SOURCE_REMOVE
+        },
+      )
+    }
+
     _poll() {
-      if (this._pollInFlight || !this._omProxy || this._isDestroyed)
+      if (this._pollInFlight) {
+        // a signal arrived mid-call: fetch again once it returns
+        this._pollAgain = true
         return
+      }
+      if (!this._omProxy || this._isDestroyed)
+        return
+      this._pollAgain = false
       this._pollInFlight = true
       try {
         // Async call: call_sync with a 5s timeout ran inside the shell main
@@ -281,10 +343,11 @@ export const BluetoothStatus = GObject.registerClass(
         // reset) the whole desktop froze for up to five seconds at a time.
         this._omProxy.call(
           'GetManagedObjects', null,
-          Gio.DBusCallFlags.NONE, CALL_TIMEOUT, null,
+          Gio.DBusCallFlags.NONE, CALL_TIMEOUT, this._cancellable,
           (proxy, res) => {
             this._pollInFlight = false
             if (this._isDestroyed) return
+            if (this._pollAgain) this._schedulePoll()
             let result
             try {
               result = proxy.call_finish(res)
@@ -511,6 +574,14 @@ export const BluetoothStatus = GObject.registerClass(
 
     destroy() {
       this._isDestroyed = true
+      try { this._cancellable?.cancel() } catch (_) {}
+      if (this._bluezSubId) {
+        try { this._omProxy?.get_connection().signal_unsubscribe(this._bluezSubId) } catch (_) {}
+        this._bluezSubId = 0
+      }
+      if (this._debounceId) { try { GLib.source_remove(this._debounceId) } catch (_) {} this._debounceId = 0 }
+      if (this._initIdleId) { try { GLib.source_remove(this._initIdleId) } catch (_) {} this._initIdleId = 0 }
+      this._omProxy = null
       if (this._deferredMenuIdleId) {
         try { GLib.Source.remove(this._deferredMenuIdleId); } catch (_) {}
         this._deferredMenuIdleId = null;
