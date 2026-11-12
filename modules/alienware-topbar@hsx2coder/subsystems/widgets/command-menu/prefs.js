@@ -140,7 +140,7 @@ export default class CommandMenuExtensionPreferences extends ExtensionPreference
             filePath = GLib.build_filenamev([GLib.get_home_dir(), filePath.substring(2)]);
           GLib.file_set_contents(filePath, json);
         } catch (err) {
-          logError(err.uuid, 'failed to save menus to configuration file', err);
+          logError(err, 'command-menu: failed to save menus to configuration file');
           menus.length = 0;
           menus.push(...ogMenus);
           generalPage.updateMenus();

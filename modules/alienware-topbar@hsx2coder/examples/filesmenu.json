@@ -1,0 +1,39 @@
+{
+  "title": "Files",
+  "icon": "folder-symbolic",
+  "position": "left",
+  "menu": [
+    {
+      "type": "label",
+      "title": "Places"
+    },
+    {
+      "title": "Home",
+      "icon": "user-home-symbolic",
+      "command": "sh -c 'xdg-open \"$HOME\"'"
+    },
+    {
+      "title": "Documents",
+      "icon": "folder-documents-symbolic",
+      "command": "sh -c 'xdg-open \"$HOME/Documents\"'"
+    },
+    {
+      "title": "Downloads",
+      "icon": "folder-download-symbolic",
+      "command": "sh -c 'xdg-open \"$HOME/Downloads\"'"
+    },
+    {
+      "title": "Pictures",
+      "icon": "folder-pictures-symbolic",
+      "command": "sh -c 'xdg-open \"$HOME/Pictures\"'"
+    },
+    {
+      "type": "separator"
+    },
+    {
+      "title": "Trash",
+      "icon": "user-trash-symbolic",
+      "command": "xdg-open trash:///"
+    }
+  ]
+}

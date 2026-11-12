@@ -150,8 +150,10 @@ export class DateMenuCustomizer {
             if (childIndex !== -1) {
                 fromPos = i;
                 fromIndex = childIndex;
-                const childLength = panelBoxes[pos].get_children().length;
-                toIndex = Math.max(0, Math.min(offset, childLength));
+                // the date menu is removed before insertion, so count only the others
+                const otherChildren = panelBoxes[pos].get_children()
+                    .filter(child => child !== dateMenu.container).length;
+                toIndex = Math.max(0, Math.min(offset, otherChildren));
                 break;
             }
         }
@@ -215,8 +217,14 @@ export class DateMenuCustomizer {
             this.visible = false;
         };
 
-        if (!this.#clocksItemShowSignal)
-            this.#clocksItemShowSignal = clocksItem.connect('show', () => clocksItem._sync());
+        // GNOME binds its installed-changed handler to the original _sync, so
+        // the override above is bypassed; watch visibility itself instead
+        if (!this.#clocksItemShowSignal) {
+            this.#clocksItemShowSignal = clocksItem.connect('notify::visible', () => {
+                if (clocksItem.visible)
+                    clocksItem.visible = false;
+            });
+        }
 
         clocksItem._sync();
     }

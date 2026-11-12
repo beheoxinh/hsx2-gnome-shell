@@ -10,6 +10,9 @@ import IconChooser from './prefsIconChooser.js';
 
 let draggedRow = null;
 
+// Row titles use Pango markup, so user text must be escaped or '&' / '<' break rendering.
+const markup = text => GLib.markup_escape_text(String(text ?? ''), -1);
+
 export default class CommandsUI extends Adw.PreferencesPage {
     static {
         GObject.registerClass({
@@ -136,7 +139,7 @@ export default class CommandsUI extends Adw.PreferencesPage {
             numeric: true,
         });
         const initialValue = menu.index;
-        if (Number.isInteger(+initialValue)) {
+        if (initialValue !== undefined && initialValue !== null && Number.isInteger(+initialValue)) {
             autoIndexSwitch.set_active(false);
             indexPicker.set_value(+initialValue);
             indexPicker.set_visible(true);
@@ -312,7 +315,7 @@ export default class CommandsUI extends Adw.PreferencesPage {
         if (!Array.isArray(items)) return;
         for (const item of items) {
             const row = new Adw.ExpanderRow({
-                title: `<b>${_(item.type || '')}</b> ${_(item.title || '')}`,
+                title: `<b>${markup(_(item.type || ''))}</b> ${markup(_(item.title || ''))}`,
                 use_markup: true,
                 selectable: false,
                 expanded: false,
@@ -340,21 +343,21 @@ export default class CommandsUI extends Adw.PreferencesPage {
             if (item.type === 'separator') {
                 row.set_title(`<b>${_('Separator')}</b>`);
             } else if (item.type === 'label') {
-                row.set_title(`<b>Label:</b> ${item.title || ''}`);
+                row.set_title(`<b>Label:</b> ${markup(item.title)}`);
 
                 const entryRowTitle = new Adw.EntryRow({ title: _('Title:'), text: item.title || '' });
                 entryRowTitle.connect('notify::text', () => {
                     item.title = entryRowTitle.text;
-                    row.set_title(`<b>Label:</b> ${item.title || ''}`);
+                    row.set_title(`<b>Label:</b> ${markup(item.title)}`);
                 });
                 row.add_row(entryRowTitle);
             } else if (item.type === "submenu") {
-                row.set_title(`<b>Submenu:</b> ${item.title || ''}`);
+                row.set_title(`<b>Submenu:</b> ${markup(item.title)}`);
 
                 const entryRowTitle = new Adw.EntryRow({ title: _('Title:'), text: item.title || '' });
                 entryRowTitle.connect('notify::text', () => {
                     item.title = entryRowTitle.text;
-                    row.set_title(`<b>Submenu:</b> ${item.title || ''}`);
+                    row.set_title(`<b>Submenu:</b> ${markup(item.title)}`);
                 });
 
                 const iconBox = new Gtk.Box({ orientation: Gtk.Orientation.HORIZONTAL });
@@ -397,12 +400,12 @@ export default class CommandsUI extends Adw.PreferencesPage {
                 row.add_row(entryRowTitle);
                 row.add_row(iconBox);
             } else if (item.command) {
-                row.set_title(item.title || _('Untitled'));
+                row.set_title(markup(item.title || _('Untitled')));
 
                 const entryRowTitle = new Adw.EntryRow({ title: _('Title:'), text: item.title || '' });
                 entryRowTitle.connect('notify::text', () => {
                     item.title = entryRowTitle.text;
-                    row.set_title(item.title || _('Untitled'));
+                    row.set_title(markup(item.title || _('Untitled')));
                 });
 
                 const iconBox = new Gtk.Box({ orientation: Gtk.Orientation.HORIZONTAL });
@@ -505,8 +508,16 @@ export default class CommandsUI extends Adw.PreferencesPage {
 
             const duplicateAction = new Gio.SimpleAction({ name: 'duplicate' });
             duplicateAction.connect('activate', () => {
-                this._populateListBox(this.commandsListBox, 0, [JSON.parse(JSON.stringify(item))]);
-                this._listBoxScrollToBottom();
+                // Build the copy at the end, then move it to sit right after this row at the same depth.
+                const before = [...this.commandsListBox].length;
+                this._populateListBox(this.commandsListBox, row._depth, [JSON.parse(JSON.stringify(item))]);
+                const added = [...this.commandsListBox].slice(before);
+                for (const r of added) this.commandsListBox.remove(r);
+
+                const rowsNow = [...this.commandsListBox];
+                let at = rowsNow.indexOf(row) + 1;
+                while (at > 0 && at < rowsNow.length && rowsNow[at]._depth > row._depth) at++;
+                for (const r of added) this.commandsListBox.insert(r, at++);
             });
             actionGroup.add_action(duplicateAction);
 
@@ -644,10 +655,14 @@ export default class CommandsUI extends Adw.PreferencesPage {
         for (const row of moveThese) this.commandsListBox.remove(row);
 
         let insertIndex = targetIndex > fromIndex ? targetIndex - moveThese.length : targetIndex;
-        let baseDepth = draggedRow._depth;
+        const baseDepth = draggedRow._depth;
 
-        if (draggedRow._item.type === 'submenu')
-            while (insertIndex && rows[insertIndex]._depth) insertIndex--;
+        if (draggedRow._item.type === 'submenu') {
+            // Submenus stay top-level: insert before any child rows at this spot.
+            // Index against the list as it is now (moved rows already removed).
+            const remaining = [...this.commandsListBox];
+            while (insertIndex > 0 && remaining[insertIndex]?._depth) insertIndex--;
+        }
 
         for (const row of moveThese) {
             if (draggedRow._item.type !== 'submenu') {

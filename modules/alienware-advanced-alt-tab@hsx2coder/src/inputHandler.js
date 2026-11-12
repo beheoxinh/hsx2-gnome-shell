@@ -764,12 +764,16 @@ export class InputHandler {
     }
 
     _setInputTimeout() {
+        if (this._timeoutIds.setInputDelay)
+            GLib.source_remove(this._timeoutIds.setInputDelay);
+
         this._timeoutIds.setInputDelay = GLib.timeout_add(
             GLib.PRIORITY_DEFAULT,
             20,
             () => {
                 this.setInput();
                 this._timeoutIds.setInputDelay = 0;
+                return GLib.SOURCE_REMOVE;
             }
         );
     }

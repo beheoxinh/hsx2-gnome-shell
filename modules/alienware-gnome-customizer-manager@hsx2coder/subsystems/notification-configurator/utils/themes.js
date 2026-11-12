@@ -50,8 +50,13 @@ export class ThemesManager {
         return `${colorStyle} ${fontSizeStyle}`;
     }
     enableThemes() {
+        // colorsEnabledChanged is re-emitted on every settings write, so this
+        // can run while already enabled; a second connect would stack handlers
+        // and leave the first one running after dispose().
+        if (typeof this.themeSignalId === "number")
+            return;
         const messageTrayContainer = getMessageTrayContainer();
-        this.themeSignalId = messageTrayContainer?.connect("child-added", () => {
+        this.themeSignalId =messageTrayContainer?.connect("child-added", () => {
             if (!this.settingsManager.colorsEnabled)
                 return;
             const widgets = resolveNotificationWidgets(messageTrayContainer);

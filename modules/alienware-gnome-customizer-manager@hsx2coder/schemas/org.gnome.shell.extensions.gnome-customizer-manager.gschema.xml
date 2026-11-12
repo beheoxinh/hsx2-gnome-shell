@@ -119,9 +119,9 @@
 
     <key name="clock-position-offset" type="i">
       <default>0</default>
-      <range min="-64" max="64"/>
+      <range min="0" max="64"/>
       <summary>Clock offset</summary>
-      <description>Extra pixels inserted in front of the clock, used to balance the other panel items.</description>
+      <description>Index of the clock inside its top bar section (0 = first). Clamped to the number of items in that section.</description>
     </key>
 
     <key name="world-clock" type="b">
@@ -130,12 +130,12 @@
     </key>
 
     <key name="weather" type="b">
-      <default>true</default>
+      <default>false</default>
       <summary>Weather in the calendar</summary>
     </key>
 
     <key name="events-button" type="b">
-      <default>true</default>
+      <default>false</default>
       <summary>Events button in the calendar</summary>
     </key>
 

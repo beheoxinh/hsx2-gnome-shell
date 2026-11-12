@@ -37,6 +37,10 @@ export function showSearchCaption(text, wsp, opt) {
         if (!wsp._searchCaption) {
             wsp._searchCaption = new CaptionLabel(params, opt);
             wsp.add_child(wsp._searchCaption);
+            // drop the reference when destroyed so later updates don't touch a disposed actor
+            wsp._searchCaption.connect('destroy', () => {
+                wsp._searchCaption = null;
+            });
         } else {
             wsp._searchCaption.update(params);
         }
@@ -56,8 +60,9 @@ export function showTitleCaption(wsp, opt) {
     let details = '';
 
     if (selected._isWindow) {
-        title = selected.window.get_title();
-        const appName = selected.app.get_name();
+        title = selected.window.get_title() ?? '';
+        // app can be null for windows not associated with a desktop app
+        const appName = selected.app?.get_name() ?? '';
         details = appName === title ? '' : appName;
     } else {
         title = selected.titleLabel.get_text();
@@ -83,6 +88,10 @@ export function showTitleCaption(wsp, opt) {
         try {
             wsp._itemCaption = new CaptionLabel(params, opt);
             wsp.add_child(wsp._itemCaption);
+            // connect once per caption; connecting on every update accumulated handlers
+            wsp._itemCaption.connect('destroy', () => {
+                wsp._itemCaption = null;
+            });
         } catch (e) {
             logError(e, 'AltTab captionLabel:showTitleCaption');
             return;
@@ -99,10 +108,6 @@ export function showTitleCaption(wsp, opt) {
         wsp._itemCaption.opacity = 0;
     else
         wsp._itemCaption.opacity = 255;
-
-    wsp._itemCaption.connect('destroy', () => {
-        wsp._itemCaption = null;
-    });
 
     // The parent's allocate() is called automatically if the child's geometry has changed,
     // but the caption position is updated in the parent's allocate()

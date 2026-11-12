@@ -536,6 +536,12 @@ export class PanelApi
         // This is a Mutter issue,
         // See https://gitlab.gnome.org/GNOME/mutter/-/issues/1627
         if (this.#shellVersion <= 48 && this._meta.is_wayland_compositor()) {
+            // re-entrant: workareas/height notifications call panelHide again
+            // before the previous timer fired; cancel it so none is orphaned
+            if (this.#timeoutIds.panelHide) {
+                this._glib.source_remove(this.#timeoutIds.panelHide);
+                delete(this.#timeoutIds.panelHide);
+            }
             let duration = this.#addToAnimationDuration(180);
             this.#timeoutIds.panelHide = this._glib.timeout_add(
                 this._glib.PRIORITY_DEFAULT,

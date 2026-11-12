@@ -53,6 +53,11 @@ export const defaults = [
   { element: DESKTOP_BTN, visible: true, position: STACKED_BR },
 ]
 
+// Elements that stay in the saved layout (the clone topbar and the runtime
+// still place them) but are no longer offered on the Position page: Activities
+// does nothing useful on a bottom panel and the Center box has no content.
+export const UI_HIDDEN = [ACTIVITIES_BTN, CENTER_BOX]
+
 export const anchorToPosition = {
   [START]: STACKED_TL,
   [MIDDLE]: CENTERED_MONITOR,
@@ -63,6 +68,7 @@ export const optionDialogFunctions = {}
 
 optionDialogFunctions[SHOW_APPS_BTN] = '_showShowAppsButtonOptions'
 optionDialogFunctions[DESKTOP_BTN] = '_showDesktopButtonOptions'
+optionDialogFunctions[TASKBAR] = '_showTaskbarPositionOptions'
 
 export function checkIfCentered(position) {
   return position == CENTERED || position == CENTERED_MONITOR

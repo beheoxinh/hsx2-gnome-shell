@@ -62,7 +62,7 @@ const TRANSFER_DEFAULTS = {
     'transfer-show-elapsed': true,
     'transfer-animation': true,
     'transfer-position': 'bottom-left',
-    'transfer-margin': 12,
+    'transfer-margin': 24,
     'transfer-card-width': 320,
     'transfer-hide-delay': 1500,
 };

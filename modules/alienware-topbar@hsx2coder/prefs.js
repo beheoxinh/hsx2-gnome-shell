@@ -98,6 +98,17 @@ const TOPBAR_SECTIONS = [
     },
 ];
 
+/* upper bounds must match the <range> of each key in the gschema, otherwise the
+ * spin row offers values GSettings rejects and the bind silently drops them */
+const INT_MAX = {
+    'panel-height': 96,
+    'panel-corner-size': 24,
+    'panel-button-padding': 24,
+    'panel-indicator-padding': 24,
+    'panel-icon-size': 48,
+    'max-search-results': 32,
+};
+
 function makeRow(key, title, subtitle, kind) {
     if (kind === 'b') {
         const row = new Adw.SwitchRow({title, subtitle: subtitle ?? ''});
@@ -109,7 +120,7 @@ function makeRow(key, title, subtitle, kind) {
             subtitle: subtitle ?? '',
             adjustment: new Gtk.Adjustment({
                 lower: 0,
-                upper: kind === 'i' ? 64 : 96,
+                upper: INT_MAX[key] ?? 96,
                 step_increment: 1,
             }),
         });

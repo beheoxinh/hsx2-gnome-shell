@@ -29,11 +29,13 @@ export class AltTabApi
     _showImmediately = undefined;
     _windowPreview = undefined;
 
-    constructor(dependencies)
+    constructor(dependencies, shellVersion = null)
     {
+        this.#shellVersion = shellVersion;
         this._main = dependencies['Main'] || null;
         this._altTab = dependencies['AltTab'] || null;
         this._switcherPopup = dependencies['SwitcherPopup'] || null;
+        this._windowPreview = dependencies['WindowPreview'] || null;
         this._st = dependencies['St'] || null;
         this._clutter = dependencies['Clutter'] || null;
         this._glib = dependencies['GLib'] || null;
@@ -47,18 +49,22 @@ export class AltTabApi
 
     close()
     {
+        // restore every prototype patched by this API, so disable() leaves the shell untouched
+        this.windowPreviewCaptionEnable();
+        this.windowPreviewCloseButtonEnable();
+        this.switcherPopupDelaySetDefault();
         this.UIStyleClassRemove(this.#getAPIClassname('shell-version'));
         this.#altTabSizesSetDefault();
     }
 
     /**
-     * get window preview prototype
+     * get window preview prototype, null if the WindowPreview dependency is not provided
      *
-     * @returns {Object}
+     * @returns {Object|null}
      */
     #windowPreviewGetPrototype()
     {
-        return this._windowPreview.WindowPreview.prototype;
+        return this._windowPreview?.WindowPreview?.prototype ?? null;
     }
 
     /**
@@ -161,12 +167,9 @@ export class AltTabApi
      */
     windowPreviewCaptionEnable()
     {
-        if (!this.#originals['windowPreviewGetCaption']) {
-            return;
-        }
-
         let windowPreviewProto = this.#windowPreviewGetPrototype();
-        windowPreviewProto._getCaption = this.#originals['windowPreviewGetCaption'];
+        if (windowPreviewProto && this.#originals['windowPreviewGetCaption'])
+            windowPreviewProto._getCaption = this.#originals['windowPreviewGetCaption'];
 
         this.UIStyleClassRemove(this.#getAPIClassname('no-window-caption'));
     }
@@ -186,13 +189,14 @@ export class AltTabApi
     {
         let windowPreviewProto = this.#windowPreviewGetPrototype();
 
-        if (!this.#originals['windowPreviewGetCaption']) {
-            this.#originals['windowPreviewGetCaption'] = windowPreviewProto._getCaption;
-        }
+        if (windowPreviewProto) {
+            if (!this.#originals['windowPreviewGetCaption'])
+                this.#originals['windowPreviewGetCaption'] = windowPreviewProto._getCaption;
 
-        windowPreviewProto._getCaption = () => {
-            return '';
-        };
+            windowPreviewProto._getCaption = () => {
+                return '';
+            };
+        }
 
         this.UIStyleClassAdd(this.#getAPIClassname('no-window-caption'));
     }

@@ -55,7 +55,7 @@ export const Actions = class {
 
         if (!metaWin && selected?.cachedWindows)
             metaWin = selected.cachedWindows[0];
-        else if (selected.get_title)
+        else if (selected?.get_title)
             metaWin = selected;
 
         return metaWin ?? null;
@@ -82,7 +82,7 @@ export const Actions = class {
             return;
 
         if (selected.get_title && this._ctrlPressed())
-            Util.getWindowApp(selected).request_quit();
+            Util.getWindowApp(selected)?.request_quit();
         else if (selected.get_title)
             selected.delete(global.get_current_time());
         else if (selected.cachedWindows?.length && this._ctrlPressed())
@@ -101,8 +101,10 @@ export const Actions = class {
         if (selected.cachedWindows) {
             winList = selected.cachedWindows;
         } else {
-            let app = Util.getWindowApp(selected).get_id();
-            winList = items.filter(i => Util.getWindowApp(i.window).get_id() === app).map(i => i.window);
+            const app = Util.getWindowApp(selected)?.get_id();
+            if (!app)
+                return;
+            winList = items.filter(i => Util.getWindowApp(i.window)?.get_id() === app).map(i => i.window);
         }
         let time = global.get_current_time();
         for (let win of winList) {
@@ -124,7 +126,7 @@ export const Actions = class {
 
     moveWinToNewAdjacentWs(direction, metaWin, recursion) {
         metaWin = metaWin ?? this._getSelectedWindow();
-        if (!metaWin)
+        if (!metaWin || !metaWin.get_workspace())
             return;
 
         let wsIndex = metaWin.get_workspace().index();
@@ -135,7 +137,7 @@ export const Actions = class {
 
     moveWinToAdjacentWs(direction, metaWin, recursion) {
         metaWin = metaWin ?? this._getSelectedWindow();
-        if (!metaWin)
+        if (!metaWin || !metaWin.get_workspace())
             return;
 
         // avoid recreation of the switcher during the move
@@ -146,12 +148,13 @@ export const Actions = class {
         wsIndex = Math.min(wsIndex, global.workspace_manager.get_n_workspaces() - 1);
 
         // create new workspace if window should be moved in front of the first workspace
-        if (wsIndex < 0 & !recursion) {
+        if (wsIndex < 0 && !recursion) {
             recursion = true;
             this.moveWinToNewAdjacentWs(direction, metaWin, recursion);
             this._wsp._doNotUpdateOnNewWindow = false;
             return;
         } else if (wsIndex < 0) {
+            this._wsp._doNotUpdateOnNewWindow = false;
             return;
         }
 
@@ -167,9 +170,9 @@ export const Actions = class {
         }
         this._wsp._updateSwitcher();
 
-        if (!this._wsTmb)
+        if (!this._wsp._wsTmb)
             this.showWsSwitcherPopup(wsIndex);
-        this._doNotUpdateOnNewWindow = false;
+        this._wsp._doNotUpdateOnNewWindow = false;
         this._wsp._showWindow();
     }
 
@@ -250,6 +253,8 @@ export const Actions = class {
             }
         } else {
             let ws = metaWin.get_workspace();
+            if (!ws)
+                return;
             metaWin._originalWS = ws;
             metaWin.make_fullscreen();
             let nWindows = ws.list_windows().filter(
@@ -274,7 +279,7 @@ export const Actions = class {
 
         const monitorIndex = this._wsp._monitorIndex; // this._wsp._keyboardTriggered ? this._wsp._monitorIndex : -1
 
-        if (metaWin.get_workspace().index() === global.workspace_manager.get_active_workspace().index() &&
+        if (metaWin.get_workspace()?.index() === global.workspace_manager.get_active_workspace().index() &&
             monitorIndex === metaWin.get_monitor()) {
             if ((metaWin.get_maximized && metaWin.get_maximized() === Meta.MaximizeFlags.BOTH) ||
                 (metaWin.is_maximized && metaWin.is_maximized()) // Since GNOME 49
@@ -360,7 +365,7 @@ export const Actions = class {
     showWsSwitcherPopup(wsIndex) {
         if (!this._opt?.SHOW_WS_SWITCHER_POPUP)
             return;
-        if (!wsIndex)
+        if (wsIndex === undefined || wsIndex === null)
             wsIndex = global.workspace_manager.get_active_workspace_index();
 
         if (!Main.overview.visible) {
@@ -417,7 +422,7 @@ export const Actions = class {
 
         for (let win of windows) {
             const app = tracker.get_window_app(win);
-            if (win.get_title() && win.get_title().includes(metadata.name) && app.get_name() === 'Extensions') {
+            if (win.get_title() && win.get_title().includes(metadata.name) && app?.get_name() === 'Extensions') {
             // this is our existing window
                 metaWin = win;
                 isMe = true;
@@ -446,6 +451,7 @@ export const Actions = class {
                 } catch (e) {
                     console.error(e);
                 }
+                return GLib.SOURCE_REMOVE;
             });
         }
         this._wsp.fadeAndDestroy();

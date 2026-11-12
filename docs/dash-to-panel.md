@@ -139,11 +139,14 @@ Schema: `org.gnome.shell.extensions.advanced-media-controller`
 
 | Key | Type | Default | Mô tả |
 |-----|------|---------|-------|
-| `panel-position` | s | 'right' | Panel position (left/center/right) |
-| `show-player-icons` | b | true | Show player icons |
-| `enable-lyrics` | b | false | Enable lyrics display |
-| `enable-vinyl` | b | false | Enable vinyl animation |
-| `player-blacklist` | as | [] | MPRIS players to hide |
+| `show-track-name` | b | true | Hiện tên bài đang phát trên panel |
+| `show-artist` | b | false | Thêm tên nghệ sĩ vào nhãn trên panel |
+| `panel-label-width` | i | 120 | Chiều rộng nhãn trên panel (60–400 px), áp dụng ngay |
+| `popup-width` | i | 340 | Chiều rộng popup (280–600 px), áp dụng ngay |
+| `monochrome-icons` | b | false | Icon player và điều khiển dạng đơn sắc |
+| `hide-default-player` | b | true | Ẩn media player mặc định của GNOME (khôi phục khi tắt extension) |
+| `player-filter-mode` | i | 0 | 0 = tắt lọc, 1 = blacklist (loại các app trong danh sách), 2 = whitelist (chỉ các app trong danh sách) |
+| `player-filter-list` | s | "" | Danh sách tên MPRIS phân tách bằng dấu phẩy; mục có tiền tố `~` là luật đã tắt |
 
 ---
 
@@ -194,7 +197,7 @@ _mediaController.enable()
   → Track players → detect current
   → Render controls: play/pause, prev/next, seek, volume
   → Show album art, title, artist
-  → Optional: vinyl animation, lyrics
+  → Optional: vinyl animation
 ```
 
 ---

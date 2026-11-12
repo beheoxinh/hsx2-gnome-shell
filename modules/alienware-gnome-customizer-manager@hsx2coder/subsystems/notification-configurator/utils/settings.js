@@ -27,7 +27,7 @@ export class SettingsManager {
             enabled: true,
             notificationCenter: {
                 disableGrouping: false,
-                maximumPerSource: NOTIFICATIONS_PER_SOURCE_DEFAULT,
+                maximumPerSource: 5,
             },
             rateLimiting: {
                 enabled: true,
@@ -36,15 +36,15 @@ export class SettingsManager {
             },
             timeout: {
                 enabled: true,
-                notificationTimeout: 4000,
+                notificationTimeout: 3000,
                 ignoreIdle: true,
             },
             urgency: {
-                alwaysNormalUrgency: false,
+                alwaysNormalUrgency: true,
             },
             display: {
-                enableFullscreen: false,
-                notificationPosition: "center",
+                enableFullscreen: true,
+                notificationPosition: "right",
                 verticalPosition: "top",
                 hideAppTitleRow: false,
             },
@@ -62,7 +62,7 @@ export class SettingsManager {
                 right: 0,
             },
             windowAttention: {
-                activateInstead: false,
+                activateInstead: true,
             },
         };
     }

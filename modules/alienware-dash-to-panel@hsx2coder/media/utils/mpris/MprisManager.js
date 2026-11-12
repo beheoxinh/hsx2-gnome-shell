@@ -29,6 +29,8 @@ export class MprisManager {
     this._maxErrorsPerPlayer = 10;
     this._operationsPaused = false;
     this._cleanupTimers = new Map();
+    // bus name -> pending addPlayer debounce timer
+    this._addPlayerTimers = new Map();
     this._proxyCleanupQueue = [];
     this._cleanupInProgress = false;
     this._pollingPlayers = new Set();
@@ -261,23 +263,25 @@ export class MprisManager {
     if (!oldOwner && newOwner) {
       if (!this._shouldIncludePlayer(name)) return;
 
-      // Remove existing timeout before creating new one
-      if (this._addPlayerTimeout) {
-        GLib.source_remove(this._addPlayerTimeout);
-        this._addPlayerTimeout = null;
-      }
+      this._player?.cancelPlayerRemoval(name);
 
-      this._addPlayerTimeout = GLib.timeout_add(
+      // One debounce timer per bus name: a shared timer let a second player
+      // appearing within 800 ms cancel the first player's addPlayer().
+      const pending = this._addPlayerTimers.get(name);
+      if (pending) GLib.source_remove(pending);
+
+      const timerId = GLib.timeout_add(
         GLib.PRIORITY_DEFAULT_IDLE,
         800,
         () => {
+          this._addPlayerTimers.delete(name);
           if (!this._operationsPaused) {
-            this._player.addPlayer(name);
+            this._player?.addPlayer(name);
           }
-          this._addPlayerTimeout = null;
           return GLib.SOURCE_REMOVE;
         },
       );
+      this._addPlayerTimers.set(name, timerId);
     } else if (oldOwner && !newOwner) {
       this._player.schedulePlayerRemoval(name);
     }
@@ -481,10 +485,10 @@ export class MprisManager {
       this._resumeTimeout = null;
     }
 
-    if (this._addPlayerTimeout) {
-      GLib.source_remove(this._addPlayerTimeout);
-      this._addPlayerTimeout = null;
+    for (const timerId of this._addPlayerTimers.values()) {
+      GLib.source_remove(timerId);
     }
+    this._addPlayerTimers.clear();
 
     // Unsubscribe from signals
     if (this._bus) {

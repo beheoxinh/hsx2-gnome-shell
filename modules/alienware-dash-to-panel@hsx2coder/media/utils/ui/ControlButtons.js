@@ -2,6 +2,7 @@ import St from "gi://St";
 import GObject from "gi://GObject";
 import Clutter from "gi://Clutter";
 import { addPressFeedback } from "./motion.js";
+import { POPUP_BUTTON_ORDER } from "../../lib/settingsDefaults.js";
 
 // Transport controls for the media popup.
 //
@@ -42,33 +43,6 @@ function _metrics(s) {
     iconSkip: Math.round(sec * 0.5), // prev / next
     iconPlay: Math.round(play * 0.4),
   };
-}
-
-/** Read popup-button-order from settings, returning ordered button id array.
- *  Valid ids: "shuffle","previous","play","next","repeat"
- */
-function _btnOrder(s) {
-  const DEFAULT = ["shuffle", "previous", "play", "next", "repeat"];
-  if (!s) return DEFAULT;
-  try {
-    const raw = s.get_string("popup-button-order");
-    if (!raw) return DEFAULT;
-    const VALID = new Set(DEFAULT);
-    const seen = new Set();
-    const out = [];
-    for (const id of raw.split(",").map((t) => t.trim()).filter(Boolean)) {
-      if (VALID.has(id) && !seen.has(id)) {
-        out.push(id);
-        seen.add(id);
-      }
-    }
-    for (const id of DEFAULT) {
-      if (!seen.has(id)) out.push(id);
-    }
-    return out;
-  } catch (_e) {
-    return DEFAULT;
-  }
 }
 
 const SPEC = {
@@ -124,7 +98,6 @@ export const ControlButtons = GObject.registerClass(
 
       this._settings = settings;
       this._widthChangedId = 0;
-      this._orderChangedId = 0;
       this._isDestroyed = false;
       this._buttons = {};
       this._feedback = [];
@@ -143,12 +116,6 @@ export const ControlButtons = GObject.registerClass(
           "changed::popup-width",
           () => {
             if (!this._isDestroyed) this._applyMetrics();
-          },
-        );
-        this._orderChangedId = this._settings.connect(
-          "changed::popup-button-order",
-          () => {
-            if (!this._isDestroyed) this._addChildrenInOrder();
           },
         );
       }
@@ -189,7 +156,7 @@ export const ControlButtons = GObject.registerClass(
     /** Add (or re-order) children according to the current order setting. */
     _addChildrenInOrder() {
       for (const child of this.get_children()) this.remove_child(child);
-      for (const id of _btnOrder(this._settings)) {
+      for (const id of POPUP_BUTTON_ORDER) {
         const btn = this._buttons[id];
         if (btn) this.add_child(btn);
       }
@@ -258,10 +225,6 @@ export const ControlButtons = GObject.registerClass(
       if (this._widthChangedId && this._settings) {
         this._settings.disconnect(this._widthChangedId);
         this._widthChangedId = 0;
-      }
-      if (this._orderChangedId && this._settings) {
-        this._settings.disconnect(this._orderChangedId);
-        this._orderChangedId = 0;
       }
       super.destroy();
     }

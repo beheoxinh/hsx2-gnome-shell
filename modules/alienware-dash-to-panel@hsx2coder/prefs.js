@@ -34,8 +34,6 @@ import * as Pos from './panelPositions.js'
 
 import {buildGeneralPage} from './media/ui/generalPage.js'
 import {buildPopupPage} from './media/ui/popupPage.js'
-import {buildAppearancePage} from './media/ui/appearancePage.js'
-import {buildLyricsPage} from './media/ui/lyricsPage.js'
 import {buildPlayerFilterPage} from './media/ui/playerFilterPage.js'
 
 import {
@@ -255,8 +253,6 @@ const Preferences = class {
       const mediaSubPages = [
         { id: 'media_general', title: _('General'), iconName: 'preferences-system-symbolic', page: buildGeneralPage(mcSet) },
         { id: 'media_popup', title: _('Popup'), iconName: 'view-paged-symbolic', page: buildPopupPage(mcSet) },
-        { id: 'media_appearance', title: _('Appearance'), iconName: 'applications-graphics-symbolic', page: buildAppearancePage(mcSet) },
-        { id: 'media_lyrics', title: _('Lyrics'), iconName: 'audio-x-generic-symbolic', page: buildLyricsPage(mcSet) },
         { id: 'media_filter', title: _('Player Filter'), iconName: 'edit-find-symbolic', page: buildPlayerFilterPage(mcSet) },
       ];
 
@@ -322,8 +318,6 @@ const Preferences = class {
       if (mcSettings) {
         window.add(buildGeneralPage(mcSettings))
         window.add(buildPopupPage(mcSettings))
-        window.add(buildAppearancePage(mcSettings))
-        window.add(buildLyricsPage(mcSettings))
         window.add(buildPlayerFilterPage(mcSettings))
       }
     }
@@ -570,10 +564,9 @@ const Preferences = class {
       .set_sensitive(isPartialLength)
 
     while ((row = taskbarListBox.get_row_at_index(i++)) != null) {
-      let grid = row.get_child()
-      let positionCombo = grid.get_child_at(4, 0)
-
-      positionCombo.set_sensitive(!isDynamicLength)
+      // only the taskbar row has a position dropdown
+      if (row.positionCombo)
+        row.positionCombo.set_sensitive(!isDynamicLength)
     }
   }
 
@@ -592,21 +585,30 @@ const Preferences = class {
       monitorIndex,
     )
     let updateElementsSettings = () => {
-      let newPanelElementPositions = []
       let monitorSync = this._settings.get_boolean(
         'panel-element-positions-monitors-sync',
       )
       let monitors = monitorSync ? Object.keys(this.monitors) : [monitorIndex]
 
+      // Elements without a row (UI_HIDDEN) keep their stored entry, so the
+      // saved layout the clone topbar relies on is not dropped.
+      let rows = new Map()
       let child = taskbarListBox.get_first_child()
       while (child != null) {
-        newPanelElementPositions.push({
-          element: child.id,
-          visible: child.visibleToggleBtn.get_active(),
-          position: child.positionCombo.get_active_id(),
-        })
+        rows.set(child.id, child)
         child = child.get_next_sibling()
       }
+      let newPanelElementPositions = panelElementPositions.map((el) => {
+        let row = rows.get(el.element)
+        if (!row) return el
+        return {
+          element: el.element,
+          visible: row.visibleToggleBtn.get_active(),
+          position: row.positionCombo
+            ? row.positionCombo.get_active_id()
+            : el.position,
+        }
+      })
 
       monitors.forEach((m) =>
         PanelSettings.setPanelElementPositions(
@@ -628,20 +630,14 @@ const Preferences = class {
     labels[Pos.RIGHT_BOX] = _('Media box')
     labels[Pos.DESKTOP_BTN] = _('Desktop button')
 
-    panelElementPositions.forEach((el) => {
+    panelElementPositions
+      .filter((el) => !Pos.UI_HIDDEN.includes(el.element))
+      .forEach((el) => {
       let row = new Gtk.ListBoxRow()
       let grid = new Gtk.Grid({
         margin_start: 12,
         margin_end: 12,
         column_spacing: 8,
-      })
-      let upDownGrid = new Gtk.Grid({ column_spacing: 2 })
-      let upBtn = new Gtk.Button({ tooltip_text: _('Move up') })
-      let upImg = new Gtk.Image({ icon_name: 'go-up-symbolic', pixel_size: 12 })
-      let downBtn = new Gtk.Button({ tooltip_text: _('Move down') })
-      let downImg = new Gtk.Image({
-        icon_name: 'go-down-symbolic',
-        pixel_size: 12,
       })
       let visibleToggleBtn = new Gtk.ToggleButton({
         label: _('Visible'),
@@ -650,16 +646,6 @@ const Preferences = class {
       let positionCombo = new Gtk.ComboBoxText({
         tooltip_text: _('Select element position'),
       })
-      let upDownClickHandler = (limit) => {
-        let index = row.get_index()
-
-        if (index != limit) {
-          taskbarListBox.remove(row)
-          taskbarListBox.insert(row, index + (!limit ? -1 : 1))
-          updateElementsSettings()
-        }
-      }
-
       positionCombo.append(
         Pos.STACKED_TL,
         isVertical ? _('Stacked to top') : _('Stacked to left'),
@@ -672,23 +658,12 @@ const Preferences = class {
       positionCombo.append(Pos.CENTERED_MONITOR, _('Monitor Center'))
       positionCombo.set_active_id(el.position)
 
-      upBtn.connect('clicked', () => upDownClickHandler(0))
-      downBtn.connect('clicked', () =>
-        upDownClickHandler(panelElementPositions.length - 1),
-      )
       visibleToggleBtn.connect('toggled', () => updateElementsSettings())
       positionCombo.connect('changed', () => updateElementsSettings())
 
-      upBtn.set_child(upImg)
-      downBtn.set_child(downImg)
-
-      upDownGrid.attach(upBtn, 0, 0, 1, 1)
-      upDownGrid.attach(downBtn, 1, 0, 1, 1)
-
-      grid.attach(upDownGrid, 0, 0, 1, 1)
       grid.attach(
         new Gtk.Label({ label: labels[el.element], xalign: 0, hexpand: true }),
-        1,
+        0,
         0,
         1,
         1,
@@ -700,15 +675,17 @@ const Preferences = class {
 
         optionsBtn.add_css_class('circular')
         optionsBtn.set_child(cogImg)
-        grid.attach(optionsBtn, 2, 0, 1, 1)
+        grid.attach(optionsBtn, 1, 0, 1, 1)
 
+        // the row is passed so the taskbar dialog can host its position combo
         optionsBtn.connect('clicked', () =>
-          this[Pos.optionDialogFunctions[el.element]](),
+          this[Pos.optionDialogFunctions[el.element]](row),
         )
       }
 
-      grid.attach(visibleToggleBtn, 3, 0, 1, 1)
-      grid.attach(positionCombo, 4, 0, 1, 1)
+      // Rows only show the Visible toggle; the taskbar position (the only
+      // element offered one) lives in its gear dialog, like other options.
+      grid.attach(visibleToggleBtn, 2, 0, 1, 1)
 
       row.id = el.element
       row.visibleToggleBtn = visibleToggleBtn
@@ -751,6 +728,46 @@ const Preferences = class {
     })
 
     return dialog
+  }
+
+  _showTaskbarPositionOptions(row) {
+    const combo = row?.positionCombo
+    if (!combo) return
+
+    // Built once per row and reused: the dialog only detaches its content on
+    // close, so the combo keeps its parent and its 'changed' handler.
+    if (!row.positionOptionsBox) {
+      const actionRow = new Adw.ActionRow({
+        title: _('Taskbar position'),
+        subtitle: _('Where the taskbar sits on the panel. Not available while the panel length is dynamic.'),
+      })
+      combo.set_valign(Gtk.Align.CENTER)
+      actionRow.add_suffix(combo)
+
+      const group = new Adw.PreferencesGroup()
+      group.add(actionRow)
+
+      const box = new Gtk.Box({
+        orientation: Gtk.Orientation.VERTICAL,
+        margin_top: 24,
+        margin_bottom: 24,
+        margin_start: 24,
+        margin_end: 24,
+      })
+      box.append(group)
+      row.positionOptionsBox = box
+    }
+
+    const dialog = this._createPreferencesDialog(
+      _('Taskbar options'),
+      row.positionOptionsBox,
+      () => {
+        const def = Pos.defaults.find((d) => d.element == Pos.TASKBAR)
+        if (def) combo.set_active_id(def.position)
+      },
+    )
+    dialog.set_default_size(520, -1)
+    dialog.present()
   }
 
   _showShowAppsButtonOptions() {
@@ -2929,8 +2946,6 @@ const Preferences = class {
           const mediaPages = [
             { id: 'media_general', title: _('General'), iconName: 'preferences-system-symbolic', page: buildGeneralPage(mcSettings) },
             { id: 'media_popup', title: _('Popup'), iconName: 'view-paged-symbolic', page: buildPopupPage(mcSettings) },
-            { id: 'media_appearance', title: _('Appearance'), iconName: 'applications-graphics-symbolic', page: buildAppearancePage(mcSettings) },
-            { id: 'media_lyrics', title: _('Lyrics'), iconName: 'audio-x-generic-symbolic', page: buildLyricsPage(mcSettings) },
             { id: 'media_filter', title: _('Player Filter'), iconName: 'edit-find-symbolic', page: buildPlayerFilterPage(mcSettings) },
           ]
 

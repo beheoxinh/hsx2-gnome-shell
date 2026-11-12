@@ -234,6 +234,16 @@ export class MprisPlayer {
     this._manager._cleanupTimers.set(name, timerId);
   }
 
+  // A player that vanished and re-registered within the 500 ms removal grace
+  // period must not be torn down by the stale timer.
+  cancelPlayerRemoval(name) {
+    const timerId = this._manager._cleanupTimers.get(name);
+    if (timerId) {
+      GLib.source_remove(timerId);
+      this._manager._cleanupTimers.delete(name);
+    }
+  }
+
   _queueProxyCleanup(name) {
     if (!this._manager._proxies.has(name)) return;
 

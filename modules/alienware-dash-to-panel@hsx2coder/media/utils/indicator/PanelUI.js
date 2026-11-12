@@ -6,6 +6,13 @@ import { ScrollingLabel } from "../ui/ScrollingLabel.js";
 import { addPressFeedback } from "../ui/motion.js";
 import { resolveGicon, applyMonochromeToIcon } from "../icon/IconResolver.js";
 import { playerConstant } from "../ui/playerConstant.js";
+import {
+  PANEL_ELEMENT_ORDER,
+  PANEL_FONT_SIZE,
+  PANEL_ICON_SIZE,
+  PANEL_SCROLL_ENABLED,
+  PANEL_SCROLL_SPEED,
+} from "../../lib/settingsDefaults.js";
 
 const BASE_SCROLL_PX_PER_SEC = 50;
 const LOOP_PAUSE_MS = 1200;
@@ -34,57 +41,9 @@ function _labelWidth(settings) {
     return 160;
   }
 }
-/** Build a CSS style string for the panel label from appearance settings. */
+/** CSS for the panel label: fixed font size, theme colour, user-set width. */
 function _panelLabelStyle(settings) {
-  try {
-    const size   = settings.get_int("panel-font-size") || 13;
-    const bold   = settings.get_boolean("panel-font-bold");
-    const family = (settings.get_string("panel-font-family") || "").trim();
-    const color  = (settings.get_string("panel-font-color") || "").trim();
-    const w      = _labelWidth(settings);
-
-    let style = `font-size: ${size}px; font-weight: ${bold ? "bold" : "normal"};`;
-    if (family) style += ` font-family: ${family};`;
-    if (color)  style += ` color: ${color};`;
-    style += ` max-width: ${w}px;`;
-    return style;
-  } catch (_) {
-    return `font-size: 13px; max-width: ${_labelWidth(settings)}px;`;
-  }
-}
-
-/** Panel app-icon size from settings, defaulting to 18. */
-function _panelIconSize(settings) {
-  try {
-    const v = settings.get_int("panel-icon-size");
-    return v >= 12 ? v : 18;
-  } catch (_) {
-    return 18;
-  }
-}
-
-/**
- * Read panel-element-order setting.
- * Valid ids: "icon", "label", "controls"
- * Returns ordered array, filling in any missing ids at the end.
- */
-function _panelElementOrder(settings) {
-  const DEFAULT = ["icon", "label", "controls"];
-  if (!settings) return DEFAULT;
-  try {
-    const raw = settings.get_string("panel-element-order");
-    if (!raw) return DEFAULT;
-    const VALID = new Set(DEFAULT);
-    const seen = new Set();
-    const out = [];
-    for (const id of raw.split(",").map(t => t.trim()).filter(Boolean)) {
-      if (VALID.has(id) && !seen.has(id)) { out.push(id); seen.add(id); }
-    }
-    for (const id of DEFAULT) { if (!seen.has(id)) out.push(id); }
-    return out;
-  } catch (_e) {
-    return DEFAULT;
-  }
+  return `font-size: ${PANEL_FONT_SIZE}px; max-width: ${_labelWidth(settings)}px;`;
 }
 
 function _isSafeActor(actor) {
@@ -123,7 +82,6 @@ export class PanelUI {
     this._themeSettings = null;
     this._themeSettingsId = 0;
     this._extSettings = indicator._settings || null;
-    this._orderChangedId = 0;
     this._labelWidthChangedId = 0;
 
     this._playingPlayer = null;
@@ -141,26 +99,15 @@ export class PanelUI {
     this._watchTheme();
 
     if (this._extSettings) {
-      // Live-reorder panel elements when the setting changes
-      this._orderChangedId = this._extSettings.connect(
-        "changed::panel-element-order",
-        () => this._reorderPanelElements(),
-      );
-
       // Live-update label viewport when panel-label-width changes
       this._labelWidthChangedId = this._extSettings.connect(
         "changed::panel-label-width",
         () => this._onLabelWidthChanged(),
       );
 
-      // Live-update when any appearance setting changes
-      const APPEARANCE_KEYS = [
-        "panel-font-family", "panel-font-size", "panel-font-bold",
-        "panel-font-color", "panel-icon-size", "monochrome-icons",
-      ];
-      this._appearanceChangedIds = APPEARANCE_KEYS.map((key) =>
-        this._extSettings.connect(`changed::${key}`, () => {
-          this._applyPanelIconSize();
+      // Live-update the monochrome icon style
+      this._appearanceChangedIds = [
+        this._extSettings.connect("changed::monochrome-icons", () => {
           this._applyMonochrome();
           if (this._lastScrollText && this._lastScrollStatus) {
             this.startScrolling(
@@ -170,7 +117,7 @@ export class PanelUI {
             );
           }
         }),
-      );
+      ];
     }
   }
 
@@ -186,11 +133,6 @@ export class PanelUI {
         this._lastScrollStatus,
       );
     }
-  }
-
-  _applyPanelIconSize() {
-    if (!this._icon || !this._extSettings) return;
-    this._icon.icon_size = _panelIconSize(this._extSettings);
   }
 
   _watchTheme() {
@@ -235,7 +177,7 @@ export class PanelUI {
     // Build all three panel elements unconditionally; ordering happens below.
     this._icon = new St.Icon({
       gicon: Gio.ThemedIcon.new("audio-x-generic-symbolic"),
-      icon_size: _panelIconSize(this._extSettings || {}),
+      icon_size: PANEL_ICON_SIZE,
       y_align: Clutter.ActorAlign.CENTER,
       style: "icon-style: requested;",
     });
@@ -283,8 +225,7 @@ export class PanelUI {
   _reorderPanelElements() {
     // Remove all children; they are re-parented below so nothing is destroyed.
     this._box.remove_all_children();
-    const order = _panelElementOrder(this._extSettings);
-    for (const id of order) {
+    for (const id of PANEL_ELEMENT_ORDER) {
       const child = this._elementForId(id);
       if (child) this._box.add_child(child);
     }
@@ -364,15 +305,30 @@ export class PanelUI {
         return;
       }
 
+      const labelW = _labelWidth(settings);
+
+      // Unchanged text, status and width on a live scroller: nothing to redo.
+      // updateLabel() calls this on every MPRIS update, and each full pass
+      // builds and destroys a measuring label.
+      if (
+        fullText === this._lastScrollText &&
+        status === this._lastScrollStatus &&
+        this._scrollLabel &&
+        _isSafeActor(this._scrollLabel) &&
+        this._scrollLabel._viewW === labelW
+      ) {
+        this._settings = settings;
+        return;
+      }
+
       this._settings = settings;
       this._status = status;
       this._lastScrollText = fullText;
       this._lastScrollStatus = status;
 
-      const labelW = _labelWidth(settings);
       const isPlaying = status === "Playing";
       const isActiveMedia = status === "Playing" || status === "Paused";
-      const enabled = settings.get_boolean("enable-panel-scroll");
+      const enabled = PANEL_SCROLL_ENABLED;
       const textStyle = _panelLabelStyle(this._settings || this._extSettings || {});
 
       if (!isActiveMedia) {
@@ -465,9 +421,8 @@ export class PanelUI {
       }
     }
 
-  _calcSpeed(settings) {
-    const pref = settings.get_int("scroll-speed");
-    return Math.round(BASE_SCROLL_PX_PER_SEC * (pref / 5));
+  _calcSpeed() {
+    return Math.round(BASE_SCROLL_PX_PER_SEC * (PANEL_SCROLL_SPEED / 5));
   }
 
   stopScrolling() {
@@ -624,11 +579,6 @@ export class PanelUI {
       } catch (_) {}
       this._scrollLabel = null;
     }
-    if (this._orderChangedId && this._extSettings) {
-      try { this._extSettings.disconnect(this._orderChangedId); } catch (_) {}
-      this._orderChangedId = 0;
-    }
-
     if (this._labelWidthChangedId && this._extSettings) {
       try { this._extSettings.disconnect(this._labelWidthChangedId); } catch (_) {}
       this._labelWidthChangedId = 0;

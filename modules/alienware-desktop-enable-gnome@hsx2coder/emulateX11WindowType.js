@@ -365,6 +365,10 @@ export class EmulateX11WindowType {
             Main.overview.disconnect(this._hidingId);
             this._hidingId = null;
         }
+        // This instance is reused across enable/disable cycles: if disabled
+        // while the Overview was showing, 'hiding' never fires again, so
+        // refreshes would stay suppressed after re-enable.
+        this._enableRefresh = true;
     }
 
     addWindow(window) {

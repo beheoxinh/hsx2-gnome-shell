@@ -50,21 +50,6 @@ function _browserPlayerHasMedia(playerName, manager) {
 const _DEFAULT_TAB_ICON_SIZE    = 18;
 const _DEFAULT_SINGLE_ICON_SIZE = 28;
 
-/** Read tab-icon-size from settings; returns the effective px value. */
-function _tabIconSize(settings) {
-  try {
-    const v = settings && settings.get_int("tab-icon-size");
-    return v && v >= 12 ? v : _DEFAULT_TAB_ICON_SIZE;
-  } catch (_) { return _DEFAULT_TAB_ICON_SIZE; }
-}
-
-/** Read single-icon-size from settings; returns the effective px value. */
-function _singleIconSize(settings) {
-  try {
-    const v = settings && settings.get_int("single-icon-size");
-    return v && v >= 16 ? v : _DEFAULT_SINGLE_ICON_SIZE;
-  } catch (_) { return _DEFAULT_SINGLE_ICON_SIZE; }
-}
 
 function _isDarkTheme() {
   try {
@@ -331,7 +316,7 @@ export const PlayerTabs = GObject.registerClass(
       this._singleIconButton.set_pivot_point(0.5, 0.5);
 
       this._singleIcon = new St.Icon({
-        icon_size: _singleIconSize(this._settings),
+        icon_size: _DEFAULT_SINGLE_ICON_SIZE,
         gicon: Gio.ThemedIcon.new("audio-x-generic-symbolic"),
         y_align: Clutter.ActorAlign.CENTER,
         x_align: Clutter.ActorAlign.CENTER,
@@ -600,7 +585,7 @@ export const PlayerTabs = GObject.registerClass(
 
       const icon = new St.Icon({
         gicon,
-        icon_size: _tabIconSize(this._settings),
+        icon_size: _DEFAULT_TAB_ICON_SIZE,
         y_align: Clutter.ActorAlign.CENTER,
       });
 
@@ -737,20 +722,17 @@ export const PlayerTabs = GObject.registerClass(
 
       if (!settings) return;
 
-      const ICON_KEYS = ["tab-icon-size", "single-icon-size", "monochrome-icons"];
-      for (const key of ICON_KEYS) {
-        const sid = settings.connect(`changed::${key}`, () => {
-          this._applyIconSizes();
-          this._applyMonochrome();
-        });
-        this._settingsSignalIds.push(sid);
-      }
+      const sid = settings.connect("changed::monochrome-icons", () => {
+        this._applyIconSizes();
+        this._applyMonochrome();
+      });
+      this._settingsSignalIds.push(sid);
     }
 
     /** Re-apply icon sizes to all live tab buttons and the single icon. */
     _applyIconSizes() {
-      const singleSz = _singleIconSize(this._settings);
-      const tabSz    = _tabIconSize(this._settings);
+      const singleSz = _DEFAULT_SINGLE_ICON_SIZE;
+      const tabSz    = _DEFAULT_TAB_ICON_SIZE;
 
       if (this._singleIcon) this._singleIcon.icon_size = singleSz;
       for (const { icon } of this._buttonEntries) icon.icon_size = tabSz;

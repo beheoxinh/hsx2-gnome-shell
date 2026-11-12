@@ -1,0 +1,22 @@
+{
+  "title": "Apps",
+  "icon": "view-app-grid-symbolic",
+  "position": "left",
+  "menu": [
+    {
+      "title": "Browser",
+      "icon": "web-browser-symbolic",
+      "command": "xdg-open https://www.gnome.org"
+    },
+    {
+      "title": "Files",
+      "icon": "system-file-manager-symbolic",
+      "command": "sh -c 'xdg-open \"$HOME\"'"
+    },
+    {
+      "title": "Terminal",
+      "icon": "utilities-terminal-symbolic",
+      "command": "sh -c 'gnome-terminal || kgx'"
+    }
+  ]
+}

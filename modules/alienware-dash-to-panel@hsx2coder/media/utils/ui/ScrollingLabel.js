@@ -119,7 +119,7 @@ export const ScrollingLabel = GObject.registerClass(
         // This widget has the default fixed layout, which ignores x_align,
         // so short text used to sit at the left of a viewport-wide box no
         // matter what. Shrink to the text instead and let the parent slot's
-        // alignment (info-align-center) place it.
+        // alignment (POPUP_INFO_CENTER) place it.
         this.set_width(Math.min(Math.ceil(labelW), this._viewW));
         return;
       }

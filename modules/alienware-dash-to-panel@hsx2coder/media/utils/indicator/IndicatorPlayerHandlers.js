@@ -4,6 +4,7 @@ export class IndicatorPlayerHandlers {
   constructor(indicator) {
     this._indicator = indicator;
     this._updateThrottle = null;
+    this._pendingNames = new Set();
   }
 
   onPlayerAdded(name) {
@@ -15,7 +16,10 @@ export class IndicatorPlayerHandlers {
 
     const info = this._indicator._manager.getPlayerInfo(name);
 
-    this._indicator._manager.startPositionPolling(name);
+    // Position polling only runs while a player is actually Playing; an idle
+    // or paused player does not need a 1 s timer.
+    if (info && info.status === "Playing")
+      this._indicator._manager.startPositionPolling(name);
 
     // Refresh multi-playing state before making auto-switch decisions
     this._indicator._state.refreshMultiPlayingState(this._indicator._manager);
@@ -81,9 +85,17 @@ export class IndicatorPlayerHandlers {
         this._updateThrottle = null;
       }
 
+      // Coalesce by player, not by last call: a status change for another
+      // player inside the window must not be dropped.
+      this._pendingNames.add(name);
+      if (this._updateThrottle) return;
+
       this._updateThrottle = GLib.timeout_add(GLib.PRIORITY_LOW, 50, () => {
-        if (!this._indicator._state._sessionChanging) this._performUpdate(name);
+        const names = [...this._pendingNames];
+        this._pendingNames.clear();
         this._updateThrottle = null;
+        if (!this._indicator._state._sessionChanging)
+          for (const n of names) this._performUpdate(n);
         return GLib.SOURCE_REMOVE;
       });
       return;
@@ -102,6 +114,14 @@ export class IndicatorPlayerHandlers {
 
     this._indicator._state._lastUpdateTime = GLib.get_monotonic_time();
     const info = this._indicator._manager.getPlayerInfo(name);
+
+    // Keep the 1 s position poll in step with PlaybackStatus.
+    if (info) {
+      if (info.status === "Playing")
+        this._indicator._manager.startPositionPolling(name);
+      else
+        this._indicator._manager.stopPositionPolling(name);
+    }
 
     // Always refresh multi-playing state on every status change
     this._indicator._state.refreshMultiPlayingState(this._indicator._manager);

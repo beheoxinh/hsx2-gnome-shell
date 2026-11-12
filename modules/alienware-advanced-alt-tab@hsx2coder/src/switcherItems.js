@@ -173,7 +173,9 @@ export const WindowIcon = GObject.registerClass({
 
 
         if (this._opt.WS_INDEXES) {
-            this._wsIndicator = this._createWsIcon(window.get_workspace().index() + 1);
+            // get_workspace() returns null for windows on all workspaces (sticky)
+            const winWs = window.get_workspace() ?? global.workspace_manager.get_active_workspace();
+            this._wsIndicator = this._createWsIcon(winWs.index() + 1);
             this._icon.add_child(this._wsIndicator);
         }
 

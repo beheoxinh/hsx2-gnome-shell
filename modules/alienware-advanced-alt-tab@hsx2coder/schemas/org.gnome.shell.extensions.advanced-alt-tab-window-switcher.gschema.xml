@@ -229,9 +229,6 @@
     <key name="switcher-popup-wrap" type="b">
       <default>true</default>
     </key>
-    <key name="ws-switch-ignore-last" type="b">
-      <default>false</default>
-    </key>
      <key name="win-switcher-popup-search-all" type="b">
       <default>true</default>
     </key>
@@ -252,9 +249,6 @@
     </key>
     <key name="app-switcher-popup-fav-mru" type="b">
       <default>true</default>
-    </key>
-    <key name="ws-switch-wrap" type="b">
-      <default>false</default>
     </key>
     <key name="ws-switch-popup" type="b">
       <default>false</default>

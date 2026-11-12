@@ -1406,13 +1406,16 @@ export const Panel = GObject.registerClass(
     }
 
     _disconnectVisibleId(actor) {
-      actor.disconnect(actor._dtpVisibleId)
-      actor.disconnect(actor._dtpDestroyId)
+      if (actor._dtpVisibleId) actor.disconnect(actor._dtpVisibleId)
+      if (actor._dtpDestroyId) actor.disconnect(actor._dtpDestroyId)
 
       delete actor._dtpVisibleId
       delete actor._dtpDestroyId
 
-      this._unmappedButtons.splice(this._unmappedButtons.indexOf(actor), 1)
+      // indexOf() is -1 when the actor is already gone: splice(-1, 1) would
+      // then drop an unrelated button from the list.
+      const index = this._unmappedButtons.indexOf(actor)
+      if (index !== -1) this._unmappedButtons.splice(index, 1)
     }
 
     _formatVerticalClock() {

@@ -131,7 +131,9 @@ export const BluetoothStatus = GObject.registerClass(
         })
         this._myBox.add_child(this._row)
 
-        this._iconLabel = new St.Icon({ icon_name: 'bluetooth-symbolic', icon_size: 16, y_align: Clutter.ActorAlign.CENTER })
+        // Shown only with a device: with none, _btIconLabel already is the
+        // Bluetooth icon, and a second identical glyph looked like a duplicate.
+        this._iconLabel = new St.Icon({ icon_name: 'bluetooth-symbolic', icon_size: 16, y_align: Clutter.ActorAlign.CENTER, visible: false })
         this._row.add_child(this._iconLabel)
 
         this._nameLabel = new St.Label({ text: 'BT', x_expand: true, y_align: Clutter.ActorAlign.CENTER })
@@ -294,9 +296,10 @@ export const BluetoothStatus = GObject.registerClass(
         !global.dashToPanel.panels ||
         global.dashToPanel.panels.length === 0
       ) {
-        if (global.dashToPanel) {
-          let id = global.dashToPanel.connect('panels-created', () => {
-            try { global.dashToPanel?.disconnect(id) } catch (_e) {}
+        if (global.dashToPanel && !this._panelsCreatedId) {
+          this._panelsCreatedId = global.dashToPanel.connect('panels-created', () => {
+            try { global.dashToPanel?.disconnect(this._panelsCreatedId) } catch (_e) {}
+            this._panelsCreatedId = 0
             if (this._isDestroyed) return
             try { this._attachToDTP() } catch (e) {
               logError(e, `${TAG} attach failed`)
@@ -474,7 +477,7 @@ export const BluetoothStatus = GObject.registerClass(
 
     _applyDisplay(d) {
       if (!d) {
-        this._iconLabel.set_icon_name('bluetooth-symbolic')
+        this._iconLabel.hide()
         this._nameLabel.set_text('')
         this._battLabel.hide()
         this._battBar.hide()
@@ -482,6 +485,7 @@ export const BluetoothStatus = GObject.registerClass(
         return
       }
       this._iconLabel.set_icon_name(d.iconName)
+      this._iconLabel.show()
       this._nameLabel.set_text(d.name)
       if (d.battery != null) {
         const c = _batteryColor(d.battery)
@@ -722,6 +726,7 @@ export const BluetoothStatus = GObject.registerClass(
       }
       if (this._debounceId) { try { GLib.source_remove(this._debounceId) } catch (_) {} this._debounceId = 0 }
       if (this._initIdleId) { try { GLib.source_remove(this._initIdleId) } catch (_) {} this._initIdleId = 0 }
+      if (this._panelsCreatedId) { try { global.dashToPanel?.disconnect(this._panelsCreatedId) } catch (_) {} this._panelsCreatedId = 0 }
       this._omProxy = null
       if (this._deferredMenuIdleId) {
         try { GLib.Source.remove(this._deferredMenuIdleId); } catch (_) {}

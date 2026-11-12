@@ -490,11 +490,6 @@
      <summary>Panel context menu titles</summary>
      <description>Titles for commands added to panel right click menu</description>
     </key>
-    <key type="b" name="show-activities-button">
-      <default>false</default>
-      <summary>Show activities button</summary>
-      <description>Show activities button on the left hand side of the taskbar</description>
-    </key>
     <key type="i" name="showdesktop-button-width">
       <default>8</default>
       <summary>Width of show Desktop button</summary>
@@ -718,19 +713,6 @@
       <default>true</default>
       <summary>Display the favorites on all monitors</summary>
       <description>Specifies if every panel should display the favorite applications. If false, the favorite appplications are only displayed on the primary monitor.</description>
-    </key>
-    <key type="b" name="customize-click">
-      <default>true</default>
-      <summary>Customize click behaviour</summary>
-      <description>Customize action on various mouse events</description>
-    </key>
-    <key type="b" name="minimize-shift">
-      <default>true</default>
-      <summary>Minimize on shift+click</summary>
-    </key>
-    <key type="b" name="activate-single-window">
-      <default>true</default>
-      <summary>Activate only one window</summary>
     </key>
     <key name="click-action" enum="org.gnome.shell.extensions.dash-to-panel.clickAction">
       <default>'CYCLE-MIN'</default>
@@ -1399,11 +1381,6 @@
       <description>
         Keybinding to either show or launch the 10th application in the dash.
       </description>
-    </key>
-     <key type="b" name="progress-show-bar">
-      <default>true</default>
-      <summary>Show progress bar on app icon</summary>
-      <description>Whether to show progress bar overlay on app icon, for supported applications.</description>
     </key>
     <key type="b" name="progress-show-count">
       <default>true</default>

@@ -156,6 +156,10 @@ export default class DING extends Extension {
             Gio.bus_unown_name(this.data.dbusConnectionId);
             this.data.dbusConnectionId = 0;
         }
+        if (this.data.refreshGeometryId) {
+            this.data.refreshGeometry.disconnect(this.data.refreshGeometryId);
+            this.data.refreshGeometryId = 0;
+        }
         this.data.actionGroup = undefined;
 
         if (this.data.scaleFactorId) {

@@ -261,7 +261,9 @@ export class WorkspaceControl {
         const api = this.#api();
         if (!api) return;
         let status = this.#settings.get_int('startup-status');
-        if (forceOriginal)
+        // only status 0 (desktop) holds the overview back; any other value must
+        // release a hold left by an earlier desktop choice made during startup
+        if (forceOriginal || status !== 0)
             api.startupStatusSetDefault();
         else
             api.startupStatusSet(status);

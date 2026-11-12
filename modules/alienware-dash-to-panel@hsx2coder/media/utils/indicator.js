@@ -112,7 +112,6 @@ export const MediaIndicator = GObject.registerClass(
               this._eventHandlers.setupWindowMonitoring();
             } else {
               this._controls.stopPositionUpdate();
-              this._controls.onMenuClosed();
               this._eventHandlers.removeWindowMonitoring();
             }
 
@@ -127,8 +126,6 @@ export const MediaIndicator = GObject.registerClass(
         "changed",
         (_, key) => {
           this._state.safeExecute(() => {
-            if (key === "panel-position" || key === "panel-index") return;
-
             if (key === "hide-default-player") {
               this._applyHideDefaultPlayer();
               return;
@@ -208,6 +205,16 @@ export const MediaIndicator = GObject.registerClass(
 
       if (this._manager) {
         this._manager.pauseOperations();
+      }
+
+      // Two filter edits in quick succession used to overwrite the pending
+      // source ids, leaving an orphaned timer that could build a second
+      // manager and that destroy() could no longer cancel.
+      for (const key of ['_reinitSourceId', '_reinitDelaySourceId']) {
+        if (this[key]) {
+          GLib.Source.remove(this[key]);
+          this[key] = null;
+        }
       }
 
       this._reinitSourceId = GLib.timeout_add(

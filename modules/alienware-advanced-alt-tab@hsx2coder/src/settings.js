@@ -171,8 +171,6 @@ export const Options = class Options {
             appSwitcherPopupPrimClickItem: ['int', 'app-switcher-popup-prim-click-item'],
             appSwitcherPopupSecClickItem: ['int', 'app-switcher-popup-sec-click-item'],
             appSwitcherPopupMidClickItem: ['int', 'app-switcher-popup-mid-click-item'],
-            wsSwitchIgnoreLast: ['boolean', 'ws-switch-ignore-last'],
-            wsSwitchWrap: ['boolean', 'ws-switch-wrap'],
             wsShowSwitcherPopup: ['boolean', 'ws-switch-popup'],
             switcherPopupPointer: ['boolean', 'switcher-popup-pointer'],
             switcherPopupExtAppFavorites: ['boolean', 'switcher-popup-ext-app-favorites'],

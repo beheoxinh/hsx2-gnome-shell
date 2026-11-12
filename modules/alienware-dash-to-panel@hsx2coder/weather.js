@@ -519,9 +519,11 @@ export const WeatherStatus = GObject.registerClass(
     _attachToDTP() {
       if (this.get_parent()) return
       if (!global.dashToPanel || !global.dashToPanel.panels || global.dashToPanel.panels.length === 0) {
-        if (global.dashToPanel) {
-          let id = global.dashToPanel.connect('panels-created', () => {
-            global.dashToPanel.disconnect(id)
+        if (global.dashToPanel && !this._panelsCreatedId) {
+          this._panelsCreatedId = global.dashToPanel.connect('panels-created', () => {
+            try { global.dashToPanel?.disconnect(this._panelsCreatedId) } catch (_e) {}
+            this._panelsCreatedId = 0
+            if (!this._cancellable) return // destroyed
             this._attachToDTP()
           })
         }
@@ -547,6 +549,10 @@ export const WeatherStatus = GObject.registerClass(
     destroy() {
       try { this._cancellable?.cancel() } catch (_) {}
       this._cancellable = null
+      if (this._panelsCreatedId) {
+        try { global.dashToPanel?.disconnect(this._panelsCreatedId) } catch (_) {}
+        this._panelsCreatedId = 0
+      }
       if (this._attachIdleId) {
         try { GLib.source_remove(this._attachIdleId) } catch (_) {}
         this._attachIdleId = 0

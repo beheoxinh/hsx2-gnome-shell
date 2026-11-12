@@ -9,6 +9,7 @@ import Cairo from "cairo";
 import { Tonearm } from "./widgets/tonearm.js";
 import { fadeIn } from "./motion.js";
 import Soup from "gi://Soup";
+import { ALBUM_ART_ROTATION_SPEED } from "../../lib/settingsDefaults.js";
 
 // Remote covers are fetched with a shared Soup session (Gio cannot copy http://).
 const COVER_MAX_BYTES = 8 * 1024 * 1024;
@@ -516,10 +517,7 @@ export const AlbumArt = GObject.registerClass(
       this._stopRotationInterval();
       if (!this.mapped) return; // notify::mapped starts it when shown
 
-      let seconds = 20;
-      try {
-        seconds = Math.max(1, this._settings.get_int("album-art-rotation-speed"));
-      } catch (_e) {}
+      const seconds = ALBUM_ART_ROTATION_SPEED;
 
       const from = this._rotationAngle % 360;
       const spin = new Clutter.PropertyTransition({

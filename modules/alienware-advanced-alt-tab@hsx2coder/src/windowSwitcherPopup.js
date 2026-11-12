@@ -379,7 +379,6 @@ export const WindowSwitcherPopup = {
             result = false;
         }
         this._grab = grab;
-        this._haveModal = true;
         this._haveModal = result;
         return result;
     },
@@ -695,14 +694,15 @@ export const WindowSwitcherPopup = {
             this._switcherList = null;
         });
         this._switcherList.reactive = true;
-        const enterConId = this._switcherList.connect('enter-event', () => {
+        const list = this._switcherList;
+        const enterConId = list.connect('enter-event', () => {
             if (!this._scrollByPointerOvershootAdded)
                 this._addScrollByPointerOvershoot();
 
             opt.cancelTimeout = false;
 
             // This connection is no longer needed
-            this._switcherList.disconnect(enterConId);
+            list.disconnect(enterConId);
         });
 
         this.add_child(this._switcherList);
@@ -1096,6 +1096,7 @@ export const WindowSwitcherPopup = {
                     () => {
                         this._inputHandler.setInput();
                         this._timeoutIds.setInputDelay = 0;
+                        return GLib.SOURCE_REMOVE;
                     }
                 );
             },
@@ -1328,7 +1329,7 @@ export const WindowSwitcherPopup = {
             return;
 
         const filterMode = this._listProvider._currentFilterMode ??
-            this._showingApps ? this._appFilterMode : this._winFilterMode;
+            (this._showingApps ? this._appFilterMode : this._winFilterMode);
 
         this._switcherList._statusLabel.set_text(
             `${_('Filter: ')}${FilterModeLabel[filterMode]
@@ -1360,9 +1361,8 @@ export const WindowSwitcherPopup = {
 
                     this._noModsTimeoutId = 0;
                     return GLib.SOURCE_REMOVE;
-                } else {
-                    this._resetNoModsTimeout();
                 }
+                // keep polling with the same source instead of recreating it
                 return GLib.SOURCE_CONTINUE;
             }
         );
@@ -1714,7 +1714,7 @@ export const WindowSwitcherPopup = {
     _disableHover() {
         this.mouseActive = false;
 
-        if (this._motionTimeoutId !== 0)
+        if (this._motionTimeoutId)
             GLib.source_remove(this._motionTimeoutId);
 
         this._motionTimeoutId = GLib.timeout_add(GLib.PRIORITY_DEFAULT, DISABLE_HOVER_TIMEOUT, this._mouseTimedOut.bind(this));

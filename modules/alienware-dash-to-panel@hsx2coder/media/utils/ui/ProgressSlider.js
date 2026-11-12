@@ -49,6 +49,15 @@ export const ProgressSlider = GObject.registerClass(
         this.stopPositionUpdate();
       });
 
+      // The 1 s position timer only runs while the slider is on screen. It is
+      // started by notify::mapped when the popup opens, so no idle timer
+      // wakes the shell while the popup is closed.
+      this.connect('notify::mapped', () => {
+        if (this._isDestroyed) return;
+        if (!this.is_mapped()) this.stopPositionUpdate();
+        else if (this._isPlaying) this.startPositionUpdate();
+      });
+
       this._buildUI();
     }
 
@@ -167,6 +176,8 @@ export const ProgressSlider = GObject.registerClass(
 
     startPositionUpdate() {
       if (this._isDestroyed) return;
+      // Hidden: notify::mapped starts the timer once the popup is shown.
+      if (!this.is_mapped()) return;
       this.stopPositionUpdate();
       this._updateSliderPosition();
 

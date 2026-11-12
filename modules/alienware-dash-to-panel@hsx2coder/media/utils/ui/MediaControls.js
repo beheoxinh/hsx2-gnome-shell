@@ -1,20 +1,22 @@
 import St from "gi://St";
 import GObject from "gi://GObject";
 import Clutter from "gi://Clutter";
-import GLib from "gi://GLib";
 import { ControlButtons } from "./ControlButtons.js";
 import { AlbumArt } from "./AlbumArt.js";
 import { ProgressSlider } from "./ProgressSlider.js";
 import { PlayerTabs } from "./PlayerTabs.js";
 import { ScrollingLabel } from "./ScrollingLabel.js";
-import { LyricsClient } from "../../Lyrics/client/_LyricsClient.js";
-import { LyricsWidget } from "../../Lyrics/widgets/_LyricsWidget.js";
+import {
+  POPUP_INFO_CENTER,
+  POPUP_TITLE_FONT_SIZE,
+  POPUP_TITLE_BOLD,
+  POPUP_ARTIST_FONT_SIZE,
+  TITLE_SCROLL,
+  ARTIST_SCROLL,
+} from "../../lib/settingsDefaults.js";
 
 const LOOP_PAUSE_MS = 1200;
 const BASE_PX_PER_SEC = 50;
-const LYRICS_POLL_MS = 250;
-// Disc and lyrics take turns while the popup is open, one phase each.
-const LYRICS_CYCLE_MS = 8000;
 
 /** @param {Gio.Settings} s @returns {number} */
 function _popupWidth(s) {
@@ -33,70 +35,11 @@ function _artistW(s) {
   return Math.round(_popupWidth(s) * 0.82);
 }
 
-/** Returns Clutter.ActorAlign based on info-align-center setting */
-function _infoAlign(s) {
-  try {
-    const center = s.get_boolean("info-align-center");
-    return center ? Clutter.ActorAlign.CENTER : Clutter.ActorAlign.START;
-  } catch (_e) {
-    return Clutter.ActorAlign.CENTER;
-  }
-}
-
-/** Read popup-button-order, returning an array of button ids in order.
- *  Valid ids: "shuffle","previous","play","next","repeat"
- *  Falls back to the standard order if the setting is missing/invalid.
- */
-function _buttonOrder(s) {
-  const DEFAULT = ["shuffle", "previous", "play", "next", "repeat"];
-  try {
-    const raw = s.get_string("popup-button-order");
-    if (!raw) return DEFAULT;
-    const parsed = raw.split(",").map((t) => t.trim()).filter(Boolean);
-    const VALID = new Set(DEFAULT);
-    const seen = new Set();
-    const out = [];
-    for (const id of parsed) {
-      if (VALID.has(id) && !seen.has(id)) { out.push(id); seen.add(id); }
-    }
-    for (const id of DEFAULT) { if (!seen.has(id)) out.push(id); }
-    return out;
-  } catch (_e) {
-    return DEFAULT;
-  }
-}
-
-/** Build CSS style string for popup title from appearance settings. */
-function _popupTitleStyle(s) {
-  try {
-    const size   = s.get_int("popup-title-font-size") || 16;
-    const bold   = s.get_boolean("popup-title-font-bold");
-    const family = (s.get_string("popup-title-font-family") || "").trim();
-    const color  = (s.get_string("popup-title-font-color") || "").trim();
-    let style = `font-size: ${size}px; font-weight: ${bold ? "700" : "normal"};`;
-    if (family) style += ` font-family: ${family};`;
-    if (color)  style += ` color: ${color};`;
-    return style;
-  } catch (_) {
-    return "font-weight: 700; font-size: 16px;";
-  }
-}
-
-/** Build CSS style string for popup artist from appearance settings. */
-function _popupArtistStyle(s) {
-  try {
-    const size   = s.get_int("popup-artist-font-size") || 13;
-    const bold   = s.get_boolean("popup-artist-font-bold");
-    const family = (s.get_string("popup-artist-font-family") || "").trim();
-    const color  = (s.get_string("popup-artist-font-color") || "").trim();
-    let style = `font-size: ${size}px; font-weight: ${bold ? "700" : "500"};`;
-    if (family) style += ` font-family: ${family};`;
-    if (color)  style += ` color: ${color};`;
-    return style;
-  } catch (_) {
-    return "font-size: 13px; font-weight: 500;";
-  }
-}
+const INFO_ALIGN = POPUP_INFO_CENTER
+  ? Clutter.ActorAlign.CENTER
+  : Clutter.ActorAlign.START;
+const TITLE_STYLE = `font-size: ${POPUP_TITLE_FONT_SIZE}px; font-weight: ${POPUP_TITLE_BOLD ? "700" : "normal"};`;
+const ARTIST_STYLE = `font-size: ${POPUP_ARTIST_FONT_SIZE}px; font-weight: 500;`;
 
 export const MediaControls = GObject.registerClass(
   {
@@ -140,53 +83,12 @@ export const MediaControls = GObject.registerClass(
       this._titleScrollLabel = null;
       this._artistScrollLabel = null;
 
-      this._lyricsClient = null;
-      this._lyricsView = null;
-      this._playerLyricsState = new Map();
-      this._lyricsCache = new Map();
-      this._currentTrackInfo = null;
-      this._lyricsSyncTimer = null;
-      this._lyricsCycleTimer = null;
-
       this._signalIds = [];
 
       const widthId = this._settings.connect("changed::popup-width", () => {
         if (!this._isDestroyed) this._applyPopupWidth();
       });
       this._signalIds.push({ source: this._settings, id: widthId });
-
-      const orderChangedId = this._settings.connect(
-        "changed::popup-button-order",
-        () => { if (!this._isDestroyed) this._rebuildControlButtons(); },
-      );
-      this._signalIds.push({ source: this._settings, id: orderChangedId });
-
-      // Live-update info box alignment when the setting changes
-      const alignChangedId = this._settings.connect(
-        "changed::info-align-center",
-        () => { if (!this._isDestroyed) this._applyInfoAlignment(); },
-      );
-      this._signalIds.push({ source: this._settings, id: alignChangedId });
-
-      // Live-update fonts when any appearance key changes
-      const POPUP_APPEARANCE_KEYS = [
-        "popup-title-font-family", "popup-title-font-size",
-        "popup-title-font-bold",  "popup-title-font-color",
-        "popup-artist-font-family", "popup-artist-font-size",
-        "popup-artist-font-bold", "popup-artist-font-color",
-      ];
-      for (const key of POPUP_APPEARANCE_KEYS) {
-        const aid = this._settings.connect(`changed::${key}`, () => {
-          if (this._isDestroyed || !this._currentTrackInfo) return;
-          this._stopTitleLabel();
-          this._stopArtistLabel();
-          const info = this._currentTrackInfo;
-          this._updateTitleLabel(info.title || "Unknown", info.status);
-          if (info.artists && info.artists.length > 0)
-            this._updateArtistLabel(info.artists.join(", "), info.status);
-        });
-        this._signalIds.push({ source: this._settings, id: aid });
-      }
 
       this._buildUI();
     }
@@ -206,24 +108,12 @@ export const MediaControls = GObject.registerClass(
         if (info.artists && info.artists.length > 0)
           this._updateArtistLabel(info.artists.join(", "), info.status);
       }
-
-      if (this._lyricsView && this._lyricsView.setSize)
-        this._lyricsView.setSize(w, w);
-    }
-
-    /** Apply x_align to both the infoBox and its slot children based on setting */
-    _applyInfoAlignment() {
-      if (!this._infoBox) return;
-      const align = _infoAlign(this._settings);
-      this._infoBox.x_align = align;
-      if (this._titleSlot) this._titleSlot.x_align = align;
-      if (this._artistSlot) this._artistSlot.x_align = align;
     }
 
     _buildUI() {
       const tw = _titleW(this._settings);
       const aw = _artistW(this._settings);
-      const align = _infoAlign(this._settings);
+      const align = INFO_ALIGN;
 
       const headerBox = new St.BoxLayout({
         style: "margin-bottom: 14px; spacing: 8px;",
@@ -255,18 +145,10 @@ export const MediaControls = GObject.registerClass(
 
       this._albumArt = new AlbumArt(this._settings, null, null);
 
-      const w = _popupWidth(this._settings);
-      this._lyricsView = new LyricsWidget(w, w, this._settings);
-
-      const lyrDismissId = this._lyricsView.connect("dismiss", () =>
-        this._setLyricsPhase(this._currentPlayerName, false),
-      );
-      this._signalIds.push({ source: this._lyricsView, id: lyrDismissId });
-
       this._artSlot.set_child(this._albumArt);
       this.add_child(this._artSlot);
 
-      // Info box: alignment controlled by info-align-center setting
+      // Info box: text alignment from POPUP_INFO_CENTER
       this._infoBox = new St.BoxLayout({
         vertical: true,
         // AlbumArt no longer carries its own bottom margins (it had 24 px
@@ -310,6 +192,7 @@ export const MediaControls = GObject.registerClass(
             value: this._progressSlider.sliderValue,
           });
         }
+        this._resumeArtIfPlaying();
       });
       const ratioId = this._progressSlider.connect(
         "slider-ratio-changed",
@@ -355,29 +238,6 @@ export const MediaControls = GObject.registerClass(
         { source: this._controlButtons, id: shId },
         { source: this._controlButtons, id: rpId },
       );
-    }
-
-    /** Rebuild ControlButtons widget live when order setting changes. */
-    _rebuildControlButtons() {
-      if (!this._controlButtons) return;
-
-      this._signalIds = this._signalIds.filter(({ source, id }) => {
-        if (source === this._controlButtons) {
-          source.disconnect(id);
-          return false;
-        }
-        return true;
-      });
-
-      this.remove_child(this._controlButtons);
-      this._controlButtons.destroy();
-
-      this._controlButtons = new ControlButtons(this._settings);
-      this._wireControlButtons();
-      this.add_child(this._controlButtons);
-
-      if (this._currentTrackInfo)
-        this._controlButtons.updateButtons(this._currentTrackInfo);
     }
 
     _calcSpeed(speedPref, status) {
@@ -426,7 +286,9 @@ export const MediaControls = GObject.registerClass(
       }
 
       const speed = this._calcSpeed(speedPref, status);
-      if (existing && existing._destroyed !== true) {
+      // A changed viewport width (popup-width) needs a new widget: the reuse
+      // path only updates text, speed and style.
+      if (existing && existing._destroyed !== true && existing._viewW === viewW) {
         existing.setScrollSpeed(speed);
         existing.setTextStyle(textStyle);
         existing.setText(fullText);
@@ -448,8 +310,8 @@ export const MediaControls = GObject.registerClass(
     }
 
     _updateTitleLabel(fullText, status) {
-      const enabled = this._settings.get_boolean("enable-title-scroll");
-      const speed = this._settings.get_int("title-scroll-speed");
+      const enabled = TITLE_SCROLL.enabled;
+      const speed = TITLE_SCROLL.speed;
       this._titleScrollLabel = this._updateSlotLabel(
         this._titleSlot,
         this._titleScrollLabel,
@@ -458,13 +320,13 @@ export const MediaControls = GObject.registerClass(
         _titleW(this._settings),
         speed,
         status,
-        _popupTitleStyle(this._settings),
+        TITLE_STYLE,
       );
     }
 
     _updateArtistLabel(fullText, status) {
-      const enabled = this._settings.get_boolean("enable-artist-scroll");
-      const speed = this._settings.get_int("artist-scroll-speed");
+      const enabled = ARTIST_SCROLL.enabled;
+      const speed = ARTIST_SCROLL.speed;
       this._artistScrollLabel = this._updateSlotLabel(
         this._artistSlot,
         this._artistScrollLabel,
@@ -473,7 +335,7 @@ export const MediaControls = GObject.registerClass(
         _artistW(this._settings),
         speed,
         status,
-        _popupArtistStyle(this._settings),
+        ARTIST_STYLE,
       );
     }
 
@@ -553,28 +415,6 @@ export const MediaControls = GObject.registerClass(
       if (info.status === "Playing") this._albumArt.startRotation(true);
       else if (info.status === "Paused") this._albumArt.pauseRotation();
       else this._albumArt.stopRotation();
-
-      if (!this._settings.get_boolean("enable-lyrics")) {
-        this._stopLyricsCycle();
-        const s = this._playerLyricsState.get(playerName);
-        // A player switch must not leave the previous player's lyrics up.
-        if (playerChanged || (s && s.visible)) this._setLyricsPhase(playerName, false);
-        return;
-      }
-
-      const playerState = this._getPlayerLyricsState(playerName);
-      const newKey = `${info.title || ""}||${(info.artists || []).join(",")}`;
-
-      if (playerChanged || newKey !== playerState.lastKey) {
-        // New track (or player): drop the old lyrics and fetch the new ones.
-        playerState.lastKey = newKey;
-        playerState.hasLyrics = false;
-        this._lyricsView.clear();
-        this._fetchLyricsForCurrentTrack();
-      }
-
-      if (playerChanged) this._setLyricsPhase(playerName, false);
-      else if (playerState.visible) this._pushLyricsPosition();
     }
 
     _getMetadata(playerName, manager) {
@@ -607,10 +447,14 @@ export const MediaControls = GObject.registerClass(
       this._progressSlider.startPositionUpdate();
       if (this._titleScrollLabel) this._titleScrollLabel.resumeScrolling();
       if (this._artistScrollLabel) this._artistScrollLabel.resumeScrolling();
+      this._resumeArtIfPlaying();
+    }
 
-      const state = this._playerLyricsState.get(this._currentPlayerName);
-      if (state && state.visible) this._startLyricsSyncTimer();
-      if (this._settings.get_boolean("enable-lyrics")) this._startLyricsCycle();
+    // stopPositionUpdate() parks the disc; nothing else restarts it when the
+    // popup reopens or a scrub ends, so a playing track stayed frozen.
+    _resumeArtIfPlaying() {
+      if (this._albumArt && this._currentTrackInfo?.status === "Playing")
+        this._albumArt.startRotation(true);
     }
 
     stopPositionUpdate() {
@@ -618,162 +462,17 @@ export const MediaControls = GObject.registerClass(
       if (this._titleScrollLabel) this._titleScrollLabel.pauseScrolling();
       if (this._artistScrollLabel) this._artistScrollLabel.pauseScrolling();
       if (this._albumArt) this._albumArt.pauseRotation();
-      this._stopLyricsSyncTimer();
     }
 
     onSeeked(position) {
       this._progressSlider.onSeeked(position);
       if (this._currentPlayerName) {
+        const len = this._progressSlider.trackLength;
         this._playerSliderPositions.set(this._currentPlayerName, {
           position: this._progressSlider.currentPosition,
-          length: this._progressSlider.trackLength,
-          value:
-            this._progressSlider.currentPosition /
-            this._progressSlider.trackLength,
+          length: len,
+          value: len > 0 ? this._progressSlider.currentPosition / len : 0,
         });
-      }
-
-      const seekState = this._playerLyricsState.get(this._currentPlayerName);
-      if (seekState && seekState.visible && this._lyricsView)
-        this._lyricsView.setPosition(position * 1000);
-    }
-
-    onMenuClosed() {
-      this._stopLyricsSyncTimer();
-      this._stopLyricsCycle();
-    }
-
-    _startLyricsSyncTimer() {
-      this._stopLyricsSyncTimer();
-      this._lyricsSyncTimer = GLib.timeout_add(
-        GLib.PRIORITY_DEFAULT,
-        LYRICS_POLL_MS,
-        () => {
-          const s = this._playerLyricsState.get(this._currentPlayerName);
-          if (!s || !s.visible) {
-            this._lyricsSyncTimer = null;
-            return GLib.SOURCE_REMOVE;
-          }
-          this._pushLyricsPosition();
-          return GLib.SOURCE_CONTINUE;
-        },
-      );
-    }
-
-    _stopLyricsSyncTimer() {
-      if (this._lyricsSyncTimer) {
-        GLib.source_remove(this._lyricsSyncTimer);
-        this._lyricsSyncTimer = null;
-      }
-    }
-
-    _pushLyricsPosition() {
-      const state = this._playerLyricsState.get(this._currentPlayerName);
-      if (!state || !state.visible || !this._lyricsView) return;
-      const posUs =
-        (this._progressSlider && this._progressSlider.currentPosition) || 0;
-      this._lyricsView.setPosition(posUs / 1000);
-    }
-
-    _getPlayerLyricsState(playerName) {
-      if (!this._playerLyricsState.has(playerName))
-        this._playerLyricsState.set(playerName, {
-          visible: false,
-          hasLyrics: false,
-          lastKey: null,
-        });
-      return this._playerLyricsState.get(playerName);
-    }
-
-    /** Show the lyrics in the art slot (true) or the vinyl disc (false). */
-    _setLyricsPhase(playerName, show) {
-      if (this._isDestroyed || !this._artSlot || !playerName) return;
-      const state = this._getPlayerLyricsState(playerName);
-      state.visible = show;
-      if (show) {
-        if (this._artSlot.get_child() !== this._lyricsView)
-          this._artSlot.set_child(this._lyricsView);
-        this._pushLyricsPosition();
-        this._startLyricsSyncTimer();
-      } else {
-        this._stopLyricsSyncTimer();
-        if (this._artSlot.get_child() !== this._albumArt)
-          this._artSlot.set_child(this._albumArt);
-      }
-    }
-
-    _startLyricsCycle() {
-      if (this._lyricsCycleTimer) return;
-      this._lyricsCycleTimer = GLib.timeout_add(
-        GLib.PRIORITY_DEFAULT,
-        LYRICS_CYCLE_MS,
-        () => {
-          if (this._isDestroyed) {
-            this._lyricsCycleTimer = null;
-            return GLib.SOURCE_REMOVE;
-          }
-          this._advanceLyricsCycle();
-          return GLib.SOURCE_CONTINUE;
-        },
-      );
-    }
-
-    _stopLyricsCycle() {
-      if (this._lyricsCycleTimer) {
-        GLib.source_remove(this._lyricsCycleTimer);
-        this._lyricsCycleTimer = null;
-      }
-    }
-
-    _advanceLyricsCycle() {
-      const name = this._currentPlayerName;
-      if (!name) return;
-      const state = this._getPlayerLyricsState(name);
-      // Only swap when there is something to show; otherwise stay on the disc.
-      const canShowLyrics =
-        this._settings.get_boolean("enable-lyrics") && state.hasLyrics;
-      this._setLyricsPhase(name, canShowLyrics ? !state.visible : false);
-    }
-
-    async _fetchLyricsForCurrentTrack() {
-      if (!this._currentTrackInfo || !this._currentPlayerName) return;
-
-      const fetchPlayerName = this._currentPlayerName;
-      const info = this._currentTrackInfo;
-      const trackKey = `${info.title || ""}||${(info.artists || []).join(",")}`;
-      const state = this._getPlayerLyricsState(fetchPlayerName);
-
-      // Apply a result only if the same track is still current when it lands.
-      const apply = (lines) => {
-        if (this._isDestroyed || this._currentPlayerName !== fetchPlayerName)
-          return;
-        if (state.lastKey !== trackKey) return;
-        state.hasLyrics = Array.isArray(lines) && lines.length > 0;
-        if (this._lyricsView) this._lyricsView.setLyrics(lines ?? null);
-        this._pushLyricsPosition();
-      };
-
-      if (this._lyricsCache.has(trackKey)) {
-        apply(this._lyricsCache.get(trackKey));
-        return;
-      }
-
-      if (!this._lyricsClient) this._lyricsClient = new LyricsClient();
-
-      const artist = (info.artists || []).join(", ");
-      const durationS = (info.length || 0) > 0 ? info.length / 1_000_000 : 0;
-
-      try {
-        const lines = await this._lyricsClient.getLyrics(
-          info.title || "",
-          artist,
-          info.album || "",
-          durationS,
-        );
-        this._lyricsCache.set(trackKey, lines ?? null);
-        apply(lines);
-      } catch (_e) {
-        apply(null);
       }
     }
 
@@ -805,28 +504,16 @@ export const MediaControls = GObject.registerClass(
       this._stopTitleLabel();
       this._stopArtistLabel();
       if (this._progressSlider) this._progressSlider.stopPositionUpdate();
-      this._stopLyricsSyncTimer();
-      this._stopLyricsCycle();
 
       this._playerSliderPositions.clear();
       this._playerArtCache.clear();
-      this._playerLyricsState.clear();
-      this._lyricsCache.clear();
 
-      if (this._lyricsClient) {
-        this._lyricsClient.destroy();
-        this._lyricsClient = null;
-      }
 
       if (this._artSlot) {
         this._artSlot.set_child(null);
         this._artSlot = null;
       }
 
-      if (this._lyricsView) {
-        this._lyricsView.destroy();
-        this._lyricsView = null;
-      }
 
       if (this._albumArt) {
         this._albumArt.destroy();

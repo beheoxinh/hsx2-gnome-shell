@@ -85,10 +85,19 @@ export default class IconChooser extends Gtk.Dialog {
             hexpand: true,
         });
         for (const app of apps) {
+            // get_icon().to_string() is not a usable name: themed icons can list several names
+            // and file icons return a GVariant string. Store the first theme name or the file path.
+            const gicon = app.get_icon();
+            let iconName = null;
+            if (gicon instanceof Gio.ThemedIcon)
+                iconName = gicon.get_names()[0] ?? null;
+            else if (gicon instanceof Gio.FileIcon)
+                iconName = gicon.get_file()?.get_path() ?? null;
+            if (!iconName) continue;
+
             const row = new Gtk.ListBoxRow();
             const rowBox = new Gtk.Box({ orientation: Gtk.Orientation.HORIZONTAL, spacing: 6 });
-            const iconName = app.get_icon().to_string();
-            const image = new Gtk.Image({ icon_name: iconName, pixel_size: 24 });
+            const image = new Gtk.Image({ gicon, pixel_size: 24 });
             const label = new Gtk.Label({ label: iconName });
             rowBox.append(image);
             rowBox.append(label);

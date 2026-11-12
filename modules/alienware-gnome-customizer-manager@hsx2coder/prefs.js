@@ -60,7 +60,8 @@ export default class GnomeCustomizerManagerPreferences extends ExtensionPreferen
                 id: def.id,
                 title: _(def.title),
                 iconName: def.icon,
-                buildContent: () => buildPage(settings, def, this.dir),
+                // buildShellThemeGroup takes the module path (string), not a Gio.File
+                buildContent: () => buildPage(settings, def, this.path),
             });
         }
 

@@ -48,6 +48,7 @@ export default class AATWS extends Extension {
         this._monitorsChangedConId = 0;
         this._monitorsChangedDelayId = 0;
         this._pressureBarriers = null;
+        this._dashHidden = false;
     }
 
     enable() {
@@ -121,7 +122,7 @@ export default class AATWS extends Extension {
         this._opt = null;
         this.Me = null;
 
-        console.debug(`${this.metadata.name}: enabled`);
+        console.debug(`${this.metadata.name}: disabled`);
 
         this._jpHandler?.stop();
         this._jpHandler = null;
@@ -150,14 +151,15 @@ export default class AATWS extends Extension {
     }
 
     _updateDashVisibility(reset) {
-        const visible = this._opt.get('showDash', true);
-        if (!visible) {
-        // pass
-        } else if (reset || visible === 1) {
-            Main.overview.dash.visible = true;
-        } else {
-            Main.overview.dash.visible = false;
-        }
+        // 0 - Leave Unchanged, 1 - Show, 2 - Hide
+        const option = this._opt.get('showDash', true);
+        const hide = !reset && option === 2;
+        // Leave Unchanged: only undo what this extension hid earlier
+        if (!hide && option === 0 && !this._dashHidden)
+            return;
+
+        Main.overview.dash.visible = !hide;
+        this._dashHidden = hide;
     }
 
     _updateOverlayKeyHandler() {
@@ -168,8 +170,9 @@ export default class AATWS extends Extension {
             return;
 
 
-        this._originalOverlayKeyHandlerId = GObject.signal_handler_find(global.display, { signalId: 'overlay-key' });
-        if (this._originalOverlayKeyHandlerId !== null)
+        // signal_handler_find() returns 0 (not null) when no handler exists
+        this._originalOverlayKeyHandlerId = GObject.signal_handler_find(global.display, { signalId: 'overlay-key' }) || null;
+        if (this._originalOverlayKeyHandlerId)
             global.display.block_signal_handler(this._originalOverlayKeyHandlerId);
 
 
@@ -190,7 +193,7 @@ export default class AATWS extends Extension {
         }
 
         // Unblock original overlay key handler
-        if (this._originalOverlayKeyHandlerId !== null) {
+        if (this._originalOverlayKeyHandlerId) {
             global.display.unblock_signal_handler(this._originalOverlayKeyHandlerId);
             this._originalOverlayKeyHandlerId = null;
         }

@@ -1,0 +1,35 @@
+{
+  "title": "System",
+  "icon": "preferences-system-symbolic",
+  "position": "left",
+  "menu": [
+    {
+      "title": "Settings",
+      "icon": "preferences-system-symbolic",
+      "command": "gnome-control-center"
+    },
+    {
+      "title": "System Monitor",
+      "icon": "utilities-system-monitor-symbolic",
+      "command": "gnome-system-monitor"
+    },
+    {
+      "title": "Software Updates",
+      "icon": "software-update-available-symbolic",
+      "command": "sh -c 'gnome-software --mode=updates || xdg-open https://flathub.org'"
+    },
+    {
+      "type": "separator"
+    },
+    {
+      "title": "Screenshot",
+      "icon": "camera-photo-symbolic",
+      "command": "sh -c 'gnome-screenshot -i || flameshot gui'"
+    },
+    {
+      "title": "Lock Screen",
+      "icon": "system-lock-screen-symbolic",
+      "command": "loginctl lock-session"
+    }
+  ]
+}

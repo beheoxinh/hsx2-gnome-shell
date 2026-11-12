@@ -84,7 +84,7 @@
     </child>
     <child>
       <object class="AdwPreferencesGroup" id="position_group_on_monitor">
-        <property name="title" translatable="yes">Order and Position on monitors</property>
+        <property name="title" translatable="yes">Panel elements on monitors</property>
         <child>
           <object class="AdwPreferencesRow">
             <property name="title" translatable="yes">Monitor</property>

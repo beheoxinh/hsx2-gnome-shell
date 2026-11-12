@@ -223,9 +223,9 @@ export class PanelExtension {
         if (this.#originalPanelStyle === undefined)
             this.#originalPanelStyle = panel.style ?? null;
 
-        panel.style = radius > 0 ? `border-radius: ${radius}px;` : this.#originalPanelStyle;
-        if (radius > 0)
-            panel.style = `${this.#originalPanelStyle ?? ''}border-radius: ${radius}px;`;
+        panel.style = radius > 0
+            ? `${this.#originalPanelStyle ?? ''}border-radius: ${radius}px;`
+            : this.#originalPanelStyle;
     }
 
     #connect() {

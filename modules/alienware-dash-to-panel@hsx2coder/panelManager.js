@@ -410,6 +410,15 @@ export const PanelManager = class {
       )
     }
 
+    // Torn down on reset too: enable() recreates both, so skipping this here
+    // leaked one 3s timer and one usable-area object per reset.
+    if (this._marginsTimerId) {
+      GLib.source_remove(this._marginsTimerId)
+      this._marginsTimerId = 0
+    }
+    this._desktopIconsUsableArea?.destroy()
+    this._desktopIconsUsableArea = null
+
     if (reset) return
 
     this._disabled = true
@@ -454,12 +463,6 @@ export const PanelManager = class {
     delete Main.messageTray._bannerBin.ease
 
     delete Main.panel.style
-    if (this._marginsTimerId) {
-      GLib.source_remove(this._marginsTimerId)
-      this._marginsTimerId = 0
-    }
-    this._desktopIconsUsableArea.destroy()
-    this._desktopIconsUsableArea = null
   }
 
   _emptyFunc() {}

@@ -189,13 +189,11 @@ export const SwitcherList = GObject.registerClass({
             }
         }
         this.icons.forEach(icon => {
-            if (icon.app?.cachedWindows) {
-                icon.app.cachedWindows.forEach(w => {
-                    w.disconnectObject(this);
-                });
-            } else {
-                icon.window?.disconnectObject(this);
-            }
+            // WindowIcon connects to its own window, which is not necessarily in app.cachedWindows
+            icon.window?.disconnectObject(this);
+            icon.app?.cachedWindows?.forEach(w => {
+                w.disconnectObject(this);
+            });
         });
     }
 
@@ -283,7 +281,7 @@ export const SwitcherList = GObject.registerClass({
     _onItemMotion(item) {
         // Avoid reentrancy
         const icon = this.icons[this._items.indexOf(item)];
-        if (item !== this._items[this._highlighted] || (this._opt.INTERACTIVE_INDICATORS && !icon._mouseControlsSet))
+        if (item !== this._items[this._highlighted] || (this._opt.INTERACTIVE_INDICATORS && !icon?._mouseControlsSet))
             this._itemEntered(this._items.indexOf(item));
 
         return Clutter.EVENT_PROPAGATE;
@@ -317,6 +315,9 @@ export const SwitcherList = GObject.registerClass({
 
         this._highlighted = index;
 
+        if (!this._items[index])
+            return;
+
         let adjustment = this._scrollView.get_hadjustment
             ? this._scrollView.get_hadjustment()
             : this._scrollView.get_hscroll_bar().adjustment;
@@ -331,7 +332,11 @@ export const SwitcherList = GObject.registerClass({
     }
 
     _removeWindow(window) {
-        if (this.icons[0].window) {
+        const first = this.icons[0];
+        if (!first)
+            return;
+
+        if (first.window) {
             let index = this.icons.findIndex(icon =>
                 icon.window === window
             );
@@ -491,13 +496,15 @@ export const SwitcherList = GObject.registerClass({
 
         if (item._wsIndicator && !item._wsIndicator.reactive) {
             const cws = global.workspaceManager.get_active_workspace();
-            const ws = item.window.get_workspace();
+            // get_workspace() returns null for windows on all workspaces
+            const ws = item.window.get_workspace() ?? cws;
 
             item._wsIndicator.reactive = true;
             item._wsIndicator.connect('button-press-event', (actor, event) => {
                 const button = event.get_button();
                 if (button === Clutter.BUTTON_PRIMARY) {
-                    if (this._wsp._getSelectedTarget().get_workspace().index() !== global.workspaceManager.get_active_workspace_index())
+                    const selWs = this._wsp._getSelectedTarget().get_workspace();
+                    if (selWs && selWs.index() !== global.workspaceManager.get_active_workspace_index())
                         this._wsp._actions.moveToCurrentWS();
                     return Clutter.EVENT_STOP;
                 } else if (button === Clutter.BUTTON_MIDDLE) {
@@ -516,22 +523,23 @@ export const SwitcherList = GObject.registerClass({
                 return Clutter.EVENT_PROPAGATE;
             });
 
-            if (ws === cws)
-                return;
-
-            item._wsIndicator.connect('enter-event', () => {
-                const ws = global.workspaceManager.get_active_workspace_index() + 1;
-                const winWs = item.window.get_workspace().index() + 1;
-                const monitor = item.window.get_monitor();
-                const currentMonitor = global.display.get_current_monitor();
-                const multiMonitor = global.display.get_n_monitors() - 1;
-                item._wsIndicator.text = `${winWs}${multiMonitor ? `.${monitor.toString()}` : ''} → ${ws}${multiMonitor ? `.${currentMonitor.toString()}` : ''}`;
-                // item._wsIndicator.add_style_class_name('ws-indicator-hover');
-            });
-            item._wsIndicator.connect('leave-event', () => {
-                // item._wsIndicator.remove_style_class_name('ws-indicator-hover');
-                item._wsIndicator.text = (item.window.get_workspace().index() + 1).toString();
-            });
+            // hover text is only needed for windows on another workspace; "return" here used to skip
+            // the window counter setup and the _mouseControlsSet flag for the rest of the item
+            if (ws !== cws) {
+                item._wsIndicator.connect('enter-event', () => {
+                    const ws = global.workspaceManager.get_active_workspace_index() + 1;
+                    const winWs = (item.window.get_workspace() ?? cws).index() + 1;
+                    const monitor = item.window.get_monitor();
+                    const currentMonitor = global.display.get_current_monitor();
+                    const multiMonitor = global.display.get_n_monitors() - 1;
+                    item._wsIndicator.text = `${winWs}${multiMonitor ? `.${monitor.toString()}` : ''} → ${ws}${multiMonitor ? `.${currentMonitor.toString()}` : ''}`;
+                    // item._wsIndicator.add_style_class_name('ws-indicator-hover');
+                });
+                item._wsIndicator.connect('leave-event', () => {
+                    // item._wsIndicator.remove_style_class_name('ws-indicator-hover');
+                    item._wsIndicator.text = ((item.window.get_workspace() ?? cws).index() + 1).toString();
+                });
+            }
         }
 
         if (item._winCounterIndicator && !item._winCounterIndicator.reactive) {

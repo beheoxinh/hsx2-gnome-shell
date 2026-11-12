@@ -1,4 +1,5 @@
 import * as Main from "resource:///org/gnome/shell/ui/main.js";
+import { PANEL_TEXT_SEPARATOR } from "../../lib/settingsDefaults.js";
 
 const BROWSER_MPRIS_PREFIXES = [
   "firefox",
@@ -262,12 +263,9 @@ export class IndicatorUIUpdater {
 
       if (info && (info.status === "Playing" || info.status === "Paused")) {
         const showArtist = this._indicator._settings.get_boolean("show-artist");
-        const separator =
-          this._indicator._settings.get_string("separator-text");
-
         let text = info.title || "Unknown";
         if (showArtist && info.artists && info.artists.length > 0)
-          text += separator + info.artists.join(", ");
+          text += PANEL_TEXT_SEPARATOR + info.artists.join(", ");
 
         this._lastLabelText = text;
 

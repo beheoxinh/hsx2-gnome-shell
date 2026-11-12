@@ -186,6 +186,13 @@ var DesktopManager = class {
                 }
                 return;
             }
+            // Keys read on demand (menus, transfer cards, terminal, X11 popup)
+            // need no desktop rebuild; text entries would otherwise rebuild per keystroke.
+            if (key == 'terminal-command' || key == 'open-with-enabled' ||
+                key == 'open-with-label' || key == 'open-with-command' ||
+                key == 'check-x11wayland' || key == 'use-native-progress' ||
+                (key && key.startsWith('transfer-')))
+                return;
             this.showDropPlace = Prefs.desktopSettings.get_boolean('show-drop-place');
             this._updateDesktop().catch(e => {
                 print(`Exception while updating Desktop after Settings Changed: ${e.message}\n${e.stack}`);

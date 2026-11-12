@@ -193,15 +193,15 @@ export default class GeneralPreferencesPage extends Adw.PreferencesPage {
         dialog.connect("response", (d, response) => {
           if (response === Gtk.ResponseType.OK) {
             try {
-              const templateDir = GLib.path_get_dirname(this._imagesDir);
-              const templatePath = GLib.build_filenamev([templateDir, template.sourceFile]);
+              // _imagesDir is the module directory itself (metadata.dir)
+              const templatePath = GLib.build_filenamev([this._imagesDir, template.sourceFile]);
               const [ok, contents] = GLib.file_get_contents(templatePath);
               if (!ok) throw new Error(`missing template: ${templatePath}`);
               const decoder = new TextDecoder();
               const json = JSON.parse(decoder.decode(contents));
               addMenu(json);
             } catch (e) {
-              logError(e, `${this.uuid}: template "${template.name}" unavailable`);
+              logError(e, `command-menu: template "${template.name}" unavailable`);
             }
           }
           d.destroy();

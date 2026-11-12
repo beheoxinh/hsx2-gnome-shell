@@ -62,7 +62,6 @@ export default class MediaController {
     this._enabled = true;
 
     this._repositionDebounceId = null;
-    this._settingsChangedId = 0;
     this._hideDefaultChangedId = null;
     this._injectionManager = null;
     this._dtpPanelsId = 0;
@@ -94,16 +93,6 @@ export default class MediaController {
 
     this._updateDefaultPlayerVisibility();
 
-    if (this._settings) {
-      this._settingsChangedId = this._settings.connect(
-        "changed::amc-dtp-box",
-        () => {
-          this._removeFromDTP();
-          this._addToDTP();
-        },
-      );
-    }
-
     if (this._dtpSettings) {
       this._dtpChangedId = this._dtpSettings.connect(
         'changed::show-media-player', () => {
@@ -122,11 +111,6 @@ export default class MediaController {
     // controller that is already disabled (that orphan then survives the
     // whole session with a live MPRIS manager).
     this._enabled = false;
-
-    if (this._settingsChangedId && this._settings) {
-      this._settings.disconnect(this._settingsChangedId);
-      this._settingsChangedId = 0;
-    }
 
     if (this._hideDefaultChangedId && this._settings) {
       try {
@@ -217,12 +201,7 @@ export default class MediaController {
     const panel = global.dashToPanel.panels[0];
     if (!panel) return;
 
-    const dtpBoxPref = this._settings?.get_string("amc-dtp-box") || "right";
-    let box =
-      dtpBoxPref === "left"
-        ? panel._leftBox || panel._rightBox
-        : panel._rightBox || panel._leftBox;
-    if (!box) box = panel._centerBox;
+    const box = panel._rightBox || panel._centerBox;
     if (!box) return;
 
     const parent = this._indicator.get_parent();

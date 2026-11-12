@@ -124,7 +124,7 @@ export class ListProvider {
     }
 
     getCustomWindowList(searchQuery = '', allWindows = false) {
-        this._updateCoreParams();
+        this._updateCoreParams(searchQuery);
         this._updateForWinList();
 
         const workspace = null;
@@ -149,7 +149,10 @@ export class ListProvider {
             const { id, name } = this._singleApp;
 
             // some apps (like VirtualBox) may create multiple windows with different app ids, but with the same name
-            winList = winList.filter(w => this._tracker.get_window_app(w).get_id() === id || this._tracker.get_window_app(w).get_name() === name);
+            winList = winList.filter(w => {
+                const app = this._tracker.get_window_app(w);
+                return app?.get_id() === id || app?.get_name() === name;
+            });
         }
 
         return winList;
@@ -158,7 +161,7 @@ export class ListProvider {
     _filterWinList(winList, searchQuery) {
         winList = winList.filter(w => {
             // search in window title and app name/exec
-            const appInfo = Shell.WindowTracker.get_default().get_window_app(w).appInfo;
+            const appInfo = this._getWindowApp(w)?.appInfo;
 
             const title = w.title;
             const appName = appInfo?.get_name() || '';
@@ -193,7 +196,7 @@ export class ListProvider {
         if (this._stableSequence) {
             winList.sort((a, b) => a.get_stable_sequence() - b.get_stable_sequence());
 
-            if (this._stableSequenceCurrentFirst) {
+            if (this._stableSequenceCurrentFirst && this._currentWin) {
                 const currentSq = this._currentWin.get_stable_sequence();
                 winList.sort((a, b, cs = currentSq) => (b.get_stable_sequence() > cs) && (a.get_stable_sequence() <= cs)
                     ? 0 : 1
@@ -202,16 +205,17 @@ export class ListProvider {
         }
 
         if (this._groupWorkspaces) {
-            winList.sort((a, b) => b.get_workspace().index() < a.get_workspace().index());
+            // windows on all workspaces (sticky) have no workspace, get_workspace() returns null
+            winList.sort((a, b) => b.get_workspace()?.index() < a.get_workspace()?.index());
         } else if (this._currentMonitorFirst) {
             const currentWorkspace = this._workspace ?? global.workspace_manager.get_active_workspace();
             // windows from the active workspace and monitor first
-            winList.sort((a, b) => (b.get_workspace().index() === currentWorkspace.index() && b.get_monitor() === this._monitorIndex) &&
-                (a.get_workspace().index() !== currentWorkspace.index() || a.get_monitor() !== this._monitorIndex));
+            winList.sort((a, b) => (b.get_workspace()?.index() === currentWorkspace.index() && b.get_monitor() === this._monitorIndex) &&
+                (a.get_workspace()?.index() !== currentWorkspace.index() || a.get_monitor() !== this._monitorIndex));
         } else if (this._groupByApps) {
             // let apps = _getAppList(winList);
             let apps = this._getRunningAppsIds();
-            winList.sort((a, b) => apps.indexOf(this._getWindowApp(b).get_id()) < apps.indexOf(this._getWindowApp(a).get_id()));
+            winList.sort((a, b) => apps.indexOf(this._getWindowApp(b)?.get_id()) < apps.indexOf(this._getWindowApp(a)?.get_id()));
         }
 
         return winList;
@@ -230,7 +234,7 @@ export class ListProvider {
     }
 
     getAppList(searchQuery = '') {
-        this._updateCoreParams();
+        this._updateCoreParams(searchQuery);
         this._updateForAppList();
 
         const running = this._getRunningApps();
@@ -297,7 +301,8 @@ export class ListProvider {
                 string = `${dispName} ${gName} ${exec} ${description} ${categories} ${keywords}`;
             }
             return this._match(string, searchQuery);
-        }).map(appInfo => this._convertAppInfoToShellApp(appInfo));
+        }).map(appInfo => this._convertAppInfoToShellApp(appInfo))
+            .filter(app => app); // lookup_app() may return null
     }
 
     _sortAppSearchResults(appList, searchQuery) {

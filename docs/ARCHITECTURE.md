@@ -280,14 +280,13 @@ Các module còn lại dùng `this.getSettings()` (không argument), tự độn
 
 ---
 
-## 9. Module NOT in Suite (legacy/unwired)
+## 9. Module đã gỡ khỏi suite (legacy)
 
-Các module sau có sẵn trong thư mục `modules/` NHƯNG không được đăng ký trong suite `modules.js`, `extension.js` (CLASS_REGISTRY) và `prefs.js` (PREFS_REGISTRY):
+`modules/` hiện chỉ có 5 module đăng ký trong `modules.js`, `extension.js` (CLASS_REGISTRY) và `prefs.js` (PREFS_REGISTRY). Các module standalone cũ không còn nằm trong `modules/`; chức năng của chúng đã được gộp vào các module hiện tại:
 
-1. **alienware-appindicatorsupport@hsx2coder** — AppIndicator Support (đã được gộp vào alienware-indicators)
-2. **alienware-capsnum-touchpad@hsx2coder** — CapsNum+Touchpad standalone (đã được gộp vào alienware-indicators)
-3. **alienware-clipboard-indicator@hsx2coder** — Clipboard indicator standalone (đã được gộp vào alienware-topbar-widgets)
-4. **alienware-command-menu2@hsx2coder** — Command Menu standalone (đã được gộp vào alienware-topbar-widgets)
-5. **alienware-topbar-clone@hsx2coder** — Topbar Clone standalone (đã được gộp vào alienware-topbar-widgets)
+1. **alienware-appindicatorsupport@hsx2coder** — AppIndicator Support, nay là subsystem của `alienware-topbar`
+2. **alienware-capsnum-touchpad@hsx2coder** — CapsNum + Touchpad, nay là subsystem `capsnum-touchpad` của `alienware-topbar`
+3. **alienware-clipboard-indicator@hsx2coder** — Clipboard indicator, nay thuộc `alienware-topbar`
+4. **alienware-command-menu2@hsx2coder** — Command Menu, nay thuộc `alienware-topbar`
+5. **alienware-topbar-clone@hsx2coder** — Topbar Clone, nay thuộc `alienware-topbar`
 
-Chúng giữ nguyên UUID và schema trên filesystem cho mục đích rollback an toàn.

@@ -1,0 +1,56 @@
+{
+  "title": "Penguin",
+  "icon": "starred-symbolic",
+  "position": "left",
+  "menu": [
+    {
+      "type": "submenu",
+      "title": "Internet",
+      "icon": "network-workgroup-symbolic",
+      "submenu": [
+        {
+          "title": "Browser",
+          "icon": "web-browser-symbolic",
+          "command": "xdg-open https://www.gnome.org"
+        }
+      ]
+    },
+    {
+      "type": "submenu",
+      "title": "Office",
+      "icon": "x-office-document-symbolic",
+      "submenu": [
+        {
+          "title": "Text Editor",
+          "icon": "accessories-text-editor-symbolic",
+          "command": "sh -c 'gnome-text-editor || gedit'"
+        }
+      ]
+    },
+    {
+      "type": "submenu",
+      "title": "Media",
+      "icon": "applications-multimedia-symbolic",
+      "submenu": [
+        {
+          "title": "Music",
+          "icon": "audio-x-generic-symbolic",
+          "command": "sh -c 'xdg-open \"$HOME/Music\"'"
+        },
+        {
+          "title": "Videos",
+          "icon": "video-x-generic-symbolic",
+          "command": "sh -c 'xdg-open \"$HOME/Videos\"'"
+        }
+      ]
+    },
+    {
+      "type": "separator"
+    },
+    {
+      "title": "Terminal",
+      "icon": "utilities-terminal-symbolic",
+      "command": "sh -c 'gnome-terminal || kgx'"
+    }
+  ]
+}

@@ -36,7 +36,7 @@ export default class AlienwareSuitePreferences extends ExtensionPreferences {
         const headerGroup = new Adw.PreferencesGroup({
             title: _('Alienware Suite'),
             description:
-                'Master switches for every module (7 consolidated modules). ' +
+                'Master switches for every module. ' +
                 'Open per-module settings with the Configure button.',
         });
         page.add(headerGroup);
@@ -44,7 +44,7 @@ export default class AlienwareSuitePreferences extends ExtensionPreferences {
         const togglesGroup = new Adw.PreferencesGroup({
             title: _('Modules'),
             description:
-                'Disabling a module here unloads it immediately on next shell reload. ' +
+                'Disabling a module here unloads it immediately, without a shell reload. ' +
                 'Re-enabling reloads it without restarting the shell.',
         });
         page.add(togglesGroup);

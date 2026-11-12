@@ -121,7 +121,7 @@ const CommandMenuPopup = GObject.registerClass(
         this.commands.menu = [{
           title: "Customize This Menu...",
           icon: 'preferences-system-symbolic',
-          command: "gnome-extensions prefs alienware-topbar-widgets@hsx2coder"
+          command: "gnome-extensions prefs alienware-topbar@hsx2coder"
         }];
       }
       this.populateMenuItems(this.menu, this.commands.menu, 0);
@@ -193,7 +193,8 @@ export default class CommandMenuExtension extends Extension {
         delete Main.panel.statusArea[role];
       }
       const popup = new CommandMenuPopup(menu, this._settings);
-      const index = Number.isInteger(+menu.index) ? +menu.index : 1;
+      // null/undefined index means "Auto" (same rule as the prefs UI); fall back to 1
+      const index = (menu.index !== undefined && menu.index !== null && Number.isInteger(+menu.index)) ? +menu.index : 1;
       const pos = ['left', 'center', 'right'].includes(menu.position) ? menu.position : 'left';
       Main.panel.addToStatusArea(role, popup, index, pos);
       this.cmdMenus.push(popup);
