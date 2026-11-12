@@ -11,9 +11,10 @@ Suite load 9 module, mỗi module một chức năng. Ownership cứng:
 | Tài nguyên | Chủ sở hữu duy nhất | Cách module khác dùng |
 |---|---|---|
 | `Main.panel`, `_leftBox`, `_centerBox`, `_rightBox`, `statusArea`, `panelBox` | `alienware-topbar` | `PanelHost` |
-| panel geometry / clock / quick settings / panel item visibility | `alienware-topbar` | không ai khác có key |
+| panel geometry / panel item visibility | `alienware-topbar` | không ai khác có key |
+| Clock & Calendar (date menu), Quick Settings | `alienware-gnome-customizer-manager` (`subsystems/panel-menus/`) | System Monitor chỉ gọi `lib/dateMenuVisibility.js` |
 | `_computeWorkspacesBoxForState` patch | `lib/workspacesBoxLayout.js` (refcount) | `addWorkspacesBoxPatch()` |
-| `workspaceSwitcherPopup`, `overview`, `windowMenu`, `lookingGlass`, OSD | `alienware-gnome-customizer-manager` | import `API` trực tiếp |
+| `workspaceSwitcherPopup`, `overview`, `windowMenu`, OSD | `alienware-gnome-customizer-manager` | import `API` trực tiếp |
 | `WindowIcon._init`, `SwitcherPopup.show` | `alienware-advanced-alt-tab` | import `AltTabApi` |
 | dash visibility / dash icon size | `alienware-dash-to-panel` | import `DashApi` |
 
@@ -225,7 +226,7 @@ Mỗi module giữ schema ID gốc (từ standalone extension gốc) để tươ
 | Just Perfection | `org.gnome.shell.extensions.just-perfection` | just-perfection.gschema.xml | `/org/gnome/shell/extensions/just-perfection/` | 0 — all keys distributed |
 | Notification Config (subsystem in GCM) | `org.gnome.shell.extensions.notification-configurator` | notification-configurator.gschema.xml | `/org/gnome/shell/extensions/notification-configurator/` | 14 |
 | **Workspace Control** | đã gộp vào `alienware-gnome-customizer-manager` (schema `…extensions.gnome-customizer-manager`) | workspace-control.gschema.xml | `/org/gnome/shell/extensions/workspace-control/` | 14 |
-| **Gnome Customizer Mgr** | `org.gnome.shell.extensions.gnome-customizer-manager` | gnome-customizer-manager.gschema.xml | `/org/gnome/shell/extensions/gnome-customizer-manager/` | 24 |
+| **Gnome Customizer Mgr** | `org.gnome.shell.extensions.gnome-customizer-manager` | gnome-customizer-manager.gschema.xml | `/org/gnome/shell/extensions/gnome-customizer-manager/` | 40 |
 | **Topbar Panel Ctrls** | đã gộp vào `alienware-topbar` (schema `…extensions.alienware-topbar`) | `/org/gnome/shell/extensions/topbar-panel-controls/` | 26 |
 
 ### 5.3 Hardcoded schema lookups (cần chú ý)

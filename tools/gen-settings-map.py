@@ -2,7 +2,7 @@
 """Generate docs/settings-map.md — owner/path/key-count map for every GSettings schema.
 
 Parses all *.gschema.xml (schemas/, modules/*/schemas/, modules/*/*/schemas/,
-migrations/schemas/), maps each schema id to its owning module from modules.js
+migrations/schemas*/), maps each schema id to its owning module from modules.js
 (by directory) plus SUB_SCHEMAS declarations in each module extension.js, and
 flags migration-only legacy shims.
 
@@ -38,7 +38,8 @@ rows = []
 for f in sorted(glob.glob('schemas/*.xml')
                 + glob.glob('modules/*/schemas/*.xml')
                 + glob.glob('modules/*/*/schemas/*.xml')
-                + glob.glob('migrations/schemas/*.xml')):
+                + glob.glob('migrations/schemas/*.xml')
+                + glob.glob('migrations/schemas-v2/*.xml')):
     root = ET.parse(f).getroot()
     for sch in root.findall('schema'):
         sid = sch.get('id')
@@ -86,7 +87,7 @@ lines.append('  independent settings under different paths — no conflict.')
 lines.append('- `system-monitor` (old, 107 keys) is kept only for one-shot migration into')
 lines.append('  `system-monitor-next-applet` (see `subsystems/system-monitor/migration.js`).')
 lines.append('  Runtime reads the `-next-applet` schema exclusively.')
-lines.append('- Files under `migrations/schemas/` are legacy shims read once by `migrations.js`')
+lines.append('- Files under `migrations/schemas*/` are legacy shims read once by `migrations.js`')
 lines.append('  (`panel-clone`, `topbar-panel-controls`, old `gnome-customizer-manager`).')
 lines.append('  Do not add new keys there.')
 lines.append('- Per-monitor / per-hardware keys keep upstream defaults, never snapshotted:')

@@ -2,6 +2,13 @@
 
 > **Vai trò:** Công cụ tuỳ biến toàn diện GNOME Shell UI — ẩn/hiện elements, thay đổi behavior, disable tính năng không dùng.
 
+> **Cập nhật — engine hiện tại nằm trong `alienware-gnome-customizer-manager`** (`lib/API.js`, bản port của Just Perfection). Phần dưới mô tả nguồn gốc; trạng thái thực tế:
+>
+> - Đã **bỏ** Looking Glass size (không còn key `looking-glass-width/height`) và 10 dependency không dùng trong API.
+> - Các tính năng GCM đang có: animation (Off chỉ tắt trong phiên bằng `St.Settings.inhibit_animations`, không đổi `enable-animations`), window demands-attention / maximized-on-create / **fullscreen-unredirect** (mới), window menu, overview startup status, window picker icon, overview spacing, workspace switcher, workspaces, Super key / double-super-to-appgrid, OSD và vị trí OSD, screenshot, Clock & Calendar, Quick Settings.
+> - Shell theme (User Shell Theme) chạy không cần extension User Themes; khi tắt sẽ revert theme.
+> - Các tính năng trùng với module khác hoặc GNOME Settings (hot corner, alt-tab caption/close button, search, switcher delay) **không** được thêm vào GCM.
+
 ---
 
 ## 1. Tổng quan

@@ -6,18 +6,29 @@ Module duy nhất được phép chạm vào panel. Gộp từ `topbar-widgets`,
 
 ## Schema
 
-`org.gnome.shell.extensions.alienware-topbar` — 39 key.
+`org.gnome.shell.extensions.alienware-topbar` — 26 key.
 
 | Nhóm | Key |
 |---|---|
 | Hình học | `panel-visible`, `panel-in-overview`, `panel-height`, `panel-position` *(enum top/bottom)*, `panel-corner-size`, `panel-button-padding`, `panel-indicator-padding`, `panel-icon-size` |
 | Item panel | `background-menu`, `activities-button`, `show-apps-button`, `search-entry`, `start-search`, `max-search-results`, `notification-icon`, `keyboard-layout-indicator`, `accessibility-menu`, `power-icon`, `screen-sharing-indicator`, `screen-recording-indicator` |
-| Đồng hồ | `clock-visible`, `clock-position` *(enum left/center/right)*, `clock-position-offset`, `world-clock`, `weather`, `events-button`, `calendar`, `invert-calendar-column-items` |
-| Quick settings | `quick-settings`, `quick-settings-dark-mode`, `quick-settings-night-light`, `quick-settings-do-not-disturb`, `quick-settings-backlight`, `quick-settings-airplane-mode`, `accent-color-icon` |
+| Accent | `accent-color-icon` |
 | Clone | `clone-topbar`, `clone-show-clock`, `clone-show-tray` |
 
-Hai enum dùng GSettings enum thay cho `i` — đây là thay đổi cố ý: bản cũ bind
-`int` vào `Adw.SwitchRow.active` nên warning mỗi lần mở prefs.
+`panel-position` dùng GSettings enum thay cho `i` — đây là thay đổi cố ý: bản cũ
+bind `int` vào `Adw.SwitchRow.active` nên warning mỗi lần mở prefs.
+
+Clock & Calendar và Quick Settings là menu mặc định của GNOME, nên đã chuyển sang
+`alienware-gnome-customizer-manager` (`subsystems/panel-menus/`). Giá trị cũ của
+14 key được migration `migration-gcm-panel-menus-v2` chuyển sang, đọc qua bản
+schema đóng băng trong `migrations/schemas-v2/`. System Monitor vẫn chiếm chỗ
+đồng hồ, nhưng giờ qua cổng chung `lib/dateMenuVisibility.js` thay vì sửa
+`clock-visible`.
+
+Ghi chú migration: giá trị `clock-visible = false` do bản cũ tự ghi khi System
+Monitor bật bị bỏ qua (không copy sang GCM), để đồng hồ không biến mất sau khi
+nâng cấp. Các key đồng hồ GCM đã được v1 ghi (`clock-position`,
+`clock-position-offset`) không bị reset bởi step v2 dù topbar không có giá trị.
 
 ## Cấu trúc
 

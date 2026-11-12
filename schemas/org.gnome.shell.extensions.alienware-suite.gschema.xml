@@ -18,17 +18,24 @@
     <key name="enable-topbar" type="b">
       <default>true</default>
       <summary>Enable the Topbar &amp; Panel module</summary>
-      <description>Panel layout, clock, quick settings, panel items, multi-monitor clone, system monitor, indicators, clipboard and command menu widgets.</description>
+      <description>Panel layout, panel items, multi-monitor clone, system monitor, indicators, clipboard and command menu widgets.</description>
     </key>
     <key name="enable-gnome-customizer-manager" type="b">
       <default>true</default>
       <summary>Enable Gnome Customizer Manager module</summary>
+      <description>Customizes GNOME's own UI: animation, windows, OSD, workspaces, shell theme, notifications, Quick Settings, Clock &amp; Calendar.</description>
     </key>
 
     <key name="migration-consolidation-v1" type="b">
       <default>false</default>
       <summary>Top bar consolidation migration already ran</summary>
       <description>Set by migrations.js after moving the old panel keys into org.gnome.shell.extensions.alienware-topbar. Do not edit by hand.</description>
+    </key>
+
+    <key name="migration-gcm-panel-menus-v2" type="b">
+      <default>false</default>
+      <summary>Quick Settings / Clock migration already ran</summary>
+      <description>Set by migrations.js after moving the Quick Settings and Clock &amp; Calendar keys from org.gnome.shell.extensions.alienware-topbar into org.gnome.shell.extensions.gnome-customizer-manager. Do not edit by hand.</description>
     </key>
   </schema>
 </schemalist>
