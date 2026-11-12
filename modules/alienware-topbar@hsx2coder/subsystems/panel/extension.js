@@ -9,7 +9,6 @@
 
 import {PanelHost} from './host.js';
 
-const CLOCK_SIDE = ['center', 'right', 'left'];
 const PANEL_SIDE = ['top', 'bottom'];
 
 /** index of a value inside an enum, or -1 */
@@ -193,94 +192,6 @@ export class PanelExtension {
                 (s, f) => (f || s.get_boolean('screen-recording-indicator'))
                     ? a.screenRecordingIndicatorEnable() : a.screenRecordingIndicatorDisable(),
                 () => a.screenRecordingIndicatorEnable()],
-
-            ['clock-visible',
-                (s, f) => {
-                    // If System Monitor is active, it occupies the center box, so clock must stay hidden
-                    if (!f && s.get_boolean('enable-system-monitor'))
-                        return a.dateMenuHide();
-                    return (f || s.get_boolean('clock-visible'))
-                        ? a.dateMenuShow() : a.dateMenuHide();
-                },
-                () => a.dateMenuShow()],
-
-            ['clock-position',
-                (s, f) => {
-                    const p = enumIndex(CLOCK_SIDE, s.get_string('clock-position'));
-                    const o = f ? 0 : s.get_int('clock-position-offset');
-                    if (f || (p === 1 && o === 0))
-                        a.clockMenuPositionSetDefault();
-                    else
-                        a.clockMenuPositionSet(p, o);
-                },
-                () => a.clockMenuPositionSetDefault()],
-
-            ['clock-position-offset',
-                (s, f) => {
-                    if (f)
-                        return;
-                    const p = enumIndex(CLOCK_SIDE, s.get_string('clock-position'));
-                    const o = s.get_int('clock-position-offset');
-                    if (p === 1 && o === 0)
-                        a.clockMenuPositionSetDefault();
-                    else
-                        a.clockMenuPositionSet(p, o);
-                },
-                () => a.clockMenuPositionSetDefault()],
-
-            ['world-clock',
-                (s, f) => (f || s.get_boolean('world-clock'))
-                    ? a.worldClocksShow() : a.worldClocksHide(),
-                () => a.worldClocksShow()],
-
-            ['weather',
-                (s, f) => (f || s.get_boolean('weather'))
-                    ? a.weatherShow() : a.weatherHide(),
-                () => a.weatherShow()],
-
-            ['events-button',
-                (s, f) => (f || s.get_boolean('events-button'))
-                    ? a.eventsButtonShow() : a.eventsButtonHide(),
-                () => a.eventsButtonShow()],
-
-            ['calendar',
-                (s, f) => (f || s.get_boolean('calendar'))
-                    ? a.calendarShow() : a.calendarHide(),
-                () => a.calendarShow()],
-
-            ['invert-calendar-column-items',
-                (s, f) => a.invertCalendarColumnItems(f ? false : s.get_boolean('invert-calendar-column-items')),
-                () => a.invertCalendarColumnItems(false)],
-
-            ['quick-settings',
-                (s, f) => (f || s.get_boolean('quick-settings'))
-                    ? a.quickSettingsMenuShow() : a.quickSettingsMenuHide(),
-                () => a.quickSettingsMenuShow()],
-
-            ['quick-settings-dark-mode',
-                (s, f) => (f || s.get_boolean('quick-settings-dark-mode'))
-                    ? a.quickSettingsDarkStyleToggleShow() : a.quickSettingsDarkStyleToggleHide(),
-                () => a.quickSettingsDarkStyleToggleShow()],
-
-            ['quick-settings-night-light',
-                (s, f) => (f || s.get_boolean('quick-settings-night-light'))
-                    ? a.quickSettingsNightLightToggleShow() : a.quickSettingsNightLightToggleHide(),
-                () => a.quickSettingsNightLightToggleShow()],
-
-            ['quick-settings-do-not-disturb',
-                (s, f) => (f || s.get_boolean('quick-settings-do-not-disturb'))
-                    ? a.quickSettingsDoNotDisturbToggleShow() : a.quickSettingsDoNotDisturbToggleHide(),
-                () => a.quickSettingsDoNotDisturbToggleShow()],
-
-            ['quick-settings-backlight',
-                (s, f) => (f || s.get_boolean('quick-settings-backlight'))
-                    ? a.quickSettingsBacklightToggleShow() : a.quickSettingsBacklightToggleHide(),
-                () => a.quickSettingsBacklightToggleShow()],
-
-            ['quick-settings-airplane-mode',
-                (s, f) => (f || s.get_boolean('quick-settings-airplane-mode'))
-                    ? a.quickSettingsAirplaneModeToggleShow() : a.quickSettingsAirplaneModeToggleHide(),
-                () => a.quickSettingsAirplaneModeToggleShow()],
 
             ['accent-color-icon',
                 (s, f) => (f || s.get_boolean('accent-color-icon'))

@@ -4,14 +4,15 @@
  * Uses SplitPreferencesView (Master-Detail layout) to manage:
  *   1. Panel & Geometry
  *   2. Panel Items & Status Area
- *   3. Clock & Calendar
- *   4. Quick Settings
- *   5. Multi-monitor Clone
- *   6. System Monitor (CPU, GPU, RAM, Disk, Net, Sensor graphs & settings)
- *   7. AppIndicator / Tray Icons
- *   8. Caps/Num Lock & Touchpad
- *   9. Clipboard History Widget
- *   10. Command Menu Widget
+ *   3. Multi-monitor Clone
+ *   4. System Monitor (CPU, GPU, RAM, Disk, Net, Sensor graphs & settings)
+ *   5. AppIndicator / Tray Icons
+ *   6. Caps/Num Lock & Touchpad
+ *   7. Clipboard History Widget
+ *   8. Command Menu Widget
+ *
+ * Clock & Calendar and Quick Settings are GNOME's own menus: their pages live
+ * in the Gnome Customizer Manager preferences.
  */
 
 import Adw from 'gi://Adw';
@@ -77,45 +78,6 @@ const TOPBAR_SECTIONS = [
                     ['power-icon', 'Power status icon', null, 'b'],
                     ['screen-sharing-indicator', 'Screen sharing indicator', null, 'b'],
                     ['screen-recording-indicator', 'Screen recording indicator', null, 'b'],
-                ],
-            },
-        ],
-    },
-    {
-        title: 'Clock',
-        groups: [
-            {
-                title: 'Date and time',
-                rows: [
-                    ['clock-visible', 'Show the clock', null, 'b'],
-                    ['clock-position', 'Position', 'The only place the date menu is reparented', 'enum:left,center,right'],
-                    ['clock-position-offset', 'Offset', 'Extra pixels in front of the clock', 'i'],
-                    ['world-clock', 'World clocks', 'Inside the calendar popup', 'b'],
-                    ['weather', 'Weather', 'Inside the calendar popup', 'b'],
-                    ['events-button', 'Events button', 'Inside the calendar popup', 'b'],
-                    ['calendar', 'Calendar', 'Inside the calendar popup', 'b'],
-                    ['invert-calendar-column-items', 'Invert calendar items', null, 'b'],
-                ],
-            },
-        ],
-    },
-    {
-        title: 'Quick Settings',
-        groups: [
-            {
-                title: 'Menu',
-                rows: [
-                    ['quick-settings', 'Show the quick settings menu', null, 'b'],
-                ],
-            },
-            {
-                title: 'Toggles inside the menu',
-                rows: [
-                    ['quick-settings-dark-mode', 'Dark mode', null, 'b'],
-                    ['quick-settings-night-light', 'Night light', null, 'b'],
-                    ['quick-settings-do-not-disturb', 'Do not disturb', null, 'b'],
-                    ['quick-settings-backlight', 'Backlight slider', null, 'b'],
-                    ['quick-settings-airplane-mode', 'Airplane mode', null, 'b'],
                 ],
             },
         ],
@@ -196,9 +158,7 @@ function buildAdwRows(settings, pageDef, context = {}) {
         title: pageDef.title,
     });
 
-    const isClockPage = pageDef.title === 'Clock';
     const isPanelPage = pageDef.title === 'Panel';
-    const smSettings = context.smSettings;
     const dtpSettings = context.dtpSettings;
 
     for (const groupDef of pageDef.groups) {
@@ -209,31 +169,6 @@ function buildAdwRows(settings, pageDef, context = {}) {
 
         for (const [key, title, subtitle, kind] of groupDef.rows) {
             const [row, prop] = makeRow(key, title, subtitle, kind);
-
-            // Cross-module interaction: System Monitor replaces Clock in the center box
-            if (isClockPage && key === 'clock-visible') {
-                const updateConflictWarning = () => {
-                    const smEnabled = settings.get_boolean('enable-system-monitor');
-                    if (smEnabled) {
-                        row.set_sensitive(false);
-                        row.set_subtitle(
-                            '<span foreground="#e01b24" weight="bold">' +
-                            'Replaced by System Monitor: Clock is disabled while System Monitor is active' +
-                            '</span>'
-                        );
-                        if (row.active)
-                            settings.set_boolean('clock-visible', false);
-                    } else {
-                        row.set_sensitive(true);
-                        row.set_subtitle(subtitle ?? '');
-                        if (!row.active)
-                            settings.set_boolean('clock-visible', true);
-                    }
-                };
-
-                settings.connect('changed::enable-system-monitor', updateConflictWarning);
-                updateConflictWarning();
-            }
 
             // Cross-module interaction: Dash to Panel takes over topbar panel position and visibility
             if (isPanelPage && (key === 'panel-visible' || key === 'panel-position') && dtpSettings) {
@@ -274,16 +209,9 @@ export default class TopbarPreferences extends ExtensionPreferences {
             url: `file://${this.path}/`,
         };
 
-        let smSettings = null;
         let dtpSettings = null;
         try {
             const GioSSS = Gio.SettingsSchemaSource;
-            const schemaDir = this.dir.get_child('schemas');
-            const schemaSource = GioSSS.new_from_directory(schemaDir.get_path(), GioSSS.get_default(), false);
-            const schemaObj = schemaSource.lookup('org.gnome.shell.extensions.system-monitor-next-applet', true);
-            if (schemaObj)
-                smSettings = new Gio.Settings({settings_schema: schemaObj});
-
             const dtpDir = this.dir.get_parent().get_child('alienware-dash-to-panel@hsx2coder').get_child('schemas');
             const dtpSource = GioSSS.new_from_directory(dtpDir.get_path(), GioSSS.get_default(), false);
             const dtpSchemaObj = dtpSource.lookup('org.gnome.shell.extensions.dash-to-panel', true);
@@ -305,22 +233,10 @@ export default class TopbarPreferences extends ExtensionPreferences {
                 buildContent: () => buildAdwRows(settings, TOPBAR_SECTIONS[1]),
             },
             {
-                id: 'panel-clock',
-                title: 'Clock & Calendar',
-                iconName: 'preferences-system-time-symbolic',
-                buildContent: () => buildAdwRows(settings, TOPBAR_SECTIONS[2], {smSettings}),
-            },
-            {
-                id: 'quick-settings',
-                title: 'Quick Settings',
-                iconName: 'preferences-system-network-symbolic',
-                buildContent: () => buildAdwRows(settings, TOPBAR_SECTIONS[3]),
-            },
-            {
                 id: 'multi-monitor',
                 title: 'Multi-Monitor Clone',
                 iconName: 'display-projector-symbolic',
-                buildContent: () => buildAdwRows(settings, TOPBAR_SECTIONS[4]),
+                buildContent: () => buildAdwRows(settings, TOPBAR_SECTIONS[2]),
             },
             {
                 id: 'system-monitor',

@@ -44,6 +44,7 @@ import { sm_log } from './utils.js';
 import { parse_bytearray, check_sensors } from './common.js';
 import { migrateSettings } from './migration.js'
 import { PanelHost } from '../panel/host.js';
+import { DateMenuVisibility } from '../../../../lib/dateMenuVisibility.js';
 
 const NetworkManager = NM;
 const UPower = UPowerGlib;
@@ -3438,8 +3439,7 @@ export default class SystemMonitorExtension extends Extension {
         });
         // Hide the original clock on the topbar and place the System Monitor
         // in the center box to replace its position.
-        Main.panel.statusArea.dateMenu?.container?.hide();
-        PanelHost.api?.dateMenuHide?.();
+        DateMenuVisibility.setOccupied(true);
         PanelHost.addStatusItem('system-monitor', tray, 0, 'center');
 
         // The spacing adds a distance between the graphs/text on the top bar
@@ -3549,56 +3549,54 @@ export default class SystemMonitorExtension extends Extension {
     }
 
     disable() {
-        if (this.menuTimeout) {
-            GLib.Source.remove(this.menuTimeout);
-            this.menuTimeout = null;
-        }
-
-        if (this._Schema && this._schemaSignalIds) {
-            for (const id of this._schemaSignalIds) {
-                try {
-                    this._Schema.disconnect(id);
-                } catch (_) {}
-            }
-            this._schemaSignalIds = [];
-        }
-
-        if (this._MountsMonitor) {
-            this._MountsMonitor.disconnect();
-            this._MountsMonitor = null;
-        }
-
-        if (this._Style) {
-            this._Style = null;
-        }
-
-        if (this.__sm) {
-            for (let eltName in this.__sm.elts) {
-                try {
-                    this.__sm.elts[eltName]?.destroy?.();
-                } catch (_) {}
-            }
-            if (this.__sm.pie) {
-                try {
-                    this.__sm.pie?.destroy?.();
-                } catch (_) {}
-            }
-            if (this.__sm.bar) {
-                try {
-                    this.__sm.bar?.destroy?.();
-                } catch (_) {}
-            }
-        }
-        PanelHost.removeStatusItem('system-monitor');
-        this.__sm = null;
-
+        // the occupied flag outlives this object (module-level state), so a
+        // throw anywhere below must still give the clock its place back
         try {
-            const topbarSettings = new Gio.Settings({schema_id: 'org.gnome.shell.extensions.alienware-topbar'});
-            if (topbarSettings.get_boolean('clock-visible') !== false) {
-                Main.panel.statusArea.dateMenu?.container?.show();
-                PanelHost.api?.dateMenuShow?.();
+            if (this.menuTimeout) {
+                GLib.Source.remove(this.menuTimeout);
+                this.menuTimeout = null;
             }
-        } catch (_) {}
+
+            if (this._Schema && this._schemaSignalIds) {
+                for (const id of this._schemaSignalIds) {
+                    try {
+                        this._Schema.disconnect(id);
+                    } catch (_) {}
+                }
+                this._schemaSignalIds = [];
+            }
+
+            if (this._MountsMonitor) {
+                this._MountsMonitor.disconnect();
+                this._MountsMonitor = null;
+            }
+
+            if (this._Style) {
+                this._Style = null;
+            }
+
+            if (this.__sm) {
+                for (let eltName in this.__sm.elts) {
+                    try {
+                        this.__sm.elts[eltName]?.destroy?.();
+                    } catch (_) {}
+                }
+                if (this.__sm.pie) {
+                    try {
+                        this.__sm.pie?.destroy?.();
+                    } catch (_) {}
+                }
+                if (this.__sm.bar) {
+                    try {
+                        this.__sm.bar?.destroy?.();
+                    } catch (_) {}
+                }
+            }
+            PanelHost.removeStatusItem('system-monitor');
+            this.__sm = null;
+        } finally {
+            DateMenuVisibility.setOccupied(false);
+        }
 
         sm_log('applet disable');
     }

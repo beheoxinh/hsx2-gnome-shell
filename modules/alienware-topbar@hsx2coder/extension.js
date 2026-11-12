@@ -2,7 +2,9 @@
  * alienware-topbar — sole owner of the GNOME Shell top bar.
  *
  * Subsystems, in enable order:
- *   panel          geometry, visibility, panel items, clock, quick settings
+ *   panel          geometry, visibility, panel items
+ *                  (clock & calendar and quick settings are GNOME's own menus:
+ *                  they live in alienware-gnome-customizer-manager)
  *   topbar-clone   the same bar rendered on every secondary monitor
  *   widgets        clipboard indicator and command menus injected into the bar
  *
@@ -63,17 +65,9 @@ export default class TopbarExtension extends Extension {
         this.#clone = new TopbarCloneSubsystem({settings, extension: this});
         this.#clone.enable();
 
-        this.#settingsIds.push(settings.connect('changed::enable-system-monitor', () => {
-            if (!settings.get_boolean('enable-system-monitor')) {
-                // If clock-visible was turned off due to System Monitor replacement, re-enable clock
-                if (!settings.get_boolean('clock-visible')) {
-                    settings.set_boolean('clock-visible', true);
-                } else {
-                    PanelHost.api?.dateMenuShow?.();
-                }
-            }
-            this.#rebuildWidgets();
-        }));
+        // System Monitor hands the clock back through DateMenuVisibility when it
+        // is torn down, so a rebuild is all this needs
+        this.#settingsIds.push(settings.connect('changed::enable-system-monitor', () => this.#rebuildWidgets()));
         this.#settingsIds.push(settings.connect('changed::enable-indicators', () => this.#rebuildWidgets()));
 
         this.#rebuildWidgets();
