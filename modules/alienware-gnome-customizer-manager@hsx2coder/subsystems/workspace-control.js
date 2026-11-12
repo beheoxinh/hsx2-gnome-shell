@@ -18,7 +18,6 @@ export class WorkspaceControl {
     }
 
     start() {
-        log('[workspace-control] start()');
         this.#jpApi = this.#hostApi;
         this.#registerSignals();
         this.#applyAll();
@@ -76,8 +75,12 @@ export class WorkspaceControl {
             () => this.#applyWorkspaceThumbnailToMainView(false),
             this
         );
+        // both keys feed one decision; double-super had no signal, so
+        // toggling it did nothing until overlay-key changed too
         this.#settings.connectObject(
             'changed::overlay-key',
+            () => this.#applyOverlayKey(false),
+            'changed::double-super-to-appgrid',
             () => this.#applyOverlayKey(false),
             this
         );
@@ -103,7 +106,6 @@ export class WorkspaceControl {
     }
 
     #applyAll() {
-        log('[workspace-control] applyAll');
         this.#applyWorkspace(false);
         this.#applyWorkspacePopup(false);
         this.#applyWorkspaceSwitcherSize(false);

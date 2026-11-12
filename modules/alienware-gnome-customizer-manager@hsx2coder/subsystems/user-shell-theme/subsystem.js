@@ -2,21 +2,23 @@ import Gio from 'gi://Gio';
 
 import * as Main from 'resource:///org/gnome/shell/ui/main.js';
 
-import { getThemeDirs, getModeThemeDirs } from './util.js';
+import { getThemeDirs, getModeThemeDirs, lookupThemeSchema } from './util.js';
 
-const SETTINGS_SCHEMA = 'org.gnome.shell.extensions.user-theme';
 const SETTINGS_KEY = 'name';
 
 export class UserShellThemeSubsystem {
     _settings = null;
     _changedId = 0;
 
-    constructor() {}
+    _moduleDir = null;
+
+    constructor(moduleDir) {
+        this._moduleDir = moduleDir;
+    }
 
     start() {
         try {
-            const schemaSource = Gio.SettingsSchemaSource.get_default();
-            const schema = schemaSource.lookup(SETTINGS_SCHEMA, true);
+            const schema = lookupThemeSchema(this._moduleDir);
             if (!schema)
                 return;
             this._settings = new Gio.Settings({ settings_schema: schema });
@@ -37,6 +39,18 @@ export class UserShellThemeSubsystem {
                 this._changedId = 0;
             }
             this._settings = null;
+            // A real disable gives GNOME its own theme back. The lock screen
+            // also disables this module, and reloading the theme there is
+            // exactly what _changeTheme avoids, so the theme stays across
+            // lock/unlock and is not reloaded on the way back either.
+            const locked = Main.sessionMode?.isLocked ||
+                Main.sessionMode?.currentMode === 'unlock-dialog';
+            if (!locked && (this._appliedStylesheet || globalThis.__alienwareAppliedShellTheme)) {
+                Main.setThemeStylesheet(null);
+                Main.loadTheme();
+                this._appliedStylesheet = null;
+                globalThis.__alienwareAppliedShellTheme = null;
+            }
         } catch (e) {
             logError(e, '[UserShellTheme] stop failed');
         }

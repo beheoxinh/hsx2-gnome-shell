@@ -4,9 +4,11 @@ import Gtk from 'gi://Gtk';
 import {ExtensionPreferences, gettext as _} from 'resource:///org/gnome/Shell/Extensions/js/extensions/prefs.js';
 import {SplitPreferencesView} from '../../lib/ui/splitPrefsView.js';
 
-import {addWorkspaceControlPages} from './subsystems/workspace-prefs.js';
 import NotificationConfiguratorPreferences from './subsystems/notification-configurator/prefs.js';
-import {addShellThemePages} from './subsystems/user-shell-theme/theme-prefs.js';
+import {buildShellThemeGroup} from './subsystems/user-shell-theme/theme-prefs.js';
+import {buildClockPage, buildQuickSettingsPage} from './subsystems/panel-menus/prefs.js';
+
+const FLAGS = Gio.SettingsBindFlags.DEFAULT;
 
 export default class GnomeCustomizerManagerPreferences extends ExtensionPreferences {
     fillPreferencesWindow(window) {
@@ -49,39 +51,32 @@ export default class GnomeCustomizerManagerPreferences extends ExtensionPreferen
             }
         };
 
-        const pages = [];
-        const dummyWin = {
-            add(page) {
-                pages.push(page);
-            },
-            set_default_size() {},
-            set_title() {},
-            set_search_enabled() {},
-            connect() {},
-        };
-
-        const s = new Settings(this.getSettings());
-        window._settingsRef = s;
-        for (const {title, iconName, groups} of Settings.getTabDefs(s)) {
-            const page = new Adw.PreferencesPage({title, icon_name: iconName});
-            groups.forEach(g => page.add(g));
-            dummyWin.add(page);
+        // one declarative table per page, so a row can never be shown without
+        // a key behind it (the old Windows page had two unbound switches)
+        const settings = this.getSettings();
+        const sections = [];
+        for (const def of PAGES) {
+            sections.push({
+                id: def.id,
+                title: _(def.title),
+                iconName: def.icon,
+                buildContent: () => buildPage(settings, def, this.dir),
+            });
         }
 
-        addWorkspaceControlPages(dummyWin, this.getSettings());
-
-        try {
-            addShellThemePages(dummyWin, this.getSettings());
-        } catch (e) {
-            logError(e, 'GCM ShellTheme prefs failed');
-        }
-
-        const sections = pages.map((page, idx) => ({
-            id: `gcm_${idx}`,
-            title: page.title || `Section ${idx + 1}`,
-            iconName: page.icon_name || 'preferences-system-symbolic',
-            page,
-        }));
+        // GNOME's own top bar menus (moved from the Topbar module)
+        sections.push({
+            id: 'clock-calendar',
+            title: _('Clock & Calendar'),
+            iconName: 'preferences-system-time-symbolic',
+            buildContent: () => buildClockPage(settings, this.dir),
+        });
+        sections.push({
+            id: 'quick-settings',
+            title: _('Quick Settings'),
+            iconName: 'preferences-system-network-symbolic',
+            buildContent: () => buildQuickSettingsPage(settings),
+        });
 
         // Add Notification section to left sidebar with 2 sub-tabs (Global and Patterns)
         sections.push({
@@ -146,131 +141,165 @@ export default class GnomeCustomizerManagerPreferences extends ExtensionPreferen
 }
 
 
-class Settings {
-    static getTabDefs(s) {
-        return [
-            {title: _('Animation'),   iconName: 'preferences-system-symbolic',              groups: [s.animation]},
-            {title: _('Windows'),     iconName: 'window-duplicate-symbolic',                groups: [s.windows]},
-            {title: _('OSD'),         iconName: 'video-display-symbolic',                    groups: [s.osd]},
-            {title: _('Advanced'),    iconName: 'applications-engineering-symbolic',        groups: [s.advanced]},
-        ];
+const ANIMATION_CHOICES = ['Off', 'GNOME default', 'Almost none', 'Fastest', 'Faster',
+    'Fast', 'Slow', 'Slower', 'Slowest'];
+const OSD_POSITIONS = ['GNOME default', 'Top left', 'Top center', 'Top right',
+    'Bottom left', 'Bottom center', 'Bottom right', 'Center left', 'Center', 'Center right'];
+
+/**
+ * [key, title, subtitle, kind]; kind is 'b', 'spin:<min>:<max>' or
+ * 'combo:<choices>' (index stored in an int key). `special` groups are built
+ * by code instead (the shell theme picker reads another schema).
+ */
+const PAGES = [
+    {
+        id: 'appearance', title: 'Appearance', icon: 'applications-graphics-symbolic',
+        groups: [
+            {special: 'shell-theme'},
+            {
+                title: 'Style',
+                rows: [
+                    ['theme', 'Flat popup style', 'Flat look for the OSD, Alt+Tab, the workspace popup and window snapping previews', 'b'],
+                    ['ripple-box', 'Hot corner ripple', 'Ripple drawn when the top-left hot corner fires', 'b'],
+                ],
+            },
+            {
+                title: 'Animation',
+                rows: [
+                    ['animation', 'Animation speed', 'Off lasts for this session only; the system "Animations" setting is not changed', 'combo:animation'],
+                ],
+            },
+        ],
+    },
+    {
+        id: 'windows', title: 'Windows', icon: 'window-duplicate-symbolic',
+        groups: [
+            {
+                title: 'Behaviour',
+                rows: [
+                    ['window-demands-attention-focus', 'Focus windows that ask for attention', 'Bring the window forward instead of showing a "is ready" notification', 'b'],
+                    ['window-maximized-on-create', 'Open new windows maximized', null, 'b'],
+                    ['fullscreen-unredirect', 'Unredirect fullscreen windows', 'GNOME default. Turn off if fullscreen apps flicker or tear, or if the OSD and notifications do not show over them', 'b'],
+                ],
+            },
+            {
+                title: 'Window menu',
+                rows: [
+                    ['window-menu', 'Window menu', 'Right-click on the title bar and Alt+Space', 'b'],
+                    ['window-menu-take-screenshot-button', 'Take Screenshot entry', null, 'b'],
+                ],
+            },
+        ],
+    },
+    {
+        id: 'overview', title: 'Overview & Workspaces', icon: 'view-grid-symbolic',
+        groups: [
+            {
+                title: 'Overview',
+                rows: [
+                    ['startup-status', 'After login show', 'Dash to Panel has its own "hide overview on startup"; use only one of them', 'combo:Desktop|Overview (GNOME default)'],
+                    ['window-picker-icon', 'App icon on window previews', null, 'b'],
+                    ['controls-manager-spacing-size', 'Overview spacing', 'Pixels between the overview\'s parts (0 = default)', 'spin:0:150'],
+                    ['workspaces-in-app-grid', 'Workspaces above the app grid', null, 'b'],
+                ],
+            },
+            {
+                title: 'Workspace switcher (thumbnails)',
+                rows: [
+                    ['workspace', 'Show the workspace switcher', null, 'b'],
+                    ['workspace-switcher-should-show', 'Always show it', 'Even with a single workspace', 'b'],
+                    ['workspace-switcher-size', 'Size', 'Percent of the screen (0 = default)', 'spin:0:30'],
+                    ['workspace-thumbnail-to-main-view', 'Clicking a thumbnail leaves the overview', null, 'b'],
+                ],
+            },
+            {
+                title: 'Workspaces',
+                rows: [
+                    ['workspace-popup', 'Popup when switching workspace', null, 'b'],
+                    ['workspace-wrap-around', 'Wrap around', 'Going past the last workspace returns to the first', 'b'],
+                    ['workspace-peek', 'Peek at neighbouring workspaces', 'Edges of the next and previous workspace in the overview', 'b'],
+                    ['workspace-background-corner-size', 'Workspace corner radius', '0 = default, 1 = square, 2 and up = radius + 1 px', 'spin:0:61'],
+                ],
+            },
+            {
+                title: 'Super key',
+                rows: [
+                    ['overlay-key', 'Super opens the overview', null, 'b'],
+                    ['double-super-to-appgrid', 'Press Super twice for the app grid', null, 'b', 'overlay-key'],
+                ],
+            },
+        ],
+    },
+    {
+        id: 'osd', title: 'On-Screen Display', icon: 'video-display-symbolic',
+        groups: [
+            {
+                title: 'Volume and brightness popups',
+                rows: [
+                    ['osd', 'Show the OSD', null, 'b'],
+                    ['osd-position', 'Position', null, 'combo:osd', 'osd'],
+                ],
+            },
+        ],
+    },
+    {
+        id: 'screenshot', title: 'Screenshot', icon: 'camera-photo-symbolic',
+        groups: [
+            {
+                title: 'Area selection',
+                rows: [
+                    ['remove-preselected-box', 'Start without a preselected area', null, 'b'],
+                    ['screenshot-on-release', 'Capture on mouse release', 'Take the shot as soon as the area is drawn', 'b'],
+                ],
+            },
+        ],
+    },
+];
+
+function stringList(items) {
+    const list = new Gtk.StringList();
+    for (const item of items)
+        list.append(_(item));
+    return list;
+}
+
+function makeRow(title, subtitle, kind) {
+    const props = {title: _(title), subtitle: subtitle ? _(subtitle) : ''};
+    if (kind === 'b')
+        return [new Adw.SwitchRow(props), 'active'];
+    if (kind.startsWith('spin:')) {
+        const [, lower, upper] = kind.split(':').map(Number);
+        props.adjustment = new Gtk.Adjustment({lower, upper, step_increment: 1, page_increment: 10});
+        return [new Adw.SpinRow(props), 'value'];
     }
-    constructor(schema) {
-        this.schema = schema;
+    const name = kind.slice('combo:'.length);
+    const choices = name === 'animation' ? ANIMATION_CHOICES
+        : name === 'osd' ? OSD_POSITIONS : name.split('|');
+    return [new Adw.ComboRow({...props, model: stringList(choices)}), 'selected'];
+}
 
-        // ── Animation ──
-        this.animationSpeed = new Adw.SpinRow({
-            title: _('Animation Speed'),
-            subtitle: _('0=disabled, 1=default, 2-8=faster. Higher values mean faster animations.'),
-            adjustment: new Gtk.Adjustment({lower: 0, upper: 8, step_increment: 1}),
-        });
-        this.animation = new Adw.PreferencesGroup({title: _('Animation')});
-
-        // ── Windows ──
-        this.windowDemandsAttention = new Adw.SwitchRow({
-            title: _('Focus Window on Demand Attention'),
-            subtitle: _('Auto-focus a window that demands attention (e.g. chat notifications).'),
-        });
-        this.windowMaximizedOnCreate = new Adw.SwitchRow({
-            title: _('Maximize on Create'),
-            subtitle: _('New windows open maximized by default.'),
-        });
-        this.windowPreviewCaption = new Adw.SwitchRow({
-            title: _('Window Preview Caption'),
-            subtitle: _('Show window title text in the Alt+Tab thumbnail.'),
-        });
-        this.windowPreviewCloseBtn = new Adw.SwitchRow({
-            title: _('Close Button in Preview'),
-            subtitle: _('Show a close button on window thumbnails in Alt+Tab.'),
-        });
-        this.windowPickerIcon = new Adw.SwitchRow({
-            title: _('Window Icon in Picker'),
-            subtitle: _('Show app icon alongside window thumbnails.'),
-        });
-        this.windowMenu = new Adw.SwitchRow({
-            title: _('Window Menu'),
-            subtitle: _('Enable the right-click window menu (Alt+Space).'),
-        });
-        this.windowMenuScreenshot = new Adw.SwitchRow({
-            title: _('Screenshot Button in Window Menu'),
-            subtitle: _('Add a screenshot entry to the window menu.'),
-        });
-        this.windows = new Adw.PreferencesGroup({title: _('Windows'), description: 'Window behaviour, previews, and window menu options.'});
-
-        // ── OSD ──
-        this.osdVisible = new Adw.SwitchRow({
-            title: _('OSD Visibility'),
-            subtitle: _('Show on-screen display for volume, brightness, and media keys.'),
-        });
-        this.osdPosition = new Adw.ComboRow({
-            title: _('OSD Position'),
-            subtitle: _('Where the OSD popup appears on screen.'),
-            model: this.#strList(['Center', 'Top-Left', 'Top-Right', 'Bottom-Left', 'Bottom-Right', 'Top-Center', 'Bottom-Center', 'Left', 'Right', 'Floating']),
-        });
-        this.osd = new Adw.PreferencesGroup({title: _('On-Screen Display (OSD)'), description: 'Control the OSD popup visibility and position.'});
-
-        // ── Quick Settings ──
-        this.theme = new Adw.SwitchRow({
-            title: _('Custom Shell Theme'),
-            subtitle: _('Apply user theme styling to GNOME Shell.'),
-        });
-
-        this.lookingGlassWidth = new Adw.ComboRow({
-            title: _('Looking Glass Width'),
-            subtitle: _('Width of the Looking Glass debug console (0=default).'),
-            model: this.#strList(['Default', '1', '2', '3', '4', '5', '6', '7', '8', '9']),
-        });
-        this.lookingGlassHeight = new Adw.ComboRow({
-            title: _('Looking Glass Height'),
-            subtitle: _('Height of the Looking Glass debug console (0=default).'),
-            model: this.#strList(['Default', '1', '2', '3', '4', '5', '6', '7', '8', '9']),
-        });
-        this.removePreselectedBox = new Adw.SwitchRow({
-            title: _('Remove Screenshot Preselected Box'),
-            subtitle: _('Remove the pre-selected region box when taking a screenshot area.'),
-        });
-        this.screenshotOnRelease = new Adw.SwitchRow({
-            title: _('Screenshot on Mouse Release'),
-            subtitle: _('Take the screenshot when the mouse button is released, not when pressed.'),
-        });
-        this.advanced = new Adw.PreferencesGroup({title: _('Advanced'), description: 'Looking Glass, theme, search, and screenshot settings.'});
-
-        // ── Assemble ──
-        this.animation.add(this.animationSpeed);
-
-        for (const w of [
-            this.windowDemandsAttention, this.windowMaximizedOnCreate,
-            this.windowPreviewCaption, this.windowPreviewCloseBtn,
-            this.windowPickerIcon, this.windowMenu, this.windowMenuScreenshot,
-        ]) this.windows.add(w);
-
-        this.osd.add(this.osdVisible);
-        this.osd.add(this.osdPosition);
-
-        for (const w of [
-            this.theme, this.lookingGlassWidth, this.lookingGlassHeight,
-            this.removePreselectedBox, this.screenshotOnRelease,
-        ]) this.advanced.add(w);
-
-        // ── Bind ──
-        this.schema.bind('animation', this.animationSpeed, 'value', Gio.SettingsBindFlags.DEFAULT);
-        this.schema.bind('window-demands-attention-focus', this.windowDemandsAttention, 'active', Gio.SettingsBindFlags.DEFAULT);
-        this.schema.bind('window-maximized-on-create', this.windowMaximizedOnCreate, 'active', Gio.SettingsBindFlags.DEFAULT);
-        this.schema.bind('window-picker-icon', this.windowPickerIcon, 'active', Gio.SettingsBindFlags.DEFAULT);
-        this.schema.bind('window-menu', this.windowMenu, 'active', Gio.SettingsBindFlags.DEFAULT);
-        this.schema.bind('window-menu-take-screenshot-button', this.windowMenuScreenshot, 'active', Gio.SettingsBindFlags.DEFAULT);
-        this.schema.bind('osd', this.osdVisible, 'active', Gio.SettingsBindFlags.DEFAULT);
-        this.schema.bind('osd-position', this.osdPosition, 'selected', Gio.SettingsBindFlags.DEFAULT);
-        this.schema.bind('theme', this.theme, 'active', Gio.SettingsBindFlags.DEFAULT);
-        this.schema.bind('looking-glass-width', this.lookingGlassWidth, 'selected', Gio.SettingsBindFlags.DEFAULT);
-        this.schema.bind('looking-glass-height', this.lookingGlassHeight, 'selected', Gio.SettingsBindFlags.DEFAULT);
-        this.schema.bind('remove-preselected-box', this.removePreselectedBox, 'active', Gio.SettingsBindFlags.DEFAULT);
-        this.schema.bind('screenshot-on-release', this.screenshotOnRelease, 'active', Gio.SettingsBindFlags.DEFAULT);
+function buildPage(settings, def, moduleDir) {
+    const page = new Adw.PreferencesPage({title: _(def.title), icon_name: def.icon});
+    for (const group of def.groups) {
+        if (group.special === 'shell-theme') {
+            try {
+                const themeGroup = buildShellThemeGroup(moduleDir);
+                if (themeGroup)
+                    page.add(themeGroup);
+            } catch (e) {
+                logError(e, 'GCM shell theme prefs failed');
+            }
+            continue;
+        }
+        const pg = new Adw.PreferencesGroup({title: _(group.title)});
+        for (const [key, title, subtitle, kind, dependsOn] of group.rows) {
+            const [row, prop] = makeRow(title, subtitle, kind);
+            settings.bind(key, row, prop, FLAGS);
+            if (dependsOn)
+                settings.bind(dependsOn, row, 'sensitive', Gio.SettingsBindFlags.GET);
+            pg.add(row);
+        }
+        page.add(pg);
     }
-
-    #strList(arr) {
-        const store = new Gtk.StringList();
-        arr.forEach(a => store.append(a));
-        return store;
-    }
+    return page;
 }

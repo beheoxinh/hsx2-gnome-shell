@@ -1,5 +1,11 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <schemalist>
+  <enum id="org.gnome.shell.extensions.gnome-customizer-manager.clock-position">
+    <value nick="left" value="0"/>
+    <value nick="center" value="1"/>
+    <value nick="right" value="2"/>
+  </enum>
+
   <schema id="org.gnome.shell.extensions.gnome-customizer-manager"
     path="/org/gnome/shell/extensions/gnome-customizer-manager/">
 
@@ -7,8 +13,8 @@
     <key type="i" name="animation">
       <default>1</default>
       <range min="0" max="8"/>
-      <summary>Animation Speed</summary>
-      <description>0 disabled, 1 default, 2-8 faster</description>
+      <summary>Animation speed</summary>
+      <description>0 off, 1 GNOME default, 2 almost none, 3 fastest, 4 faster, 5 fast, 6 slow, 7 slower, 8 slowest. Off is session-only: org.gnome.desktop.interface enable-animations is left alone.</description>
     </key>
 
     <!-- Window -->
@@ -32,6 +38,11 @@
       <default>true</default>
       <summary>Screenshot Button in Window Menu</summary>
     </key>
+    <key type="b" name="fullscreen-unredirect">
+      <default>true</default>
+      <summary>Unredirect fullscreen windows</summary>
+      <description>GNOME's default. Turn off to keep fullscreen windows composited: fixes flicker, tearing and OSD/notifications not showing over fullscreen apps, at a small performance cost.</description>
+    </key>
 
     <!-- OSD -->
     <key type="b" name="osd">
@@ -42,31 +53,46 @@
       <default>0</default>
       <range min="0" max="9"/>
       <summary>OSD Position</summary>
+      <description>0 default, then top start/center/end, bottom start/center/end, center start/center/end</description>
     </key>
 
-    <!-- Quick Settings -->
+    <!-- Quick Settings — moved from alienware-topbar -->
+    <key name="quick-settings" type="b">
+      <default>true</default>
+      <summary>Show the quick settings menu</summary>
+    </key>
+
+    <key name="quick-settings-dark-mode" type="b">
+      <default>true</default>
+      <summary>Dark mode toggle in quick settings</summary>
+    </key>
+
+    <key name="quick-settings-night-light" type="b">
+      <default>true</default>
+      <summary>Night light toggle in quick settings</summary>
+    </key>
+
+    <key name="quick-settings-do-not-disturb" type="b">
+      <default>true</default>
+      <summary>Do not disturb toggle in quick settings</summary>
+    </key>
+
+    <key name="quick-settings-backlight" type="b">
+      <default>true</default>
+      <summary>Backlight slider in quick settings</summary>
+    </key>
+
+    <key name="quick-settings-airplane-mode" type="b">
+      <default>true</default>
+      <summary>Airplane mode toggle in quick settings</summary>
+    </key>
 
     <!-- Theme -->
     <key type="b" name="theme">
       <default>true</default>
-      <summary>Theme</summary>
+      <summary>Flat popup style</summary>
+      <description>Adds the just-perfection style class: flat OSD, Alt+Tab switcher, workspace popup and tile previews.</description>
     </key>
-
-    <!-- Looking Glass -->
-    <key type="i" name="looking-glass-width">
-      <default>0</default>
-      <range min="0" max="9"/>
-      <summary>Looking Glass Width</summary>
-    </key>
-    <key type="i" name="looking-glass-height">
-      <default>0</default>
-      <range min="0" max="9"/>
-      <summary>Looking Glass Height</summary>
-    </key>
-
-    <!-- Accent/Style -->
-
-    <!-- Search -->
 
     <!-- Screenshot -->
     <key type="b" name="remove-preselected-box">
@@ -78,7 +104,50 @@
       <summary>Screenshot On Mouse Release</summary>
     </key>
 
-    <!-- Calendar -->
+    <!-- Clock & Calendar (date menu) — moved from alienware-topbar -->
+    <key name="clock-visible" type="b">
+      <default>true</default>
+      <summary>Show the clock</summary>
+      <description>System Monitor (Topbar module) still takes the clock's place while it runs, through lib/dateMenuVisibility.js; this key no longer has to be flipped for it.</description>
+    </key>
+
+    <key name="clock-position" enum="org.gnome.shell.extensions.gnome-customizer-manager.clock-position">
+      <default>'center'</default>
+      <summary>Clock position</summary>
+      <description>Which top bar section holds the clock. This is the only place allowed to reparent the date menu.</description>
+    </key>
+
+    <key name="clock-position-offset" type="i">
+      <default>0</default>
+      <range min="-64" max="64"/>
+      <summary>Clock offset</summary>
+      <description>Extra pixels inserted in front of the clock, used to balance the other panel items.</description>
+    </key>
+
+    <key name="world-clock" type="b">
+      <default>true</default>
+      <summary>World clocks in the calendar</summary>
+    </key>
+
+    <key name="weather" type="b">
+      <default>true</default>
+      <summary>Weather in the calendar</summary>
+    </key>
+
+    <key name="events-button" type="b">
+      <default>true</default>
+      <summary>Events button in the calendar</summary>
+    </key>
+
+    <key name="calendar" type="b">
+      <default>true</default>
+      <summary>Calendar in the calendar popup</summary>
+    </key>
+
+    <key name="invert-calendar-column-items" type="b">
+      <default>true</default>
+      <summary>Invert calendar column items</summary>
+    </key>
 
     <key type="b" name="workspace">
         <default>true</default>

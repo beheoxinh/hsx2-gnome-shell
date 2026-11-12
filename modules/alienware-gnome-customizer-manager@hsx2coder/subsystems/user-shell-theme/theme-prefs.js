@@ -3,7 +3,7 @@ import Gio from 'gi://Gio';
 import GLib from 'gi://GLib';
 import Gtk from 'gi://Gtk';
 
-import { getThemeDirs, getModeThemeDirs } from './util.js';
+import { getThemeDirs, getModeThemeDirs, lookupThemeSchema } from './util.js';
 import {
     collectThemeNames,
     rowLabelToThemeName,
@@ -12,21 +12,19 @@ import {
 } from './theme-names.js';
 import {gettext as _} from 'resource:///org/gnome/Shell/Extensions/js/extensions/prefs.js';
 
-const SETTINGS_SCHEMA = 'org.gnome.shell.extensions.user-theme';
 const SETTINGS_KEY = 'name';
 
-export function addShellThemePages(dummyWin, gcmSettings) {
-    const schemaSource = Gio.SettingsSchemaSource.get_default();
-    const schema = schemaSource.lookup(SETTINGS_SCHEMA, true);
+/**
+ * @param {string} moduleDir - this module's directory (for the bundled schema)
+ * @returns {Adw.PreferencesGroup|null} the shell theme picker
+ */
+export function buildShellThemeGroup(moduleDir) {
+    const schema = lookupThemeSchema(moduleDir);
     if (!schema)
-        return;
+        return null;
 
     const settings = new Gio.Settings({ settings_schema: schema });
 
-    const page = new Adw.PreferencesPage({
-        title: _('Shell Theme'),
-        icon_name: 'applications-graphics-symbolic',
-    });
     const group = new Adw.PreferencesGroup({
         title: _('User Shell Theme'),
         description: 'Apply a custom theme to GNOME Shell (replaces the system User Themes extension).',
@@ -108,8 +106,7 @@ export function addShellThemePages(dummyWin, gcmSettings) {
 
     group.add(themeRow);
     group.add(reloadRow);
-    page.add(group);
-    dummyWin.add(page);
 
     refreshThemes();
+    return group;
 }

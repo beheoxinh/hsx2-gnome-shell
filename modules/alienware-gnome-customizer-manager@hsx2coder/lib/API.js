@@ -24,23 +24,10 @@ const XY_POSITION = {
     CENTER_END: 8,
 };
 
-const PANEL_POSITION = {
-    TOP: 0,
-    BOTTOM: 1,
-};
-
-const PANEL_BOX_POSITION = {
-    CENTER: 0,
-    RIGHT: 1,
-    LEFT: 2,
-};
-
 const SHELL_STATUS = {
     NONE: 0,
     OVERVIEW: 1,
 };
-
-const DASH_ICON_SIZES = [16, 22, 24, 32, 40, 48, 56, 64];
 
 /**
  * API to avoid calling GNOME Shell directly
@@ -63,37 +50,25 @@ export class API
     #originals = {};
 
     /**
-     * Timeout ids
+     * whether St animations are inhibited by animationsDisable()
      *
-     * @type {object}
+     * @type {boolean}
      */
-    #timeoutIds = {};
+    #animationsInhibited = false;
 
     /**
      * Class Constructor
      *
      * @param {Object} dependencies
      *   'Main' reference to ui.main
-     *   'BackgroundMenu' reference to ui.backgroundMenu
      *   'OverviewControls' reference to ui.overviewControls
      *   'WorkspaceSwitcherPopup' reference to ui.workspaceSwitcherPopup
-     *   'SwitcherPopup' reference to ui.switcherPopup
-     *   'InterfaceSettings' reference to Gio.Settings for 'org.gnome.desktop.interface'
-     *   'Search' reference to ui.search
-     *   'SearchController' reference to ui.searchController
      *   'WorkspaceThumbnail' reference to ui.workspaceThumbnail
      *   'WorkspacesView' reference to ui.workspacesView
-     *   'Panel' reference to ui.panel
-     *   'PanelMenu' reference to ui.panelMenu
-     *   'WindowPreview' reference to ui.windowPreview
      *   'Workspace' reference to ui.workspace
-     *   'LookingGlass' reference to ui.lookingGlass
-     *   'MessageTray' reference to ui.messageTray
      *   'OSDWindow' reference to ui.osdTray
      *   'WindowMenu' reference to ui.windowMenu
-     *   'AltTab' reference to ui.altTab
      *   'St' reference to St
-     *   'GLib' reference to GLib
      *   'Clutter' reference to Clutter
      *   'Util' reference to misc.util
      *   'Meta' reference to Meta
@@ -103,26 +78,14 @@ export class API
     constructor(dependencies, shellVersion)
     {
         this._main = dependencies['Main'] || null;
-        this._backgroundMenu = dependencies['BackgroundMenu'] || null;
         this._overviewControls = dependencies['OverviewControls'] || null;
         this._workspaceSwitcherPopup = dependencies['WorkspaceSwitcherPopup'] || null;
-        this._switcherPopup = dependencies['SwitcherPopup'] || null;
-        this._interfaceSettings = dependencies['InterfaceSettings'] || null;
-        this._search = dependencies['Search'] || null;
-        this._searchController = dependencies['SearchController'] || null;
         this._workspaceThumbnail = dependencies['WorkspaceThumbnail'] || null;
         this._workspacesView = dependencies['WorkspacesView'] || null;
-        this._panel = dependencies['Panel'] || null;
-        this._panelMenu = dependencies['PanelMenu'] || null;
-        this._windowPreview = dependencies['WindowPreview'] || null;
         this._workspace = dependencies['Workspace'] || null;
-        this._lookingGlass = dependencies['LookingGlass'] || null;
-        this._messageTray = dependencies['MessageTray'] || null;
         this._osdWindow = dependencies['OSDWindow'] || null;
         this._windowMenu = dependencies['WindowMenu'] || null;
-        this._altTab = dependencies['AltTab'] || null;
         this._st = dependencies['St'] || null;
-        this._glib = dependencies['GLib'] || null;
         this._clutter = dependencies['Clutter'] || null;
         this._util = dependencies['Util'] || null;
         this._meta = dependencies['Meta'] || null;
@@ -145,57 +108,27 @@ export class API
      */
     open()
     {
-
-        try {
         this.UIStyleClassAdd(this.#getAPIClassname('shell-version'));
-
-        // Getting the looking glass instance before having primary monitor
-        // can cause fatal error. So we wait for primary monitor
-        // until it is available
-        // Fixes #166
-        this.#timeoutIds.registerLookingGlassSignals = this._glib.timeout_add(
-            this._glib.PRIORITY_DEFAULT,
-            1000,
-            () => {
-                let pMonitor = this._main.layoutManager.primaryMonitor;
-
-                if (!pMonitor) {
-                    return this._glib.SOURCE_CONTINUE;
-                }
-
-                this.#registerLookingGlassSignals();
-
-                this.#timeoutIds.registerLookingGlassSignals = null;
-
-                return this._glib.SOURCE_REMOVE;
-            }
-        );
-            } catch (e) {
-            logError(e, 'GCM-API');
-        }
     }
 
     /**
      * remove everything from GNOME Shell been added by this class
      *
+     * WindowIcon (Alt+Tab) belongs to alienware-advanced-alt-tab and the quick
+     * settings menu to subsystems/panel-menus: this used to reset both here,
+     * so disabling only this module stripped the Alt+Tab icon sizes out from
+     * under a module that was still running.
+     *
      * @returns {void}
      */
     close()
     {
-        for (let [name, id] of Object.entries(this.#timeoutIds)) {
-            if (id) {
-                this._glib.source_remove(id);
-            }
-            delete(this.#timeoutIds[name]);
-        }
-
         this.UIStyleClassRemove(this.#getAPIClassname('shell-version'));
         this.windowMaximizedOnCreateDisable();
         this.windowDemandsAttentionFocusDisable();
         this.#computeWorkspacesBoxForStateSetDefault();
-        this.#altTabSizesSetDefault();
-        this.#unregisterLookingGlassSignals();
-        this.#stopAllOnQuickSettingsPropertyCalls();
+        this.animationsEnable();
+        this.fullscreenUnredirectEnable();
     }
 
     /**
@@ -509,28 +442,6 @@ export class API
         this.UIStyleClassAdd(this.#getAPIClassname('no-window-picker-icon'));
     }
 
-    monitorGetInfo()
-    {
-
-        try {
-        let pMonitor = this._main.layoutManager.primaryMonitor;
-
-        if (!pMonitor) {
-            return false;
-        }
-
-        return {
-            'x': pMonitor.x,
-            'y': pMonitor.y,
-            'width': pMonitor.width,
-            'height': pMonitor.height,
-            'geometryScale': pMonitor.geometry_scale,
-        };
-            } catch (e) {
-            logError(e, 'GCM-API');
-        }
-    }
-
     animationSpeedSetDefault()
     {
 
@@ -562,6 +473,88 @@ export class API
         }
 
         this._st.Settings.get().slow_down_factor = factor;
+            } catch (e) {
+            logError(e, 'GCM-API');
+        }
+    }
+
+    /**
+     * turn animations off for the session without touching the user's
+     * org.gnome.desktop.interface enable-animations setting
+     *
+     * @returns {void}
+     */
+    animationsDisable()
+    {
+        try {
+        if (this.#animationsInhibited) {
+            return;
+        }
+        this._st.Settings.get().inhibit_animations();
+        this.#animationsInhibited = true;
+            } catch (e) {
+            logError(e, 'GCM-API');
+        }
+    }
+
+    /**
+     * undo animationsDisable()
+     *
+     * @returns {void}
+     */
+    animationsEnable()
+    {
+        try {
+        if (!this.#animationsInhibited) {
+            return;
+        }
+        this._st.Settings.get().uninhibit_animations();
+        this.#animationsInhibited = false;
+            } catch (e) {
+            logError(e, 'GCM-API');
+        }
+    }
+
+    /**
+     * stop mutter from unredirecting fullscreen windows; fixes flicker,
+     * tearing and missing overlays (OSD, notifications) over fullscreen apps
+     *
+     * @returns {void}
+     */
+    fullscreenUnredirectDisable()
+    {
+        try {
+        if (this._unredirectDisabled) {
+            return;
+        }
+        if (global.compositor?.disable_unredirect) {
+            global.compositor.disable_unredirect();
+        } else {
+            this._meta.disable_unredirect_for_display(global.display);
+        }
+        this._unredirectDisabled = true;
+            } catch (e) {
+            logError(e, 'GCM-API');
+        }
+    }
+
+    /**
+     * undo fullscreenUnredirectDisable()
+     *
+     * @returns {void}
+     */
+    fullscreenUnredirectEnable()
+    {
+        try {
+        if (!this._unredirectDisabled) {
+            return;
+        }
+        if (global.compositor?.enable_unredirect) {
+            global.compositor.enable_unredirect();
+        } else {
+            this._meta.enable_unredirect_for_display(global.display);
+        }
+        this._unredirectDisabled = false;
             } catch (e) {
             logError(e, 'GCM-API');
         }
@@ -709,38 +702,31 @@ export class API
         let sessionMode = this._main.sessionMode;
         let layoutManager = this._main.layoutManager;
 
-        if (!layoutManager._startingUp) {
+        // only meaningful while the shell is starting; "overview" is GNOME's
+        // own behaviour, so it is left alone instead of being forced: forcing
+        // it overrode Dash to Panel's "hide overview on startup", and the
+        // hasOverview it captured was the value that module had just set,
+        // so startup-complete restored false and the overview stayed off.
+        if (!layoutManager._startingUp || status !== SHELL_STATUS.NONE) {
             return;
         }
 
-        if (this.#originals['sessionModeHasOverview'] === undefined) {
-            this.#originals['sessionModeHasOverview'] = sessionMode.hasOverview;
+        if (this._startupCompleteSignal) {
+            return;
         }
 
+        sessionMode.hasOverview = false;
+        layoutManager.startInOverview = false;
         let ControlsState = this._overviewControls.ControlsState;
-        let Controls = this._main.overview._overview.controls;
+        this._main.overview._overview.controls._stateAdjustment.value = ControlsState.HIDDEN;
 
-        switch (status) {
-
-            case SHELL_STATUS.NONE:
-                sessionMode.hasOverview = false;
-                layoutManager.startInOverview = false;
-                Controls._stateAdjustment.value = ControlsState.HIDDEN;
-                break;
-
-            case SHELL_STATUS.OVERVIEW:
-            default:
-                sessionMode.hasOverview = true;
-                layoutManager.startInOverview = true;
-                break;
-        }
-
-        if (!this._startupCompleteSignal) {
-            this._startupCompleteSignal
-            = layoutManager.connect('startup-complete', () => {
-                sessionMode.hasOverview = this.#originals['sessionModeHasOverview'];
-            });
-        }
+        this._startupCompleteSignal = layoutManager.connect('startup-complete', () => {
+            // extensions only start in the user session, where the overview
+            // exists; a captured value could be one another component set
+            sessionMode.hasOverview = true;
+            layoutManager.disconnect(this._startupCompleteSignal);
+            delete(this._startupCompleteSignal);
+        });
             } catch (e) {
             logError(e, 'GCM-API');
         }
@@ -755,13 +741,14 @@ export class API
     {
 
         try {
-        if (this.#originals['sessionModeHasOverview'] === undefined) {
+        if (!this._startupCompleteSignal) {
             return;
         }
 
-        if (this._startupCompleteSignal) {
-            this._main.layoutManager.disconnect(this._startupCompleteSignal);
-        }
+        // disabled before startup finished: give the overview back now
+        this._main.layoutManager.disconnect(this._startupCompleteSignal);
+        delete(this._startupCompleteSignal);
+        this._main.sessionMode.hasOverview = true;
             } catch (e) {
             logError(e, 'GCM-API');
         }
@@ -1250,7 +1237,17 @@ export class API
             osdWindowProto._oldShow = this.#originals['osdWindowShow'];
         }
 
-        let [xAlign, yAlign] = this.#xyAlignGet(pos);
+        let aligns = this.#xyAlignGet(pos);
+        if (!aligns) {
+            return;
+        }
+        let [xAlign, yAlign] = aligns;
+
+        // moving from one position to another left the old row's class on
+        for (const row of ['top', 'bottom', 'center']) {
+            this.UIStyleClassRemove(this.#getAPIClassname(`osd-position-${row}`));
+        }
+
         osdWindowProto.show = function () {
             this.x_align = xAlign;
             this.y_align = yAlign;
@@ -1282,135 +1279,6 @@ export class API
         }
             } catch (e) {
             logError(e, 'GCM-API');
-        }
-    }
-
-    #lookingGlassGetSize()
-    {
-        let lookingGlass = this._main.createLookingGlass();
-
-        return [lookingGlass.width, lookingGlass.height];
-    }
-
-    /**
-     * set default looking glass size
-     *
-     * @returns {void}
-     */
-    lookingGlassSetDefaultSize()
-    {
-        this._lookingGlassWidth = null;
-        this._lookingGlassHeight = null;
-    }
-
-    /**
-     * set looking glass size
-     *
-     * @param {number} width in float
-     * @param {number} height in float
-     *
-     * @returns {void}
-     */
-    lookingGlassSetSize(width, height)
-    {
-        this._lookingGlassWidth = width;
-        this._lookingGlassHeight = height;
-    }
-
-    /**
-     * unregister the looking glass signals
-     *
-     * @returns {void}
-     */
-    #unregisterLookingGlassSignals()
-    {
-        if (!this._lookingGlassShowSignal) {
-            return;
-        }
-
-        this._main.lookingGlass.disconnect(this._lookingGlassShowSignal);
-        this._main.layoutManager.disconnect(this._monitorsChangedSignal);
-
-        delete(this._lookingGlassOriginalSize);
-        delete(this._lookingGlassShowSignal);
-        delete(this._monitorsChangedSignal);
-    }
-
-
-    /**
-     * Whether the top bar is on screen right now.
-     *
-     * Reads the actor instead of a cached flag: that state moved to the top bar
-     * module, so a copy kept here would drift and the Looking Glass dialog
-     * would be placed as if the panel were visible when it is not.
-     *
-     * @returns {boolean}
-     */
-    isPanelVisible()
-    {
-
-        try {
-        return this._main.panel?.visible !== false;
-            } catch (e) {
-            logError(e, 'GCM-API');
-        }
-    }
-    /**
-     * register the looking glass signals
-     *
-     * @returns {void}
-     */
-    #registerLookingGlassSignals()
-    {
-        let lookingGlass = this._main.createLookingGlass();
-
-        if (!this._lookingGlassOriginalSize) {
-            this._lookingGlassOriginalSize = this.#lookingGlassGetSize();
-        }
-
-        if (this._lookingGlassShowSignal) {
-            lookingGlass.disconnect(this._lookingGlassShowSignal);
-            delete(this._lookingGlassShowSignal);
-        }
-
-        this._lookingGlassShowSignal = lookingGlass.connect('show', () => {
-            let [originalWidth, originalHeight] = this._lookingGlassOriginalSize;
-            let monitorInfo = this.monitorGetInfo();
-
-            let width = this._lookingGlassWidth ?? null;
-            let height = this._lookingGlassHeight ?? null;
-
-            let dialogWidth
-            = (width !== null)
-            ? monitorInfo.width * width
-            : originalWidth;
-
-            let x = monitorInfo.x + (monitorInfo.width - dialogWidth) / 2;
-            lookingGlass.set_x(x);
-
-            let keyboardHeight = this._main.layoutManager.keyboardBox.height;
-            let availableHeight = monitorInfo.height - keyboardHeight;
-            let dialogHeight
-            = (height !== null)
-            ? Math.min(monitorInfo.height * height, availableHeight * 0.9)
-            : originalHeight;
-
-            let panelBox = this._main.layoutManager.panelBox;
-            let isPanelHorizontal = (panelBox.width > panelBox.height);
-            let panelGap = (this.isPanelVisible() && isPanelHorizontal) ? panelBox.height : 0;
-
-            lookingGlass._hiddenY = monitorInfo.y + panelGap - dialogHeight;
-            lookingGlass._targetY = lookingGlass._hiddenY + dialogHeight;
-
-            lookingGlass.set_size(dialogWidth, dialogHeight);
-        });
-
-        if (!this._monitorsChangedSignal) {
-            this._monitorsChangedSignal = this._main.layoutManager.connect('monitors-changed',
-            () => {
-                this.#unregisterLookingGlassSignals()
-                this.#registerLookingGlassSignals();
-            });
         }
     }
 
@@ -1504,24 +1372,6 @@ export class API
         };
     }
 
-    /**
-     * set all alt tab sizes to default
-     *
-     * @returns {void}
-     */
-    #altTabSizesSetDefault()
-    {
-        let WindowIconProto = this._altTab.WindowIcon.prototype;
-        if (WindowIconProto._initOld) {
-            WindowIconProto._init = WindowIconProto._initOld;
-            delete(WindowIconProto._initOld);
-        }
-
-        delete(this._altTabAPP_ICON_SIZE);
-        delete(this._altTabAPP_ICON_SIZE_SMALL);
-        delete(this._altTabWINDOW_PREVIEW_SIZE);
-    }
-
     controlsManagerSpacingSetDefault()
     {
         if (this._controlsManagerSpacingSize === undefined) {
@@ -1598,23 +1448,6 @@ export class API
             return this._getSpacingOld(box, fitMode, vertical);
         };
     }
-    #stopAllOnQuickSettingsPropertyCalls()
-    {
-        if (!this._quickSettingsCallSignals) {
-            return;
-        }
-
-        const indicators = this._main.panel.statusArea.quickSettings._indicators;
-
-        for (let [_name, id] of Object.entries(this._quickSettingsCallSignals)) {
-            if (id) {
-                indicators.disconnect(id);
-            }
-        }
-
-        delete(this._quickSettingsCallSignals);
-    }
-
     /**
      * add class name to the UI group
      *
