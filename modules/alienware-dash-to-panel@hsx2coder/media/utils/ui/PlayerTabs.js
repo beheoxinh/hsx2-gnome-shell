@@ -160,6 +160,7 @@ export const PlayerTabs = GObject.registerClass(
 
     _refreshStyles() {
       if (this._tabRow) this._tabRow.style = _tabRowStyle(this._dark);
+      this._applyPinStyle();
 
       for (const entry of this._buttonEntries) this._styleEntry(entry, false);
 
@@ -207,15 +208,30 @@ export const PlayerTabs = GObject.registerClass(
         style: _pinIconStyle(false, this._dark),
       });
 
+      // Text label makes the state readable at a glance: "Pin" vs "Pinned".
+      this._pinLabel = new St.Label({
+        text: "Pin",
+        y_align: Clutter.ActorAlign.CENTER,
+        style: _pinLabelStyle(false, this._dark),
+      });
+
+      const pinContent = new St.BoxLayout({
+        y_align: Clutter.ActorAlign.CENTER,
+        style: "spacing: 6px;",
+      });
+      pinContent.add_child(this._pinIcon);
+      pinContent.add_child(this._pinLabel);
+
       this._pinButton = new St.Button({
         style_class: "media-tab-pin-button",
         style: _pinIdleStyle(this._dark),
         reactive: true,
         can_focus: true,
         track_hover: true,
+        y_align: Clutter.ActorAlign.CENTER,
         accessible_name: "Pin media player popup",
       });
-      this._pinButton.set_child(this._pinIcon);
+      this._pinButton.set_child(pinContent);
       this._pinButton.set_pivot_point(0.5, 0.5);
 
       this._pinClickId = this._pinButton.connect("clicked", () => {
@@ -256,16 +272,27 @@ export const PlayerTabs = GObject.registerClass(
 
     _applyPinStyle() {
       if (!this._pinButton) return;
-      if (this._pinned) {
-        this._pinButton.style = _pinActiveStyle(this._dark);
-        this._pinIcon.style = _pinIconStyle(true, this._dark);
-        this._easeOpacity(this._pinIcon, 255, playerConstant.ANIM_DURATION_MS);
-      } else {
-        this._pinButton.style = _pinIdleStyle(this._dark);
-        this._pinIcon.style = _pinIconStyle(false, this._dark);
-        this._easeOpacity(this._pinIcon, 130, playerConstant.ANIM_DURATION_MS);
-        this._easeScale(this._pinButton, 1.0, 80);
+      const pinned = this._pinned;
+
+      this._pinButton.style = pinned
+        ? _pinActiveStyle(this._dark)
+        : _pinIdleStyle(this._dark);
+      this._pinButton.checked = pinned; // exposes state to screen readers
+      this._pinButton.accessible_name = pinned
+        ? "Unpin media player popup"
+        : "Pin media player popup";
+
+      if (this._pinLabel) {
+        this._pinLabel.text = pinned ? "Pinned" : "Pin";
+        this._pinLabel.style = _pinLabelStyle(pinned, this._dark);
       }
+      this._pinIcon.style = _pinIconStyle(pinned, this._dark);
+      this._easeOpacity(
+        this._pinIcon,
+        pinned ? 255 : 150,
+        playerConstant.ANIM_DURATION_MS,
+      );
+      if (!pinned) this._easeScale(this._pinButton, 1.0, 80);
     }
 
     _pulsePinButton() {
@@ -859,20 +886,31 @@ function _dotStyle(playing) {
   return `width: 6px; height: 6px; border-radius: 3px; background-color: ${bg};`;
 }
 
+// Pin control: same flat language as the tabs. Pinned = tinted background
+// plus the accent underline used by the active tab, never a red badge.
 function _pinIdleStyle(_dark) {
-  return "padding: 5px;";
+  return "padding: 5px 9px 3px 9px; background-color: transparent; border-bottom: 2px solid transparent;";
 }
 
-function _pinHoverStyle(_dark) {
-  return "padding: 5px;";
+function _pinHoverStyle(dark) {
+  const bg = dark ? "rgba(255,255,255,0.05)" : "rgba(0,0,0,0.04)";
+  return `padding: 5px 9px 3px 9px; background-color: ${bg}; border-bottom: 2px solid transparent;`;
 }
 
-function _pinActiveStyle(_dark) {
-  return "";
+function _pinActiveStyle(dark) {
+  const bg = dark ? "rgba(255,255,255,0.09)" : "rgba(0,0,0,0.06)";
+  return `padding: 5px 9px 3px 9px; background-color: ${bg}; border-bottom: 2px solid -st-accent-color;`;
+}
+
+function _pinLabelStyle(pinned, dark) {
+  let color;
+  if (pinned) color = dark ? "#ffffff" : "#1d1d1f";
+  else color = dark ? "rgba(255,255,255,0.62)" : "rgba(0,0,0,0.55)";
+  return `font-size: 12px; font-weight: ${pinned ? "bold" : "normal"}; color: ${color};`;
 }
 
 function _pinIconStyle(pinned, dark) {
-  if (pinned) return `color: ${playerConstant.PIN_ACTIVE_RED};`;
+  if (pinned) return `color: ${dark ? "#ffffff" : "#1d1d1f"};`;
   const alpha = dark ? "rgba(255,255,255,0.45)" : "rgba(0,0,0,0.40)";
   return `color: ${alpha};`;
 }

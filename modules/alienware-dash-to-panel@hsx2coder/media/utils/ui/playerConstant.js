@@ -6,7 +6,6 @@ export const playerConstant = {
   TAB_ICON_SIZE: 22,
   SINGLE_ICON_SIZE: 32,
   DOUBLE_CLICK_MS: 300,
-  PIN_ACTIVE_RED: "#e01b24",
   PULSE_SCALE_UP: 1.22,
   PULSE_UP_MS: 90,
   PULSE_DOWN_MS: 110,

@@ -251,6 +251,9 @@ export const ScrollingLabel = GObject.registerClass(
 
     setScrollSpeed(pxPerSec) {
       if (this._destroyed) return;
+      // Called on every MPRIS update: restarting the tick for an unchanged
+      // speed would reset the scroll phase and make the text stutter.
+      if (Math.max(10, pxPerSec) === this._speed) return;
       this._speed = Math.max(10, pxPerSec);
       this._tick = tickParams(this._speed);
       // A running tick keeps its old interval; restart it with the new one.

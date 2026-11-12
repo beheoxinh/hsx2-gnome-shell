@@ -404,6 +404,15 @@ export const MediaControls = GObject.registerClass(
 
       if (!enabled) {
         if (existing && existing._destroyed !== true) existing.destroy();
+        // Reuse the plain label when it is already there: this runs on every
+        // MPRIS update, so rebuilding it each time is pure churn.
+        const current = slot.get_first_child?.();
+        if (!existing && current instanceof St.Label) {
+          if (current.text !== fullText) current.text = fullText;
+          if (current.style !== `${textStyle} max-width: ${viewW}px;`)
+            current.style = `${textStyle} max-width: ${viewW}px;`;
+          return null;
+        }
         typeof slot.destroy_all_children === "function" ? slot.destroy_all_children() : slot.remove_all_children();
         const lbl = new St.Label({
           text: fullText,

@@ -316,6 +316,15 @@ export const AlbumArt = GObject.registerClass(
       cr.fill();
       cr.restore();
 
+      // 5b. rotation cue: a bright radial stripe. A featureless disc looks
+      // motionless when it turns, so this marker makes the spin visible.
+      // It is drawn once into the cached surface, so it costs nothing per frame.
+      cr.setLineWidth(2);
+      cr.moveTo(cx + labelR * 1.05, cy);
+      cr.lineTo(cx + R * 0.94, cy);
+      cr.setSourceRGBA(1, 1, 1, 0.22);
+      cr.stroke();
+
       // 6. outer edge
       cr.setLineWidth(1);
       cr.arc(cx, cy, R - 0.5, 0, TAU);
@@ -334,6 +343,11 @@ export const AlbumArt = GObject.registerClass(
       cr.arc(cx, cy, labelR - 0.5, 0, TAU);
       cr.setSourceRGBA(1, 1, 1, 0.14);
       cr.stroke();
+
+      // Label mark, rotating with the disc (hidden under cover art when present)
+      cr.arc(cx + labelR * 0.6, cy, Math.max(1.5, labelR * 0.07), 0, TAU);
+      cr.setSourceRGBA(1, 1, 1, 0.45);
+      cr.fill();
 
       cr.$dispose();
     }
