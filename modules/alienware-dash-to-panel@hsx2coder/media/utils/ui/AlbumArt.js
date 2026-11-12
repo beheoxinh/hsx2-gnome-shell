@@ -8,6 +8,24 @@ import Cairo from "cairo";
 
 import { Tonearm } from "./widgets/tonearm.js";
 import { fadeIn } from "./motion.js";
+import Soup from "gi://Soup";
+
+// Remote covers are fetched with a shared Soup session (Gio cannot copy http://).
+const COVER_MAX_BYTES = 8 * 1024 * 1024;
+const COVER_TIMEOUT_S = 15;
+let _soupSession = null;
+// URLs with a download already running; prevents duplicate requests.
+const _coverInFlight = new Set();
+
+function _getSoupSession() {
+  if (!_soupSession) _soupSession = new Soup.Session({ timeout: COVER_TIMEOUT_S });
+  return _soupSession;
+}
+
+// Keep the URL safe inside CSS url('...').
+function _cssUrl(uri) {
+  return String(uri).replace(/'/g, "%27");
+}
 
 const SPIN_TRANSITION = "amc-vinyl-spin";
 const COVER_CACHE_MAX = 100;
@@ -324,6 +342,8 @@ export const AlbumArt = GObject.registerClass(
     loadCover(url, forceRefresh = false) {
       if (!forceRefresh && this._currentArtUrl === url) return;
       this._currentArtUrl = url;
+      // A download still running for a previous track must not overwrite this one.
+      this._pendingCoverUrl = null;
 
       if (!forceRefresh) {
         const cached = this._coverCache.get(url);
@@ -347,7 +367,7 @@ export const AlbumArt = GObject.registerClass(
         width: ${labelD}px;
         height: ${labelD}px;
         border-radius: ${labelD / 2}px;
-        background-image: url('${imageUrl}');
+        background-image: url('${_cssUrl(imageUrl)}');
         background-size: cover;
         background-repeat: no-repeat;
       `;
@@ -377,30 +397,63 @@ export const AlbumArt = GObject.registerClass(
         GLib.get_user_cache_dir(),
         "mpris-covers",
       ]);
-      GLib.mkdir_with_parents(cacheDir, 0o755);
-      _pruneCoverDir(cacheDir);
       const cachePath = GLib.build_filenamev([cacheDir, hash]);
       const cacheFile = Gio.File.new_for_path(cachePath);
+      const cacheUri = cacheFile.get_uri();
 
+      // Cache hit: no directory scan, no network.
       if (cacheFile.query_exists(null)) {
-        this._setCoverImage(`file://${cachePath}`);
+        this._setCoverImage(cacheUri);
         return;
       }
 
+      // The cover to show is whatever was requested last.
+      this._pendingCoverUrl = url;
       this.setDefaultCover();
 
-      Gio.File.new_for_uri(url).copy_async(
-        cacheFile,
-        Gio.FileCopyFlags.OVERWRITE,
+      if (_coverInFlight.has(url)) return;
+      _coverInFlight.add(url);
+
+      const msg = Soup.Message.new("GET", url);
+      if (!msg) {
+        _coverInFlight.delete(url);
+        return;
+      }
+
+      _getSoupSession().send_and_read_async(
+        msg,
         GLib.PRIORITY_LOW,
         null,
-        null,
-        (src, res) => {
-          if (this._isDestroyed) return;
+        (session, res) => {
+          _coverInFlight.delete(url);
           try {
-            src.copy_finish(res);
-            this._setCoverImage(`file://${cachePath}`);
-          } catch (e) {console.warn('[dash-to-panel] _downloadCover: ' + ((e && e.message) ? e.message : e)) }
+            const bytes = session.send_and_read_finish(res);
+            if (msg.get_status() !== Soup.Status.OK) return;
+            const size = bytes.get_size();
+            if (size === 0 || size > COVER_MAX_BYTES) return;
+
+            GLib.mkdir_with_parents(cacheDir, 0o755);
+            cacheFile.replace_contents_bytes_async(
+              bytes,
+              null,
+              false,
+              Gio.FileCreateFlags.REPLACE_DESTINATION,
+              null,
+              (file, writeRes) => {
+                try {
+                  file.replace_contents_finish(writeRes);
+                } catch (e) {
+                  console.warn('[dash-to-panel] _downloadCover write: ' + ((e && e.message) ? e.message : e));
+                  return;
+                }
+                _pruneCoverDir(cacheDir);
+                if (!this._isDestroyed && this._pendingCoverUrl === url)
+                  this._setCoverImage(cacheUri);
+              },
+            );
+          } catch (e) {
+            console.warn('[dash-to-panel] _downloadCover: ' + ((e && e.message) ? e.message : e));
+          }
         },
       );
     }

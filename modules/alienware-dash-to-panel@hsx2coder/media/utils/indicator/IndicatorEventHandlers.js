@@ -496,12 +496,39 @@ export class IndicatorEventHandlers {
     if (workspaceManager) workspaceManager.disconnectObject(this);
   }
 
+  /**
+   * True when the current player accepts `action`. Reads the cached MPRIS
+   * capability flags via getPlayerInfo (no D-Bus call). Missing flags = allowed.
+   */
+  _playerCan(action) {
+    const state = this._indicator._state;
+    const name = state._currentPlayer;
+    if (!name || state._sessionChanging || !this._indicator._manager) return false;
+
+    let info = null;
+    try {
+      info = this._indicator._manager.getPlayerInfo(name);
+    } catch (_e) {
+      return false;
+    }
+    if (!info) return false;
+
+    switch (action) {
+      case "playPause":
+        return info.status === "Playing" ? info.canPause !== false : info.canPlay !== false;
+      case "next":
+        return info.canGoNext !== false;
+      case "previous":
+        return info.canGoPrevious !== false;
+      case "seek":
+        return info.canSeek !== false;
+      default:
+        return info.canControl !== false;
+    }
+  }
+
   _onPlayPause() {
-    if (
-      !this._indicator._state._currentPlayer ||
-      this._indicator._state._sessionChanging
-    )
-      return;
+    if (!this._playerCan("playPause")) return;
 
     this._indicator._manager
       .playPause(this._indicator._state._currentPlayer)
@@ -509,11 +536,7 @@ export class IndicatorEventHandlers {
   }
 
   _onNext() {
-    if (
-      !this._indicator._state._currentPlayer ||
-      this._indicator._state._sessionChanging
-    )
-      return;
+    if (!this._playerCan("next")) return;
 
     this._indicator._manager
       .next(this._indicator._state._currentPlayer)
@@ -521,11 +544,7 @@ export class IndicatorEventHandlers {
   }
 
   _onPrevious() {
-    if (
-      !this._indicator._state._currentPlayer ||
-      this._indicator._state._sessionChanging
-    )
-      return;
+    if (!this._playerCan("previous")) return;
 
     this._indicator._manager
       .previous(this._indicator._state._currentPlayer)
@@ -533,11 +552,7 @@ export class IndicatorEventHandlers {
   }
 
   _onShuffle() {
-    if (
-      !this._indicator._state._currentPlayer ||
-      this._indicator._state._sessionChanging
-    )
-      return;
+    if (!this._playerCan("control")) return;
 
     this._indicator._manager
       .toggleShuffle(this._indicator._state._currentPlayer)
@@ -545,11 +560,7 @@ export class IndicatorEventHandlers {
   }
 
   _onRepeat() {
-    if (
-      !this._indicator._state._currentPlayer ||
-      this._indicator._state._sessionChanging
-    )
-      return;
+    if (!this._playerCan("control")) return;
 
     this._indicator._manager
       .cycleLoopStatus(this._indicator._state._currentPlayer)
@@ -557,11 +568,7 @@ export class IndicatorEventHandlers {
   }
 
   _onSeek(position) {
-    if (
-      !this._indicator._state._currentPlayer ||
-      this._indicator._state._sessionChanging
-    )
-      return;
+    if (!this._playerCan("seek")) return;
 
     const proxy = this._indicator._manager._proxies?.get(
       this._indicator._state._currentPlayer,

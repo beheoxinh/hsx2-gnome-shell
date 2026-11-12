@@ -207,6 +207,13 @@ export const ControlButtons = GObject.registerClass(
       }
     }
 
+    _setEnabled(btn, enabled) {
+      if (!btn || btn.reactive === enabled) return;
+      btn.reactive = enabled;
+      btn.can_focus = enabled;
+      btn.opacity = enabled ? 255 : 100;
+    }
+
     _setToggle(btn, on) {
       if (on) btn.add_style_class_name("amc-toggle-on");
       else btn.remove_style_class_name("amc-toggle-on");
@@ -224,6 +231,13 @@ export const ControlButtons = GObject.registerClass(
           : "media-playback-start-symbolic";
       }
       this._playBtn.accessible_name = playing ? "Pause" : "Play";
+
+      // Prev / next / play follow the player's advertised capabilities.
+      // Missing flags mean allowed (MPRIS spec defaults).
+      const canPlayPause = playing ? info.canPause !== false : info.canPlay !== false;
+      this._setEnabled(this._playBtn, canPlayPause);
+      this._setEnabled(this._prevBtn, info.canGoPrevious !== false);
+      this._setEnabled(this._nextBtn, info.canGoNext !== false);
 
       this._setToggle(this._shuffleBtn, !!info.shuffle);
 

@@ -2,6 +2,14 @@ import Gio from "gi://Gio";
 import GLib from "gi://GLib";
 import { MprisConstants } from "./MprisConstants.js";
 import { MprisUtils } from "./MprisUtils.js";
+import { stripInstanceSuffix } from "./MprisNames.js";
+
+// Cover files looked for next to a local track when the player sends no art.
+const LOCAL_COVER_NAMES = [
+  "cover.jpg", "cover.png", "folder.jpg", "folder.png",
+  "front.jpg", "front.png", "album.jpg", "album.png",
+];
+const LOCAL_ART_CACHE_MAX = 128;
 
 export class MprisPlayer {
   constructor(manager) {
@@ -371,9 +379,19 @@ export class MprisPlayer {
     const positionV = proxy.get_cached_property("Position");
     const shuffleV = proxy.get_cached_property("Shuffle");
     const loopStatusV = proxy.get_cached_property("LoopStatus");
+    const volumeV = proxy.get_cached_property("Volume");
+
+    // Capability flags are optional in the spec; a missing one means "allowed".
+    const flag = (prop) => {
+      const v = proxy.get_cached_property(prop);
+      return v ? !!v.unpack() : true;
+    };
 
     const lengthMicroseconds = MprisUtils.getInt64(meta["mpris:length"]);
-    const artUrl = MprisUtils.getString(meta["mpris:artUrl"]);
+    const xesamUrl = MprisUtils.getString(meta["xesam:url"]);
+    const artUrl =
+      MprisUtils.getString(meta["mpris:artUrl"]) ||
+      this._localCoverFor(xesamUrl);
     const trackId = MprisUtils.getString(meta["mpris:trackid"]) || "/";
 
     let currentPosition = 0;
@@ -406,11 +424,54 @@ export class MprisPlayer {
       length: lengthMicroseconds || 0,
       shuffle: shuffleV ? shuffleV.unpack() : false,
       loopStatus: loopStatusV ? loopStatusV.unpack() : "None",
+      volume: volumeV ? volumeV.unpack() : null,
+      canControl: flag("CanControl"),
+      canPlay: flag("CanPlay"),
+      canPause: flag("CanPause"),
+      canGoNext: flag("CanGoNext"),
+      canGoPrevious: flag("CanGoPrevious"),
+      canSeek: flag("CanSeek"),
     };
+  }
+
+  /**
+   * Cover file sitting next to a local track (cover.jpg, folder.jpg, ...).
+   * Cached per directory, so the filesystem is probed once per album folder.
+   */
+  _localCoverFor(fileUrl) {
+    if (!fileUrl || !fileUrl.startsWith("file://")) return null;
+
+    const trackPath = Gio.File.new_for_uri(fileUrl).get_path();
+    if (!trackPath) return null;
+    const dirPath = GLib.path_get_dirname(trackPath);
+
+    const cache = this._manager._localArtCache;
+    if (cache.has(dirPath)) return cache.get(dirPath);
+
+    let found = null;
+    const dir = Gio.File.new_for_path(dirPath);
+    for (const candidate of LOCAL_COVER_NAMES) {
+      const file = dir.get_child(candidate);
+      if (file.query_exists(null)) {
+        found = file.get_uri();
+        break;
+      }
+    }
+
+    if (cache.size >= LOCAL_ART_CACHE_MAX) cache.clear();
+    cache.set(dirPath, found);
+    return found;
   }
 
   _queryPositionAsync(name) {
     if (this._manager._operationsPaused) return;
+
+    // getPlayerInfo runs on many hot paths; allow at most one query per second per player.
+    const now = GLib.get_monotonic_time();
+    const stamps = this._manager._positionQueryAt;
+    const last = stamps.get(name) ?? 0;
+    if (now - last < 1_000_000) return;
+    stamps.set(name, now);
 
     this._manager._bus.call(
       name,
@@ -459,7 +520,7 @@ export class MprisPlayer {
   }
 
   _getBaseAppName(name) {
-    return name.replace(/\.instance_\d+_\d+$/, "");
+    return stripInstanceSuffix(name);
   }
 
   _getInstancesOfApp(baseAppName) {

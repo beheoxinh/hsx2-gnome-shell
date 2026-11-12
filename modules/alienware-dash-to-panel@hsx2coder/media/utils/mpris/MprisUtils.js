@@ -4,7 +4,7 @@ try {
   GioUnix = (await import("gi://GioUnix")).default;
 } catch (_e) {}
 import Shell from "gi://Shell";
-import { MprisConstants } from "./MprisConstants.js";
+import { shortAppName } from "./MprisNames.js";
 
 export class MprisUtils {
   static getString(variant) {
@@ -47,10 +47,8 @@ export class MprisUtils {
         if (appInfo) return appInfo;
       }
 
-      let cleanName = name
-        .replace(`${MprisConstants.MPRIS_PREFIX}.`, "")
-        .toLowerCase();
-      cleanName = cleanName.replace(/\.instance_\d+_\d+$/, "");
+      // Strips the prefix, lowercases and drops Firefox/Chromium instance suffixes.
+      const cleanName = shortAppName(name);
 
       const appSystem = Shell.AppSystem.get_default();
       let app = appSystem.lookup_app(`${cleanName}.desktop`);

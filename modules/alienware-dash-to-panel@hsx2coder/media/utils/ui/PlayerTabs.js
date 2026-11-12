@@ -159,17 +159,44 @@ export const PlayerTabs = GObject.registerClass(
     }
 
     _refreshStyles() {
-      if (this._tabRow) this._tabRow.style = _switcherFrameStyle(this._dark);
+      if (this._tabRow) this._tabRow.style = _tabRowStyle(this._dark);
 
-      for (const entry of this._buttonEntries) {
-        const active = entry.playerName === this._currentActivePlayer;
-        entry.button.style = active
-          ? _tabActiveStyle(this._dark)
-          : _tabIdleStyle(this._dark);
-        entry.icon.opacity = active ? 255 : 128;
-      }
+      for (const entry of this._buttonEntries) this._styleEntry(entry, false);
 
       this._applyPinStyle();
+    }
+
+    /** Apply the active / hover / idle look to one tab. */
+    _styleEntry(entry, hovered) {
+      const active = entry.playerName === this._currentActivePlayer;
+      entry.button.style = _tabStyle(this._dark, active, hovered);
+      entry.label.style = _tabLabelStyle(this._dark, active);
+      entry.icon.opacity = active ? 255 : 170;
+      this._styleDot(entry);
+    }
+
+    /** Playing = accent dot, Paused = grey dot, otherwise no dot. */
+    _styleDot(entry) {
+      let status = null;
+      try {
+        const info = entry.manager?.getPlayerInfo(entry.playerName);
+        status = info ? info.status : null;
+      } catch (_) {}
+
+      if (status === "Playing" || status === "Paused") {
+        entry.dot.style = _dotStyle(status === "Playing");
+        entry.dot.show();
+      } else {
+        entry.dot.hide();
+      }
+    }
+
+    /** Called on every update so the status dots follow playback. */
+    _refreshStatuses(manager) {
+      for (const entry of this._buttonEntries) {
+        if (manager) entry.manager = manager;
+        this._styleDot(entry);
+      }
     }
 
     _buildPinButton() {
@@ -342,18 +369,17 @@ export const PlayerTabs = GObject.registerClass(
       this._switcherRow = new St.BoxLayout({
         x_expand: true,
         y_align: Clutter.ActorAlign.CENTER,
-        style: "spacing: 2px;",
+        style: "spacing: 6px;",
       });
 
+      // Tabs share the row width; each one ellipsises its own name.
       this._tabRow = new St.BoxLayout({
-        x_expand: false,
-        style: _switcherFrameStyle(this._dark),
+        x_expand: true,
+        y_align: Clutter.ActorAlign.CENTER,
+        style: _tabRowStyle(this._dark),
       });
 
-      this._switcherRow.add_child(new St.Bin({ x_expand: true }));
       this._switcherRow.add_child(this._tabRow);
-      this._switcherRow.add_child(new St.Bin({ x_expand: true }));
-
       this.add_child(this._switcherRow);
     }
 
@@ -422,7 +448,10 @@ export const PlayerTabs = GObject.registerClass(
         players.some((p, i) => p !== this._currentPlayers[i]);
       const activeChanged = currentPlayer !== this._currentActivePlayer;
 
-      if (!playersChanged && !activeChanged) return;
+      if (!playersChanged && !activeChanged) {
+        this._refreshStatuses(manager);
+        return;
+      }
 
       this._currentPlayers = players.slice();
       this._currentActivePlayer = currentPlayer;
@@ -506,7 +535,7 @@ export const PlayerTabs = GObject.registerClass(
           return;
         }
 
-        this._tabRow.style = _switcherFrameStyle(this._dark);
+        this._tabRow.style = _tabRowStyle(this._dark);
         this._activateMultiMode();
         this._cancelAllClickTimers();
         this._destroyTabButtons();
@@ -523,38 +552,62 @@ export const PlayerTabs = GObject.registerClass(
     }
 
     _createTab(playerName, currentPlayer, manager) {
-      const isActive = () => playerName === this._currentActivePlayer;
       const gicon = resolveGicon(playerName, manager);
       const name = resolveDisplayName(playerName, manager);
 
       const button = new St.Button({
         style_class: "media-switcher-tab",
-        style: isActive()
-          ? _tabActiveStyle(this._dark)
-          : _tabIdleStyle(this._dark),
         reactive: true,
         can_focus: true,
         track_hover: true,
-        x_expand: false,
+        x_expand: true,
+        x_align: Clutter.ActorAlign.FILL,
         accessible_name: `Switch to ${name}`,
       });
-      button.set_pivot_point(0.5, 0.5);
+
+      const content = new St.BoxLayout({
+        x_expand: true,
+        y_align: Clutter.ActorAlign.CENTER,
+        style: "spacing: 6px;",
+      });
 
       const icon = new St.Icon({
         gicon,
         icon_size: _tabIconSize(this._settings),
         y_align: Clutter.ActorAlign.CENTER,
-        x_align: Clutter.ActorAlign.CENTER,
       });
-      icon.set_pivot_point(0.5, 0.5);
-      icon.opacity = isActive() ? 255 : 128;
-      button.set_child(icon);
 
-      const handlers = [];
+      const label = new St.Label({
+        text: name,
+        x_expand: true,
+        y_align: Clutter.ActorAlign.CENTER,
+      });
+      label.clutter_text.ellipsize = 3;
+      label.clutter_text.single_line_mode = true;
+
+      const dot = new St.Widget({ y_align: Clutter.ActorAlign.CENTER });
+
+      content.add_child(icon);
+      content.add_child(label);
+      content.add_child(dot);
+      button.set_child(content);
+
+      const entry = {
+        button,
+        icon,
+        label,
+        dot,
+        colourGicon: gicon,
+        playerName,
+        manager,
+        handlers: [],
+      };
+      const handlers = entry.handlers;
       let lastPressUs = 0;
 
+      // Double-click a tab to pin the popup, as before.
       handlers.push(
-        button.connect("button-press-event", (_a, _e) => {
+        button.connect("button-press-event", () => {
           const nowUs = GLib.get_monotonic_time();
           const deltaMs = (nowUs - lastPressUs) / 1000;
           lastPressUs = nowUs;
@@ -568,34 +621,14 @@ export const PlayerTabs = GObject.registerClass(
               this._clickTimers.delete(button);
             }
 
-            this._easeScale(button, 0.82, 60);
-            const squishTid = GLib.timeout_add(
-              GLib.PRIORITY_DEFAULT,
-              60,
-              () => {
-                this._pulseTimers.delete(squishTid);
-                this._easeScale(button, 1.0, 110);
-                return GLib.SOURCE_REMOVE;
-              },
-            );
-            this._pulseTimers.add(squishTid);
-
             this._togglePin();
-          } else {
-            this._easeScale(button, 0.88, 60);
           }
 
           return Clutter.EVENT_PROPAGATE;
         }),
       );
 
-      handlers.push(
-        button.connect("button-release-event", () => {
-          this._easeScale(button, 1.0, 90);
-          return Clutter.EVENT_PROPAGATE;
-        }),
-      );
-
+      // Single click switches player after the double-click window passes.
       handlers.push(
         button.connect("clicked", () => {
           const existing = this._clickTimers.get(button);
@@ -619,29 +652,15 @@ export const PlayerTabs = GObject.registerClass(
         }),
       );
 
-      // Hover styles query live active state so they're always correct after
-      // updateTabs rebuilds the list with a different currentActivePlayer
       handlers.push(
-        button.connect("enter-event", () => {
-          if (!isActive()) {
-            button.style = _tabHoverStyle(this._dark);
-            this._easeOpacity(icon, 215, playerConstant.ANIM_DURATION_MS);
-            this._easeScale(button, 1.06, 80);
-          }
-        }),
+        button.connect("enter-event", () => this._styleEntry(entry, true)),
+      );
+      handlers.push(
+        button.connect("leave-event", () => this._styleEntry(entry, false)),
       );
 
-      handlers.push(
-        button.connect("leave-event", () => {
-          if (!isActive()) {
-            button.style = _tabIdleStyle(this._dark);
-            this._easeOpacity(icon, 128, playerConstant.ANIM_DURATION_MS);
-            this._easeScale(button, 1.0, 80);
-          }
-        }),
-      );
-
-      return { button, icon, colourGicon: gicon, playerName, manager, handlers };
+      this._styleEntry(entry, false);
+      return entry;
     }
 
     _cancelAllClickTimers() {
@@ -815,48 +834,29 @@ export const PlayerTabs = GObject.registerClass(
   },
 );
 
-function _switcherFrameStyle(dark) {
-  const bg = dark ? "rgba(255,255,255,0.07)" : "rgba(0,0,0,0.07)";
-  const border = dark ? "rgba(255,255,255,0.12)" : "rgba(0,0,0,0.12)";
-  return [
-    `background-color: ${bg};`,
-    "border-radius: 12px;",
-    "padding: 3px;",
-    "spacing: 2px;",
-    `border: 1px solid ${border};`,
-  ].join(" ");
+function _tabRowStyle(dark) {
+  const line = dark ? "rgba(255,255,255,0.08)" : "rgba(0,0,0,0.08)";
+  return `spacing: 4px; border-bottom: 1px solid ${line};`;
 }
 
-function _tabActiveStyle(dark) {
-  const bg = dark ? "rgba(255,255,255,0.22)" : "rgba(0,0,0,0.15)";
-  const border = dark ? "rgba(255,255,255,0.20)" : "rgba(0,0,0,0.18)";
-  const shadow = dark
-    ? "0 1px 6px rgba(0,0,0,0.35)"
-    : "0 1px 4px rgba(0,0,0,0.18)";
-  return [
-    "padding: 6px 10px;",
-    "border-radius: 9px;",
-    `background-color: ${bg};`,
-    `box-shadow: ${shadow};`,
-    `border: 1px solid ${border};`,
-  ].join(" ");
+function _tabStyle(dark, active, hovered) {
+  let bg = "transparent";
+  if (active) bg = dark ? "rgba(255,255,255,0.09)" : "rgba(0,0,0,0.06)";
+  else if (hovered) bg = dark ? "rgba(255,255,255,0.05)" : "rgba(0,0,0,0.04)";
+  const line = active ? "-st-accent-color" : "transparent";
+  return `padding: 6px 8px 5px 8px; background-color: ${bg}; border-bottom: 2px solid ${line};`;
 }
 
-function _tabIdleStyle(_dark) {
-  // Same 1px border box as the hover/active states (transparent here), so
-  // hovering a tab no longer grows it by 2px and nudges its neighbours.
-  return "padding: 6px 10px; border-radius: 9px; border: 1px solid transparent;";
+function _tabLabelStyle(dark, active) {
+  let color;
+  if (active) color = dark ? "#ffffff" : "#1d1d1f";
+  else color = dark ? "rgba(255,255,255,0.62)" : "rgba(0,0,0,0.55)";
+  return `font-size: 12px; font-weight: ${active ? "bold" : "normal"}; color: ${color};`;
 }
 
-function _tabHoverStyle(dark) {
-  const bg = dark ? "rgba(255,255,255,0.11)" : "rgba(0,0,0,0.08)";
-  const border = dark ? "rgba(255,255,255,0.09)" : "rgba(0,0,0,0.09)";
-  return [
-    "padding: 6px 10px;",
-    "border-radius: 9px;",
-    `background-color: ${bg};`,
-    `border: 1px solid ${border};`,
-  ].join(" ");
+function _dotStyle(playing) {
+  const bg = playing ? "-st-accent-color" : "rgba(160,160,160,0.9)";
+  return `width: 6px; height: 6px; border-radius: 3px; background-color: ${bg};`;
 }
 
 function _pinIdleStyle(_dark) {

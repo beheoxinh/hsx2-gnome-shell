@@ -3,6 +3,7 @@ import GLib from "gi://GLib";
 import { MprisPlayer } from "./MprisPlayer.js";
 import { MprisUtils } from "./MprisUtils.js";
 import { MprisConstants } from "./MprisConstants.js";
+import { isNonPlayerBus, shortAppName } from "./MprisNames.js";
 
 export class MprisManager {
   constructor() {
@@ -13,6 +14,10 @@ export class MprisManager {
     this._instanceMetadata = new Map();
     this._playerPositions = new Map();
     this._positionStamps = new Map();
+    // dir path -> cover file URI (or null); bounded in MprisPlayer
+    this._localArtCache = new Map();
+    // bus name -> monotonic time of last Position query (throttle)
+    this._positionQueryAt = new Map();
     this._subscriptions = [];
     this._onPlayerAdded = null;
     this._onPlayerRemoved = null;
@@ -49,14 +54,7 @@ export class MprisManager {
    * @returns {boolean}
    */
   _shouldIncludePlayer(busName) {
-    // Exclude system-level MPRIS players that cause main-thread blocking
-    const _lower = busName.toLowerCase();
-    const _excludedBases = ["bluez", "pulseaudio", "pipewire"];
-    const _afterPrefix = _lower.replace(`${MprisConstants.MPRIS_PREFIX}.`, "");
-    for (const _base of _excludedBases) {
-      if (_afterPrefix === _base || _afterPrefix.startsWith(`${_base}.`))
-        return false;
-    }
+    if (isNonPlayerBus(busName)) return false;
 
     if (!this._settings) return true;
 
@@ -85,11 +83,7 @@ export class MprisManager {
 
     if (listed.length === 0) return true;
 
-    const short = busName
-      .replace(`${MprisConstants.MPRIS_PREFIX}.`, "")
-      .replace(/\.instance[_\d]+$/i, "")
-      .replace(/\.\d+$/, "")
-      .toLowerCase();
+    const short = shortAppName(busName).replace(/\.\d+$/, "");
 
     // Also check identity or desktop entry if cached
     const identity = (this._identities.get(busName) || "").toLowerCase();
@@ -445,6 +439,12 @@ export class MprisManager {
       );
     }
     return Promise.reject(new Error("No player info available"));
+  }
+
+  /** Set the MPRIS Volume (0.0 - 1.0). Clamped; no-op if the player lacks it. */
+  setVolume(name, volume) {
+    const v = Math.min(1, Math.max(0, Number(volume) || 0));
+    return this.setProperty(name, "Volume", new GLib.Variant("d", v));
   }
 
   cycleLoopStatus(name) {

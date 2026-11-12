@@ -138,7 +138,7 @@ export const ProgressSlider = GObject.registerClass(
       this._restoreCacheForCurrentPlayer();
     }
 
-    updatePlaybackState(isPlaying, metadata, _status) {
+    updatePlaybackState(isPlaying, metadata, _status, canSeek = true) {
       if (this._isDestroyed) return;
       this._isPlaying = isPlaying;
 
@@ -155,8 +155,9 @@ export const ProgressSlider = GObject.registerClass(
           this.visible = false;
           return;
         }
-        this._canSeek = true;
-        this._positionSlider.reactive = true;
+        // Player may advertise CanSeek=false (e.g. live streams): show the bar, lock it.
+        this._canSeek = canSeek !== false;
+        this._positionSlider.reactive = this._canSeek;
         this.visible = true;
       }
 

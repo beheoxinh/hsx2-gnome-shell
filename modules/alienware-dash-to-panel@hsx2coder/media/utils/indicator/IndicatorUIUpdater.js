@@ -220,6 +220,12 @@ export class IndicatorUIUpdater {
       // Controls only work while something is actually playing or paused.
       this._indicator._panelUI?.setControlsEnabled?.(
         info.status === "Playing" || info.status === "Paused",
+        {
+          canPlayPause:
+            info.status === "Playing" ? info.canPause !== false : info.canPlay !== false,
+          canGoNext: info.canGoNext !== false,
+          canGoPrevious: info.canGoPrevious !== false,
+        },
       );
 
       this.updateLabel();

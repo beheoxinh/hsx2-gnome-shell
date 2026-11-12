@@ -538,6 +538,7 @@ export const MediaControls = GObject.registerClass(
         info.status === "Playing",
         metadata,
         info.status,
+        info.canSeek !== false,
       );
 
       if (info.status === "Playing") this._albumArt.startRotation(true);

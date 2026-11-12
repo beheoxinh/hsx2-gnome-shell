@@ -514,12 +514,21 @@ export class PanelUI {
   }
 
   /** Enable or disable the prev / play-pause / next buttons in the panel. */
-  setControlsEnabled(on) {
-    for (const btn of [this._panelPrevBtn, this._panelPlayBtn, this._panelNextBtn]) {
+  /**
+   * `caps` carries per-button capability flags from the player (MPRIS
+   * CanGoPrevious / CanGoNext / CanPlay / CanPause). Missing flags mean allowed.
+   */
+  setControlsEnabled(on, caps = {}) {
+    const states = [
+      [this._panelPrevBtn, on && caps.canGoPrevious !== false],
+      [this._panelPlayBtn, on && (caps.canPlayPause !== false)],
+      [this._panelNextBtn, on && caps.canGoNext !== false],
+    ];
+    for (const [btn, enabled] of states) {
       if (!btn || !_isSafeActor(btn)) continue;
-      btn.reactive = on;
-      btn.can_focus = on;
-      btn.opacity = on ? 255 : 100;
+      btn.reactive = enabled;
+      btn.can_focus = enabled;
+      btn.opacity = enabled ? 255 : 100;
     }
   }
 
