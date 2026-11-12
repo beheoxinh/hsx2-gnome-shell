@@ -496,7 +496,11 @@ const smMountsMonitor = class SystemMonitor_smMountsMonitor {
         this.listeners.push(cb);
     }
     remove_listener(cb) {
-        this.listeners.pop(cb);
+        // was listeners.pop(cb): Array.pop ignores its argument and dropped
+        // whichever listener was registered last, not cb.
+        const i = this.listeners.indexOf(cb);
+        if (i >= 0)
+            this.listeners.splice(i, 1);
     }
     get_mounts() {
         return this.mounts;
@@ -1185,7 +1189,15 @@ const ElementBase = class SystemMonitor_ElementBase extends TipBox {
         this.vals = [];
         this.tip_labels = [];
         this.tip_vals = [];
+        this._tip_shown = [];
         this.tip_unit_labels = [];
+
+        // The panel can destroy this.actor from C (parent cascade on panel
+        // rebuild / lock / disable) without calling destroy() below. The
+        // refresh timer then kept firing and wrote .text on finalized
+        // St.Labels ("clutter_text_set_text: assertion 'CLUTTER_IS_TEXT'
+        // failed" + a JS stack trace every tick). Stop on actor destroy too.
+        this.actor.connect('destroy', () => this._stopUpdates());
 
         const Schema = extension._Schema;
         const Style = extension._Style;
@@ -1290,6 +1302,9 @@ const ElementBase = class SystemMonitor_ElementBase extends TipBox {
      * max - Maximum value to preserve during cooldown
      */
     restart_cooldown_timer(max = 0) {
+        // Schema handlers outlive a destroyed element; never re-arm then.
+        if (this._disposed)
+            return;
         if (this.graph_scale_cooldown_timer_id) {
             GLib.Source.remove(this.graph_scale_cooldown_timer_id);
             this.graph_scale_cooldown_timer_id = null;
@@ -1336,6 +1351,8 @@ const ElementBase = class SystemMonitor_ElementBase extends TipBox {
     }
 
     restart_update_timer(interval = null) {
+        if (this._disposed)
+            return;
         interval = interval || this._lastInterval;
         if (!interval) {
             sm_log("Invalid call to restart_update_timer", 'error');
@@ -1395,6 +1412,8 @@ const ElementBase = class SystemMonitor_ElementBase extends TipBox {
     //           }
     //           }
     update() {
+        if (this._disposed)
+            return GLib.SOURCE_REMOVE;
         if (!this.menu_visible && !this.actor.visible) {
             return false;
         }
@@ -1408,11 +1427,26 @@ const ElementBase = class SystemMonitor_ElementBase extends TipBox {
         }
         this.chart.update();
         for (let i = 0; i < this.tip_vals.length; i++) {
-            if (this.tip_labels[i]) {
-                this.tip_labels[i].text = this.tip_vals[i].toString();
+            // Only touch the label when the value changed: an unchanged
+            // set_text still re-shapes the Pango layout and queues a relayout.
+            const text = this.tip_vals[i].toString();
+            if (this.tip_labels[i] && this._tip_shown[i] !== text) {
+                this._tip_shown[i] = text;
+                this.tip_labels[i].text = text;
             }
         }
         return GLib.SOURCE_CONTINUE;
+    }
+    _stopUpdates() {
+        this._disposed = true;
+        if (this.timeout) {
+            GLib.Source.remove(this.timeout);
+            this.timeout = null;
+        }
+        if (this.graph_scale_cooldown_timer_id) {
+            GLib.Source.remove(this.graph_scale_cooldown_timer_id);
+            this.graph_scale_cooldown_timer_id = null;
+        }
     }
     reset_style() {
         this.text_items[0].set_style('color: rgba(255, 255, 255, 1)');
@@ -1434,18 +1468,12 @@ const ElementBase = class SystemMonitor_ElementBase extends TipBox {
         this.chart.resize(width);
     }
     destroy() {
+        // Stop the timers before tearing the actors down, not after.
+        this._stopUpdates();
         try {
             this.chart?.destroy?.();
         } catch (_) {}
         TipBox.prototype.destroy.call(this);
-        if (this.timeout) {
-            GLib.Source.remove(this.timeout);
-            this.timeout = null;
-        }
-        if (this.graph_scale_cooldown_timer_id) {
-            GLib.Source.remove(this.graph_scale_cooldown_timer_id);
-            this.graph_scale_cooldown_timer_id = null;
-        }
     }
 }
 
@@ -3043,6 +3071,15 @@ const Gpu = class SystemMonitor_Gpu extends ElementBase {
         // never stack a second process on top of a running one.
         if (this._gpuDestroyed)
             return;
+        // A runtime-suspended NVIDIA dGPU (hybrid laptop, nothing rendering
+        // on it) is idle by definition. Spawning nvidia-smi every refresh
+        // would wake it from D3 and keep it awake (battery + heat + fans).
+        // Reading sysfs power state does not wake the device.
+        if (this._nvidiaSuspended()) {
+            this.percentage = 0;
+            this.mem = 0;
+            return;
+        }
         if (this._gpuInFlight) {
             // A wedged nvidia-smi (driver hang) would otherwise freeze the
             // GPU readout forever; kill it so the next tick starts fresh.
@@ -3069,6 +3106,38 @@ const Gpu = class SystemMonitor_Gpu extends ElementBase {
         } catch (err) {
             this._gpuInFlight = false;
             console.error(err.message);
+        }
+    }
+    _nvidiaSuspended() {
+        // Resolve the runtime_status file once: /sys/bus/pci/drivers/nvidia/<bdf>
+        if (this._nvRuntimeStatus === undefined) {
+            this._nvRuntimeStatus = null;
+            try {
+                const dir = Gio.File.new_for_path('/sys/bus/pci/drivers/nvidia');
+                const en = dir.enumerate_children('standard::name', Gio.FileQueryInfoFlags.NONE, null);
+                let info;
+                while ((info = en.next_file(null)) !== null) {
+                    const name = info.get_name();
+                    if (/^[0-9a-f]{4}:[0-9a-f]{2}:[0-9a-f]{2}\.[0-7]$/.test(name)) {
+                        const f = dir.get_child(name).get_child('power').get_child('runtime_status');
+                        if (f.query_exists(null)) {
+                            this._nvRuntimeStatus = f;
+                            break;
+                        }
+                    }
+                }
+                en.close(null);
+            } catch (_e) {
+                // no nvidia driver bound: not a hybrid NVIDIA machine
+            }
+        }
+        if (!this._nvRuntimeStatus)
+            return false;
+        try {
+            const [, bytes] = this._nvRuntimeStatus.load_contents(null);
+            return new TextDecoder().decode(bytes).trim() === 'suspended';
+        } catch (_e) {
+            return false;
         }
     }
     _handleOutput(proc, result) {

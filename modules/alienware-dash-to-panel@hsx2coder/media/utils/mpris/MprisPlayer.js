@@ -118,7 +118,7 @@ export class MprisPlayer {
     if (this._manager._operationsPaused) return;
 
     const info = this.getPlayerInfo(name);
-    if (info && info.title) {
+    if (info) {
       this._manager._instanceMetadata.set(name, {
         title: info.title,
         artists: info.artists,
@@ -352,13 +352,12 @@ export class MprisPlayer {
       return null;
     }
 
+    // Metadata is optional: many local players clear it on stop, and a
+    // missing dict used to hide the player entirely instead of reporting
+    // its (Stopped) state.
     const metaV = proxy.get_cached_property("Metadata");
-    if (!metaV) return null;
-
     const meta = {};
-    const len = metaV.n_children();
-
-    if (!len) return null;
+    const len = metaV ? metaV.n_children() : 0;
 
     for (let i = 0; i < len; i++) {
       const item = metaV.get_child_value(i);

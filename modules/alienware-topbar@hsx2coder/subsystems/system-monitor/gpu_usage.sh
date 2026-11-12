@@ -27,8 +27,12 @@ checkcommand()
 
 # This will print three lines. The first one is the the total vRAM available,
 # the second one is the used vRAM and the third on is the GPU usage in %.
-if nvidia-smi --list-gpus > /dev/null 2>&1  ; then
-	nvidia-smi -i 0 --query-gpu=memory.total,memory.used,utilization.gpu --format=csv,noheader,nounits | while IFS=', ' read -r a b c; do echo "$a"; echo "$b"; echo "$c"; done
+# One nvidia-smi call instead of two (--list-gpus probe + query): every call
+# initialises NVML and wakes the dGPU out of runtime D3.
+if checkcommand nvidia-smi && \
+   nv_out=$(nvidia-smi -i 0 --query-gpu=memory.total,memory.used,utilization.gpu --format=csv,noheader,nounits 2>/dev/null) && \
+   [ -n "$nv_out" ]; then
+	printf '%s\n' "$nv_out" | while IFS=', ' read -r a b c; do echo "$a"; echo "$b"; echo "$c"; done
 
 elif lsmod | grep amdgpu > /dev/null; then
 	# Set `card0` or `card1` here. For some reason `card1` might be used instead.

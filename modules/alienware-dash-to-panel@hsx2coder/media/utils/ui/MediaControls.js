@@ -13,6 +13,8 @@ import { LyricsWidget } from "../../Lyrics/widgets/_LyricsWidget.js";
 const LOOP_PAUSE_MS = 1200;
 const BASE_PX_PER_SEC = 50;
 const LYRICS_POLL_MS = 250;
+// Disc and lyrics take turns while the popup is open, one phase each.
+const LYRICS_CYCLE_MS = 8000;
 
 /** @param {Gio.Settings} s @returns {number} */
 function _popupWidth(s) {
@@ -144,6 +146,7 @@ export const MediaControls = GObject.registerClass(
       this._lyricsCache = new Map();
       this._currentTrackInfo = null;
       this._lyricsSyncTimer = null;
+      this._lyricsCycleTimer = null;
 
       this._signalIds = [];
 
@@ -252,16 +255,11 @@ export const MediaControls = GObject.registerClass(
 
       this._albumArt = new AlbumArt(this._settings, null, null);
 
-      const artClickId = this._albumArt.connect("triple-click", () =>
-        this._onAlbumArtTripleClick(),
-      );
-      this._signalIds.push({ source: this._albumArt, id: artClickId });
-
       const w = _popupWidth(this._settings);
       this._lyricsView = new LyricsWidget(w, w, this._settings);
 
       const lyrDismissId = this._lyricsView.connect("dismiss", () =>
-        this._hideLyricsForPlayer(this._currentPlayerName),
+        this._setLyricsPhase(this._currentPlayerName, false),
       );
       this._signalIds.push({ source: this._lyricsView, id: lyrDismissId });
 
@@ -547,28 +545,26 @@ export const MediaControls = GObject.registerClass(
       else this._albumArt.stopRotation();
 
       if (!this._settings.get_boolean("enable-lyrics")) {
+        this._stopLyricsCycle();
         const s = this._playerLyricsState.get(playerName);
-        if (s && s.visible) this._hideLyricsForPlayer(playerName);
+        // A player switch must not leave the previous player's lyrics up.
+        if (playerChanged || (s && s.visible)) this._setLyricsPhase(playerName, false);
         return;
       }
 
       const playerState = this._getPlayerLyricsState(playerName);
+      const newKey = `${info.title || ""}||${(info.artists || []).join(",")}`;
 
-      if (playerChanged) {
-        this._stopLyricsSyncTimer();
-        this._applyLyricsState(playerName, playerState);
-        return;
+      if (playerChanged || newKey !== playerState.lastKey) {
+        // New track (or player): drop the old lyrics and fetch the new ones.
+        playerState.lastKey = newKey;
+        playerState.hasLyrics = false;
+        this._lyricsView.clear();
+        this._fetchLyricsForCurrentTrack();
       }
 
-      if (playerState.visible) {
-        const newKey = `${info.title || ""}||${(info.artists || []).join(",")}`;
-        if (newKey !== playerState.lastKey) {
-          playerState.lastKey = newKey;
-          this._lyricsView.clear();
-          this._fetchLyricsForCurrentTrack();
-        }
-        this._pushLyricsPosition();
-      }
+      if (playerChanged) this._setLyricsPhase(playerName, false);
+      else if (playerState.visible) this._pushLyricsPosition();
     }
 
     _getMetadata(playerName, manager) {
@@ -604,6 +600,7 @@ export const MediaControls = GObject.registerClass(
 
       const state = this._playerLyricsState.get(this._currentPlayerName);
       if (state && state.visible) this._startLyricsSyncTimer();
+      if (this._settings.get_boolean("enable-lyrics")) this._startLyricsCycle();
     }
 
     stopPositionUpdate() {
@@ -633,6 +630,7 @@ export const MediaControls = GObject.registerClass(
 
     onMenuClosed() {
       this._stopLyricsSyncTimer();
+      this._stopLyricsCycle();
     }
 
     _startLyricsSyncTimer() {
@@ -671,62 +669,60 @@ export const MediaControls = GObject.registerClass(
       if (!this._playerLyricsState.has(playerName))
         this._playerLyricsState.set(playerName, {
           visible: false,
+          hasLyrics: false,
           lastKey: null,
         });
       return this._playerLyricsState.get(playerName);
     }
 
-    _applyLyricsState(playerName, state) {
-      if (state.visible) {
-        this._artSlot.set_child(this._lyricsView);
-        const info = this._currentTrackInfo;
-        const newKey = info
-          ? `${info.title || ""}||${(info.artists || []).join(",")}`
-          : null;
-        if (newKey && newKey !== state.lastKey) {
-          state.lastKey = newKey;
-          this._lyricsView.clear();
-          this._fetchLyricsForCurrentTrack();
-        }
+    /** Show the lyrics in the art slot (true) or the vinyl disc (false). */
+    _setLyricsPhase(playerName, show) {
+      if (this._isDestroyed || !this._artSlot || !playerName) return;
+      const state = this._getPlayerLyricsState(playerName);
+      state.visible = show;
+      if (show) {
+        if (this._artSlot.get_child() !== this._lyricsView)
+          this._artSlot.set_child(this._lyricsView);
         this._pushLyricsPosition();
         this._startLyricsSyncTimer();
       } else {
-        if (this._artSlot && this._artSlot.get_child() === this._lyricsView)
-          this._artSlot.set_child(this._albumArt);
         this._stopLyricsSyncTimer();
+        if (this._artSlot.get_child() !== this._albumArt)
+          this._artSlot.set_child(this._albumArt);
       }
     }
 
-    _onAlbumArtTripleClick() {
-      if (!this._settings.get_boolean("enable-lyrics")) return;
-      const state = this._getPlayerLyricsState(this._currentPlayerName);
-      if (state.visible) this._hideLyricsForPlayer(this._currentPlayerName);
-      else this._showLyricsForPlayer(this._currentPlayerName);
+    _startLyricsCycle() {
+      if (this._lyricsCycleTimer) return;
+      this._lyricsCycleTimer = GLib.timeout_add(
+        GLib.PRIORITY_DEFAULT,
+        LYRICS_CYCLE_MS,
+        () => {
+          if (this._isDestroyed) {
+            this._lyricsCycleTimer = null;
+            return GLib.SOURCE_REMOVE;
+          }
+          this._advanceLyricsCycle();
+          return GLib.SOURCE_CONTINUE;
+        },
+      );
     }
 
-    _showLyricsForPlayer(playerName) {
-      const state = this._getPlayerLyricsState(playerName);
-      state.visible = true;
-      this._artSlot.set_child(this._lyricsView);
-
-      const info = this._currentTrackInfo;
-      if (!info) {
-        this._lyricsView.clear();
-        return;
+    _stopLyricsCycle() {
+      if (this._lyricsCycleTimer) {
+        GLib.source_remove(this._lyricsCycleTimer);
+        this._lyricsCycleTimer = null;
       }
-
-      const newKey = `${info.title || ""}||${(info.artists || []).join(",")}`;
-      state.lastKey = newKey;
-      if (!this._lyricsCache.has(newKey)) this._lyricsView.clear();
-      this._fetchLyricsForCurrentTrack();
-      this._startLyricsSyncTimer();
     }
 
-    _hideLyricsForPlayer(playerName) {
-      const state = this._getPlayerLyricsState(playerName);
-      state.visible = false;
-      this._stopLyricsSyncTimer();
-      if (this._artSlot) this._artSlot.set_child(this._albumArt);
+    _advanceLyricsCycle() {
+      const name = this._currentPlayerName;
+      if (!name) return;
+      const state = this._getPlayerLyricsState(name);
+      // Only swap when there is something to show; otherwise stay on the disc.
+      const canShowLyrics =
+        this._settings.get_boolean("enable-lyrics") && state.hasLyrics;
+      this._setLyricsPhase(name, canShowLyrics ? !state.visible : false);
     }
 
     async _fetchLyricsForCurrentTrack() {
@@ -735,14 +731,20 @@ export const MediaControls = GObject.registerClass(
       const fetchPlayerName = this._currentPlayerName;
       const info = this._currentTrackInfo;
       const trackKey = `${info.title || ""}||${(info.artists || []).join(",")}`;
+      const state = this._getPlayerLyricsState(fetchPlayerName);
+
+      // Apply a result only if the same track is still current when it lands.
+      const apply = (lines) => {
+        if (this._isDestroyed || this._currentPlayerName !== fetchPlayerName)
+          return;
+        if (state.lastKey !== trackKey) return;
+        state.hasLyrics = Array.isArray(lines) && lines.length > 0;
+        if (this._lyricsView) this._lyricsView.setLyrics(lines ?? null);
+        this._pushLyricsPosition();
+      };
 
       if (this._lyricsCache.has(trackKey)) {
-        const cached = this._lyricsCache.get(trackKey);
-        const state = this._getPlayerLyricsState(fetchPlayerName);
-        if (state.visible && this._currentPlayerName === fetchPlayerName) {
-          this._lyricsView.setLyrics(cached);
-          this._pushLyricsPosition();
-        }
+        apply(this._lyricsCache.get(trackKey));
         return;
       }
 
@@ -758,22 +760,10 @@ export const MediaControls = GObject.registerClass(
           info.album || "",
           durationS,
         );
-
-        this._lyricsCache.set(
-          trackKey,
-          lines !== null && lines !== undefined ? lines : null,
-        );
-
-        const state = this._getPlayerLyricsState(fetchPlayerName);
-        if (!state.visible || this._currentPlayerName !== fetchPlayerName)
-          return;
-
-        this._lyricsView.setLyrics(lines);
-        this._pushLyricsPosition();
+        this._lyricsCache.set(trackKey, lines ?? null);
+        apply(lines);
       } catch (_e) {
-        const state = this._getPlayerLyricsState(fetchPlayerName);
-        if (state.visible && this._currentPlayerName === fetchPlayerName)
-          this._lyricsView.setLyrics(null);
+        apply(null);
       }
     }
 
@@ -806,6 +796,7 @@ export const MediaControls = GObject.registerClass(
       this._stopArtistLabel();
       if (this._progressSlider) this._progressSlider.stopPositionUpdate();
       this._stopLyricsSyncTimer();
+      this._stopLyricsCycle();
 
       this._playerSliderPositions.clear();
       this._playerArtCache.clear();

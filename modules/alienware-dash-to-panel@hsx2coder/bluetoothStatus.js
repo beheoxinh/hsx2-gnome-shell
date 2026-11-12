@@ -1,3 +1,4 @@
+import Clutter from 'gi://Clutter'
 import Gio from 'gi://Gio'
 import GLib from 'gi://GLib'
 import GObject from 'gi://GObject'
@@ -21,26 +22,22 @@ const CALL_TIMEOUT = 5000
 const POLL_INTERVAL_SEC = 60
 const SIGNAL_DEBOUNCE_MS = 400
 const PANEL_WIDTH = 200
+const BATT_H = 16
 
-function _deviceIcon(dev) {
-  let icon = gv(dev.Icon) || ''
-  let cls = gv(dev.Class) || 0
-  let major = (cls >> 8) & 0x1f
-
-  if (icon.includes('headset') || icon.includes('headphone') || icon.includes('audio-headset'))
-    return '\uD83C\uDFA7'
-  if (icon.includes('audio') || icon.includes('speaker') || major === 4)
-    return '\uD83D\uDD0A'
-  if (icon.includes('input-keyboard') || icon.includes('keyboard'))
-    return '\u2328\uFE0F'
-  if (icon.includes('input-mouse') || icon.includes('mouse'))
-    return '\uD83D\uDDB1\uFE0F'
+function _deviceIconName(dev) {
+  const icon = gv(dev.Icon) || ''
+  const cls = gv(dev.Class) || 0
+  const major = (cls >> 8) & 0x1f
+  if (icon.includes('headset') || icon.includes('headphone')) return 'audio-headphones-symbolic'
+  if (icon.includes('audio') || icon.includes('speaker') || major === 4) return 'audio-speakers-symbolic'
+  if (icon.includes('keyboard')) return 'input-keyboard-symbolic'
+  if (icon.includes('mouse')) return 'input-mouse-symbolic'
+  if (icon.includes('phone') || major === 2) return 'phone-symbolic'
   if (major === 5) {
-    let minor = (cls >> 2) & 0x3f
-    if (minor === 1 || minor === 2) return '\uD83C\uDFAE'
-    return '\u2328\uFE0F'
+    const minor = (cls >> 2) & 0x3f
+    return minor === 1 || minor === 2 ? 'input-gaming-symbolic' : 'input-keyboard-symbolic'
   }
-  return '\uD83D\uDCF6'
+  return 'bluetooth-symbolic'
 }
 
 function _batteryColor(pct) {
@@ -109,12 +106,11 @@ export const BluetoothStatus = GObject.registerClass(
         this._myBox = new St.BoxLayout({
           style_class: 'panel-status-menu-box',
           y_expand: true,
+          style: 'spacing: 8px; padding: 0 6px;',
         })
         this.add_child(this._myBox)
 
-        this._btIndicator = new St.BoxLayout({
-          y_expand: true,
-        })
+        this._btIndicator = new St.BoxLayout({ y_expand: true, y_align: Clutter.ActorAlign.CENTER, style: 'spacing: 4px;' })
         this._myBox.add_child(this._btIndicator)
 
         this._btIconLabel = new St.Icon({
@@ -124,25 +120,34 @@ export const BluetoothStatus = GObject.registerClass(
         })
         this._btIndicator.add_child(this._btIconLabel)
 
-        this._btCountLabel = new St.Label({ text: '' })
+        this._btCountLabel = new St.Label({ text: '', y_align: Clutter.ActorAlign.CENTER })
         this._btIndicator.add_child(this._btCountLabel)
 
         this._row = new St.BoxLayout({
           x_expand: true,
           y_expand: true,
-          style: `width: ${PANEL_WIDTH}px;`,
+          y_align: Clutter.ActorAlign.CENTER,
+          style: `width: ${PANEL_WIDTH}px; spacing: 8px;`,
         })
         this._myBox.add_child(this._row)
 
-        this._iconLabel = new St.Label({ text: '\uD83D\uDCF6' })
+        this._iconLabel = new St.Icon({ icon_name: 'bluetooth-symbolic', icon_size: 16, y_align: Clutter.ActorAlign.CENTER })
         this._row.add_child(this._iconLabel)
 
-        this._battLabel = new St.Label({ text: '' })
-        this._row.add_child(this._battLabel)
-
-        this._nameLabel = new St.Label({ text: 'BT', x_expand: true })
+        this._nameLabel = new St.Label({ text: 'BT', x_expand: true, y_align: Clutter.ActorAlign.CENTER })
         this._nameLabel.clutter_text.ellipsize = Pango.EllipsizeMode.END
         this._row.add_child(this._nameLabel)
+
+        this._battBox = new St.BoxLayout({ y_align: Clutter.ActorAlign.CENTER, style: 'spacing: 5px;' })
+        this._battLabel = new St.Label({ text: '', y_align: Clutter.ActorAlign.CENTER })
+        this._battBox.add_child(this._battLabel)
+        this._battBar = new St.Widget({ width: 4, height: BATT_H, y_align: Clutter.ActorAlign.CENTER, style: 'background-color: rgba(255,255,255,0.15);' })
+        this._battFill = new St.Widget({ width: 4, height: 0, y_align: Clutter.ActorAlign.END, style: 'background-color: #4caf50;' })
+        this._battBar.add_child(this._battFill)
+        this._battBox.add_child(this._battBar)
+        this._battDot = new St.Widget({ width: 8, height: 8, y_align: Clutter.ActorAlign.CENTER, style: 'border-radius: 4px; background-color: #4caf50;' })
+        this._battBox.add_child(this._battDot)
+        this._row.add_child(this._battBox)
 
         this._setStaticPadding()
 
@@ -194,6 +199,7 @@ export const BluetoothStatus = GObject.registerClass(
         })
         if (titleItem.label) titleItem.label.x_align = 2
         this.menu.addMenuItem(titleItem)
+        this._titleItem = titleItem
         this.menu.addMenuItem(new PopupMenu.PopupSeparatorMenuItem())
         this._deviceSection = new PopupMenu.PopupMenuSection()
         this.menu.addMenuItem(this._deviceSection)
@@ -385,13 +391,13 @@ export const BluetoothStatus = GObject.registerClass(
           let dev = interfaces[DEVICE_IFACE]
           if (!dev) continue
           if (gv(dev.Connected) !== true) continue
-          let icon = _deviceIcon(dev)
+          let iconName = _deviceIconName(dev)
           let batteryIface = interfaces[BATTERY_IFACE]
           let batteryPct = batteryIface ? gv(batteryIface.Percentage) : null
           devices.push({
             name: gv(dev.Name) || gv(dev.Alias) || 'Unknown',
             battery: batteryPct,
-            icon,
+            iconName,
             objPath,
           })
         } catch (e) {
@@ -412,44 +418,96 @@ export const BluetoothStatus = GObject.registerClass(
       }
     }
 
+    // Every connected device that is not hidden. Battery is optional, so
+    // devices without Battery1 (headsets, keyboards...) are counted and cycled.
     _getVisibleDevices() {
       let hidden = this._getHiddenDevices()
-      return this._devices.filter(d =>
-        d.battery != null && hidden.indexOf(d.objPath) === -1
-      )
+      return this._devices.filter(d => hidden.indexOf(d.objPath) === -1)
     }
 
     _setStaticPadding() {
-      this._btCountLabel.set_style('padding: 0 4px 0 2px; font-size: 9px;')
-      this._btCountLabel.y_align = 2
-      this._battLabel.set_style('padding: 0 4px;')
-      this._battLabel.y_align = 2
-      this._iconLabel.set_style('padding: 0 4px 0 0;')
-      this._iconLabel.y_align = 2
-      this._nameLabel.set_style('padding: 0;')
-      this._nameLabel.y_align = 2
+      this._btCountLabel.set_style('font-size: 11px; font-weight: 700; color: #8ab4f8;')
     }
 
     _setDisplay(d) {
+      const prev = this._currentDevice
       this._currentDevice = d
-      this._btCountLabel.set_text(`${this._getVisibleDevices().length}`)
+      const n = this._getVisibleDevices().length
+      this._btCountLabel.set_text(`${n}`)
+      this._btCountLabel.visible = n > 0
       if (!d) {
-        this._iconLabel.set_text('')
-        this._battLabel.set_text('')
-        this._battLabel.set_style(`padding: 0 4px;`)
-        this._nameLabel.set_text('')
+        this._animateSwap(() => this._applyDisplay(null))
         return
       }
-      this._iconLabel.set_text(d.icon)
-      this._battLabel.set_text(`${d.battery}%`)
-      this._battLabel.set_style(`padding: 0 4px; color: ${_batteryColor(d.battery)};`)
+      const changed = !prev || prev.objPath !== d.objPath
+      if (changed) this._animateSwap(() => this._applyDisplay(d))
+      else this._applyDisplay(d)
+    }
+
+    // Roller change: the old line slides up and fades, the new one slides
+    // in from below. A poll arriving mid-animation only updates the target.
+    _animateSwap(apply) {
+      this._pendingApply = apply
+      if (!this._row || !this.mapped) {
+        apply()
+        return
+      }
+      this._row.remove_all_transitions()
+      this._row.ease({
+        opacity: 0,
+        translation_y: -8,
+        duration: 150,
+        mode: Clutter.AnimationMode.EASE_IN_QUAD,
+        onComplete: () => {
+          if (this._isDestroyed || !this._row) return
+          this._pendingApply?.()
+          this._row.translation_y = 8
+          this._row.ease({
+            opacity: 255,
+            translation_y: 0,
+            duration: 240,
+            mode: Clutter.AnimationMode.EASE_OUT_CUBIC,
+          })
+        },
+      })
+    }
+
+    _applyDisplay(d) {
+      if (!d) {
+        this._iconLabel.set_icon_name('bluetooth-symbolic')
+        this._nameLabel.set_text('')
+        this._battLabel.hide()
+        this._battBar.hide()
+        this._battDot.hide()
+        return
+      }
+      this._iconLabel.set_icon_name(d.iconName)
       this._nameLabel.set_text(d.name)
+      if (d.battery != null) {
+        const c = _batteryColor(d.battery)
+        this._battDot.hide()
+        this._battLabel.show()
+        this._battBar.show()
+        this._battLabel.set_text(`${d.battery}%`)
+        this._battLabel.set_style(`font-size: 11px; font-weight: 700; color: ${c};`)
+        this._battFill.set_style(`background-color: ${c};`)
+        this._battFill.remove_all_transitions()
+        this._battFill.ease({
+          height: Math.max(2, Math.round(BATT_H * d.battery / 100)),
+          duration: 400,
+          mode: Clutter.AnimationMode.EASE_OUT_CUBIC,
+        })
+      } else {
+        // connected, no battery report: a green dot says so
+        this._battLabel.hide()
+        this._battBar.hide()
+        this._battDot.show()
+      }
     }
 
     _updateUI() {
       try {
         this._cancelAnim()
-        this._row.translation_y = 0
 
         let visible = this._getVisibleDevices()
 
@@ -508,68 +566,151 @@ export const BluetoothStatus = GObject.registerClass(
       this._setDisplay(visible[this._rollerIndex])
     }
 
+    _updateTitle() {
+      if (!this._titleItem?.label) return
+      const total = this._devices.length
+      const shown = this._getVisibleDevices().length
+      this._titleItem.label.set_text(
+        shown === total
+          ? `Bluetooth \u00B7 ${total} connected`
+          : `Bluetooth \u00B7 ${shown} of ${total} shown`,
+      )
+    }
+
     _rebuildMenuItems() {
+      const hidden = this._getHiddenDevices()
+      this._updateTitle()
+      this._rowRefs = new Map()
       this._deviceSection.removeAll()
-      let visible = this._getVisibleDevices()
       if (this._devices.length === 0) {
         this._deviceSection.addMenuItem(
           new PopupMenu.PopupMenuItem('No connected devices', { reactive: false }),
         )
         return
       }
-      let hidden = this._getHiddenDevices()
-      for (let device of this._devices) {
-        let item = new PopupMenu.PopupMenuItem('', { reactive: false })
-        let box = new St.BoxLayout({ x_expand: true })
-        let isHidden = hidden.indexOf(device.objPath) !== -1
+      this._devices.forEach((device, i) => {
+        const isHidden = hidden.indexOf(device.objPath) !== -1
+        const ref = this._mkDeviceRow(device, isHidden, i)
+        this._rowRefs.set(device.objPath, ref)
+        this._deviceSection.addMenuItem(ref.item)
+      })
+    }
 
-        let checkBtn = new St.Button({
-          style: 'padding: 0 6px 0 0;',
-          reactive: true,
-          x_align: 0,
-        })
-        let checkLabel = new St.Label({
-          text: isHidden ? '\u2610' : '\u2611',
-          style: isHidden ? 'color: #888;' : 'color: #4caf50;',
-        })
-        checkBtn.add_child(checkLabel)
-        checkBtn.connect('button-press-event', () => {
-          try {
-            let h = SETTINGS.get_strv('bt-hidden-devices') || []
-            let idx = h.indexOf(device.objPath)
-            if (idx === -1) {
-              h.push(device.objPath)
-            } else {
-              h.splice(idx, 1)
-            }
-            SETTINGS.set_strv('bt-hidden-devices', h)
-            this._rollerIndex = 0
-            this._updateUI()
-            GLib.idle_add(GLib.PRIORITY_DEFAULT_IDLE, () => {
-              try { this._rebuildMenuItems() } catch(e) {console.warn('[dash-to-panel] _rebuildMenuItems: ' + ((e && e.message) ? e.message : e)) }
-              return GLib.SOURCE_REMOVE
-            })
-          } catch (e) {
-            logError(e, `${TAG} toggle hide failed`)
-          }
-          return true
-        })
-        box.add_child(checkBtn)
+    // Visual state of one device row; used on build and on toggle, so a
+    // toggle updates the row in place (no rebuild, no flicker).
+    _styleRow(ref, isHidden) {
+      ref.isHidden = isHidden
+      const hover = !!ref.hover
+      const bg = isHidden
+        ? (hover ? 'rgba(255,255,255,0.05)' : 'rgba(255,255,255,0.02)')
+        : (hover ? 'rgba(255,255,255,0.10)' : 'rgba(255,255,255,0.06)')
+      ref.card.set_style(`spacing: 12px; padding: 8px 12px; background-color: ${bg};`)
+      ref.avatar.set_style('width: 40px; height: 40px;')
+      ref.icon.set_style(`color: ${isHidden ? '#7a7a7a' : '#ffffff'};`)
+      ref.name.set_style(`font-size: 13px; font-weight: 600; color: ${isHidden ? '#7a7a7a' : '#ffffff'};`)
+      ref.sub.set_text(isHidden ? 'Hidden from panel' : ref.subText)
+      ref.track.set_style(`width: 40px; height: 20px; background-color: ${isHidden ? 'rgba(255,255,255,0.16)' : '#3584e4'};`)
+      ref.knob.remove_all_transitions()
+      ref.knob.ease({
+        translation_x: isHidden ? 3 : 23,
+        duration: 200,
+        mode: Clutter.AnimationMode.EASE_OUT_CUBIC,
+      })
+    }
 
-        box.add_child(new St.Label({
-          text: `${device.icon} `,
-          style: 'padding-right: 2px;',
+    _mkDeviceRow(device, isHidden, index) {
+      const item = new PopupMenu.PopupBaseMenuItem({ reactive: false, can_focus: false })
+
+      const card = new St.BoxLayout({
+        x_expand: true,
+        y_align: Clutter.ActorAlign.CENTER,
+        reactive: true,
+        track_hover: true,
+      })
+
+      const avatar = new St.BoxLayout({
+        x_align: Clutter.ActorAlign.CENTER,
+        y_align: Clutter.ActorAlign.CENTER,
+      })
+      const icon = new St.Icon({ icon_name: device.iconName, icon_size: 20 })
+      avatar.add_child(icon)
+      card.add_child(avatar)
+
+      const col = new St.BoxLayout({
+        vertical: true,
+        x_expand: true,
+        y_align: Clutter.ActorAlign.CENTER,
+        style: 'spacing: 4px;',
+      })
+      const name = new St.Label({ text: device.name, x_expand: true })
+      name.clutter_text.ellipsize = Pango.EllipsizeMode.END
+      col.add_child(name)
+      const subText = device.battery != null ? `Battery ${device.battery}%` : 'Connected'
+      const sub = new St.Label({ text: subText, style: 'font-size: 11px; color: #8f8f8f;' })
+      col.add_child(sub)
+      if (device.battery != null) {
+        const bar = new St.Widget({ width: 110, height: 4, style: 'background-color: rgba(255,255,255,0.12);' })
+        bar.add_child(new St.Widget({
+          width: Math.max(4, Math.round(110 * device.battery / 100)),
+          height: 4,
+          style: `background-color: ${_batteryColor(device.battery)};`,
         }))
-        box.add_child(new St.Label({ text: device.name, x_expand: true }))
-        if (device.battery != null) {
-          box.add_child(new St.Label({
-            text: `${device.battery}%`,
-            style: `padding-left: 6px; color: ${_batteryColor(device.battery)};`,
-          }))
-        }
-        item.add_child(box)
-        this._deviceSection.addMenuItem(item)
+        col.add_child(bar)
       }
+      card.add_child(col)
+
+      // switch: on = cycled in the panel. The whole row is the hit target.
+      const track = new St.BoxLayout({ width: 40, height: 20, y_align: Clutter.ActorAlign.CENTER })
+      const knob = new St.Widget({
+        width: 14,
+        height: 14,
+        y_align: Clutter.ActorAlign.CENTER,
+        x_align: Clutter.ActorAlign.START,
+        style: 'background-color: #ffffff;',
+      })
+      track.add_child(knob)
+      card.add_child(track)
+
+      const ref = { item, card, avatar, icon, name, sub, subText, track, knob, hover: false }
+      this._styleRow(ref, isHidden)
+
+      card.connect('notify::hover', () => {
+        ref.hover = card.hover
+        this._styleRow(ref, ref.isHidden)
+      })
+
+      card.connect('button-press-event', () => {
+        try {
+          if (!SETTINGS) return Clutter.EVENT_STOP
+          const h = SETTINGS.get_strv('bt-hidden-devices') || []
+          const idx = h.indexOf(device.objPath)
+          const nowHidden = idx === -1
+          if (nowHidden) h.push(device.objPath)
+          else h.splice(idx, 1)
+          SETTINGS.set_strv('bt-hidden-devices', h)
+          this._rollerIndex = 0
+          this._styleRow(ref, nowHidden)
+          this._updateTitle()
+          this._updateUI()
+        } catch (e) {
+          logError(e, `${TAG} toggle hide failed`)
+        }
+        return Clutter.EVENT_STOP
+      })
+
+      // entrance: rows fade up one after another when the menu opens
+      card.opacity = 0
+      card.translation_y = 10
+      card.ease({
+        opacity: 255,
+        translation_y: 0,
+        duration: 280,
+        delay: index * 50,
+        mode: Clutter.AnimationMode.EASE_OUT_CUBIC,
+      })
+
+      item.add_child(card)
+      return ref
     }
 
     destroy() {
@@ -588,6 +729,8 @@ export const BluetoothStatus = GObject.registerClass(
       }
       this._stopRoller()
       this._cancelAnim()
+      this._rowRefs = null
+      try { this._row?.remove_all_transitions(); this._battFill?.remove_all_transitions() } catch (_) {}
       if (this._timerId) { try { GLib.source_remove(this._timerId); this._timerId = 0 } catch (e) {} }
       if (this._rollerTimerId) { try { GLib.source_remove(this._rollerTimerId); this._rollerTimerId = 0 } catch (e) {} }
       if (this._animId) { try { GLib.source_remove(this._animId); this._animId = 0 } catch (e) {} }

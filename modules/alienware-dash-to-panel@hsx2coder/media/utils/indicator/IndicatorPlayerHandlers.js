@@ -119,7 +119,7 @@ export class IndicatorPlayerHandlers {
         info &&
         info.status === "Stopped" &&
         !this._indicator._state.autoSwitchBlocked &&
-        this._indicator._uiUpdater._browserIsIdle(
+        this._indicator._uiUpdater._isPlayerIdle(
           name,
           this._indicator._manager,
         )

@@ -8,7 +8,7 @@
  * @license GPL-3.0-only
  */
 import {addWorkspacesBoxPatch} from '../../../../lib/workspacesBoxLayout.js';
-import {guarded, hasBacklight, isHeadlessSession} from '../../../../lib/headless.js';
+import {hasBacklight, isHeadlessSession} from '../../../../lib/headless.js';
 
 const PANEL_POSITION = {
     TOP: 0,

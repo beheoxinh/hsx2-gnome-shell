@@ -1,13 +1,19 @@
+import Clutter from 'gi://Clutter'
 import Gio from 'gi://Gio'
 import GLib from 'gi://GLib'
+import Pango from 'gi://Pango'
 import GObject from 'gi://GObject'
 import Soup from 'gi://Soup'
 import St from 'gi://St'
 
 import * as PopupMenu from 'resource:///org/gnome/shell/ui/popupMenu.js'
 import * as Main from 'resource:///org/gnome/shell/ui/main.js'
+
 const TAG = '[WX]'
 const WX_POLL_SEC = 1800
+const HOURLY_COUNT = 12
+const DIM = '#9a9a9a'
+const SUBTLE = '#8f8f8f'
 
 function _symbol(code) {
   let isNight = false
@@ -46,6 +52,15 @@ function _session_() {
   return _session
 }
 
+// Cold to hot, so each card's bar reads at a glance
+function _tempColor(t) {
+  if (t <= 0) return '#64b5f6'
+  if (t < 10) return '#4dd0e1'
+  if (t < 20) return '#81c784'
+  if (t < 28) return '#ffb74d'
+  return '#ff7043'
+}
+
 export const WeatherStatus = GObject.registerClass(
   class WeatherStatus extends St.Button {
     vfunc_button_press_event(event) {
@@ -66,6 +81,7 @@ export const WeatherStatus = GObject.registerClass(
       this._timerId = 0
       this._geoPending = false
       this._wxPending = false
+      this._updatedAt = null
       this._cancellable = new Gio.Cancellable()
       try {
         let box = new St.BoxLayout({
@@ -100,8 +116,8 @@ export const WeatherStatus = GObject.registerClass(
         this._execQuery()
 
         this._deferredMenuIdleId = GLib.idle_add(GLib.PRIORITY_DEFAULT_IDLE, () => {
-            this._deferredMenuIdleId = null;
-            this.menu = new PopupMenu.PopupMenu(this, 0.0, St.Side.BOTTOM)
+          this._deferredMenuIdleId = null
+          this.menu = new PopupMenu.PopupMenu(this, 0.0, St.Side.BOTTOM)
           try { Main.uiGroup.add_child(this.menu.actor); this.menu.actor.hide() } catch (e) {console.warn('[dash-to-panel] _init: ' + ((e && e.message) ? e.message : e)) }
           this._localMgr = new PopupMenu.PopupMenuManager(this)
           this._localMgr.addMenu(this.menu)
@@ -134,19 +150,72 @@ export const WeatherStatus = GObject.registerClass(
     }
 
     _buildMenu() {
-      let titleItem = new PopupMenu.PopupMenuItem('Today\'s Weather', {
-        reactive: false,
+      // Hero: current conditions, one calm block at the top
+      const heroItem = new PopupMenu.PopupBaseMenuItem({ reactive: false, can_focus: false })
+      const hero = new St.BoxLayout({
+        x_expand: true,
+        style: 'spacing: 14px; padding: 10px 8px 10px; min-width: 340px;',
       })
-      if (titleItem.label) titleItem.label.x_align = 2
-      this.menu.addMenuItem(titleItem)
+      this._heroIcon = new St.Label({
+        text: '\uD83C\uDF24\uFE0F',
+        style: 'font-size: 52px;',
+        y_align: Clutter.ActorAlign.CENTER,
+      })
+      hero.add_child(this._heroIcon)
+
+      const textCol = new St.BoxLayout({
+        vertical: true,
+        x_expand: true,
+        y_align: Clutter.ActorAlign.CENTER,
+      })
+      this._heroTemp = new St.Label({
+        text: '--\u00B0',
+        style: 'font-size: 40px; font-weight: 700; color: #ffffff;',
+      })
+      this._heroDesc = new St.Label({
+        text: 'Loading\u2026',
+        style: `font-size: 13px; color: ${DIM};`,
+      })
+      textCol.add_child(this._heroTemp)
+      textCol.add_child(this._heroDesc)
+      hero.add_child(textCol)
+
+      this._heroFeels = new St.Label({
+        text: '',
+        style: `font-size: 12px; color: ${DIM};`,
+        x_align: Clutter.ActorAlign.END,
+        y_align: Clutter.ActorAlign.CENTER,
+      })
+      hero.add_child(this._heroFeels)
+
+      heroItem.add_child(hero)
+      this.menu.addMenuItem(heroItem)
       this.menu.addMenuItem(new PopupMenu.PopupSeparatorMenuItem())
-      this._forecastSection = new PopupMenu.PopupMenuSection()
-      this.menu.addMenuItem(this._forecastSection)
-      this._forecastSection.addMenuItem(
-        new PopupMenu.PopupMenuItem('Loading...', { reactive: false }),
-      )
+
+      // Caption: section name left, last update right
+      const captionItem = new PopupMenu.PopupBaseMenuItem({ reactive: false, can_focus: false })
+      const caption = new St.BoxLayout({ x_expand: true, style: 'min-width: 340px; padding: 2px 4px 4px;' })
+      caption.add_child(new St.Label({
+        text: 'NEXT 12 HOURS',
+        x_expand: true,
+        style: `font-size: 10px; font-weight: 700; color: ${SUBTLE};`,
+        y_align: Clutter.ActorAlign.CENTER,
+      }))
+      this._updatedLabel = new St.Label({
+        text: '',
+        style: `font-size: 10px; color: ${SUBTLE};`,
+        y_align: Clutter.ActorAlign.CENTER,
+      })
+      caption.add_child(this._updatedLabel)
+      captionItem.add_child(caption)
+      this.menu.addMenuItem(captionItem)
+
+      // Hour list: one stacked card per hour, filled in _rebuildMenuItems
+      this._hourSection = new PopupMenu.PopupMenuSection()
+      this.menu.addMenuItem(this._hourSection)
+
       this.menu.addMenuItem(new PopupMenu.PopupSeparatorMenuItem())
-      let settingsItem = new PopupMenu.PopupMenuItem('Weather Settings')
+      const settingsItem = new PopupMenu.PopupMenuItem('Weather Settings')
       if (settingsItem.label) settingsItem.label.x_align = 2
       settingsItem.connect('activate', () => {
         try {
@@ -307,81 +376,130 @@ export const WeatherStatus = GObject.registerClass(
         })
       }
 
+      this._updatedAt = new Date()
       this._updateDisplay()
     }
 
     _updateDisplay() {
       if (!this._weather) return
       this._iconLabel.set_text(this._weather.emoji)
-      this._tempLabel.set_text(`${this._weather.temp}\u00B0`)
+      this._tempLabel.set_text(`${this._weather.temp}°`)
       this._feelsLabel.set_text(
         this._weather.feels != null
-          ? `${this._weather.feels}\u00B0`
+          ? `${this._weather.feels}°`
           : '',
       )
+      this._updateHero()
+    }
+
+    _updateHero() {
+      if (!this._heroTemp || !this._weather) return
+      const w = this._weather
+      this._heroIcon.set_text(w.emoji)
+      this._heroTemp.set_text(`${w.temp}°`)
+      this._heroDesc.set_text(w.desc)
+      this._heroFeels.set_text(
+        w.feels != null ? `Feels like ${w.feels}°` : '',
+      )
+      if (this._updatedLabel && this._updatedAt) {
+        const d = this._updatedAt
+        this._updatedLabel.set_text(
+          `Updated ${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`,
+        )
+      }
     }
 
     _rebuildMenuItems() {
-      this._forecastSection.removeAll()
-      if (!this._weather || !this._weather.hourly) {
-        this._forecastSection.addMenuItem(
-          new PopupMenu.PopupMenuItem('No data available', {
-            reactive: false,
-          }),
+      if (!this._hourSection) return
+      this._updateHero()
+      this._hourSection.removeAll()
+
+      if (!this._weather || !this._weather.hourly || this._weather.hourly.length === 0) {
+        this._hourSection.addMenuItem(
+          new PopupMenu.PopupMenuItem('No data available', { reactive: false }),
         )
         return
       }
 
-      let now = new Date()
-      let currentHour = now.getHours()
-
-      let p = this._weather.hourly
-      let fNow = this._weather.feels != null
-        ? ` (${this._weather.feels}\u00B0)`
-        : ''
-
-      // 3 hours before, 6 hours after \u2014 include current hour as "Now" inline
-      let rangeStart = currentHour - 3
-      let rangeEnd = currentHour + 6
-      for (let h of p) {
-        let hr = parseInt(h.time.split(':')[0], 10)
-        if (hr < rangeStart || hr > rangeEnd) continue
-        let isNow = hr === currentHour
-        let label = isNow ? 'Now' : h.time
-        let fH = isNow ? fNow : (h.feels != null ? ` (feels ${h.feels}\u00B0)` : '')
-        this._forecastSection.addMenuItem(
-          this._mkRow(label, h.emoji, `${h.temp}\u00B0${fH}`, h.desc, isNow),
-        )
-      }
+      // The timeseries starts at the current hour: the first entries are the upcoming ones
+      const hours = this._weather.hourly.slice(0, HOURLY_COUNT)
+      const temps = hours.map(h => h.temp)
+      const lo = Math.min(...temps)
+      const hi = Math.max(...temps)
+      hours.forEach((h, i) => {
+        const item = new PopupMenu.PopupBaseMenuItem({ reactive: false, can_focus: false })
+        item.add_child(this._mkRow(h, i === 0, i, lo, hi))
+        this._hourSection.addMenuItem(item)
+      })
     }
 
-    _mkRow(time, emoji, temp, desc, isNow) {
-      let item = new PopupMenu.PopupMenuItem('', { reactive: false })
-      let row = new St.BoxLayout({ x_expand: true })
-
-      let timeStyle = isNow
-        ? 'padding-right: 8px; font-weight: bold; font-size: 1.2em; min-width: 36px;'
-        : 'padding-right: 8px; min-width: 36px;'
-      let timeLabel = new St.Label({ text: time, style: timeStyle })
-      row.add_child(timeLabel)
-
-      let iconLabel = new St.Label({ text: ` ${emoji} ` })
-      row.add_child(iconLabel)
-
-      let tempLabel = new St.Label({
-        text: ` ${temp}`,
-        style: 'padding-left: 4px; min-width: 32px;',
-      })
-      row.add_child(tempLabel)
-
-      let descLabel = new St.Label({
-        text: ` ${desc}`,
+    _mkRow(h, isNow, index, lo, hi) {
+      const row = new St.BoxLayout({
         x_expand: true,
+        y_align: Clutter.ActorAlign.CENTER,
+        style: [
+          'spacing: 12px',
+          'padding: 9px 12px',
+          'min-width: 340px',
+          `background-color: ${isNow ? 'st-transparentize(-st-accent-color, 0.7)' : 'rgba(255,255,255,0.04)'}`,
+          `border-left: 3px solid ${_tempColor(h.temp)}`,
+        ].join(';') + ';',
       })
-      row.add_child(descLabel)
 
-      item.add_child(row)
-      return item
+      // time on top, condition and feels-like below
+      const left = new St.BoxLayout({ vertical: true, x_expand: true, y_align: Clutter.ActorAlign.CENTER })
+      left.add_child(new St.Label({
+        text: isNow ? 'Now' : h.time,
+        style: `font-size: 13px; font-weight: ${isNow ? '700' : '600'}; color: ${isNow ? '#ffffff' : '#e6e6e6'};`,
+      }))
+      const sub = new St.Label({
+        text: `${h.desc} \u00B7 feels ${h.feels}\u00B0`,
+        style: `font-size: 11px; color: ${SUBTLE};`,
+      })
+      sub.clutter_text.ellipsize = Pango.EllipsizeMode.END
+      left.add_child(sub)
+      row.add_child(left)
+
+      row.add_child(new St.Label({
+        text: h.emoji,
+        y_align: Clutter.ActorAlign.CENTER,
+        style: 'font-size: 22px;',
+      }))
+
+      // temperature bar: length = where this hour sits in the shown range
+      const barW = 70
+      const frac = hi === lo ? 1 : (h.temp - lo) / (hi - lo)
+      const track = new St.Widget({
+        width: barW,
+        height: 4,
+        y_align: Clutter.ActorAlign.CENTER,
+        style: 'background-color: rgba(255,255,255,0.08);',
+      })
+      track.add_child(new St.Widget({
+        width: Math.max(6, Math.round(barW * frac)),
+        height: 4,
+        style: `background-color: ${_tempColor(h.temp)};`,
+      }))
+      row.add_child(track)
+
+      row.add_child(new St.Label({
+        text: `${h.temp}\u00B0`,
+        x_align: Clutter.ActorAlign.END,
+        y_align: Clutter.ActorAlign.CENTER,
+        style: 'width: 46px; font-size: 17px; font-weight: 700; color: #ffffff;',
+      }))
+
+      // staggered entrance each time the popup opens
+      row.opacity = 0
+      row.translation_y = 8
+      row.ease({
+        opacity: 255,
+        translation_y: 0,
+        duration: 280,
+        delay: index * 40,
+        mode: Clutter.AnimationMode.EASE_OUT_CUBIC,
+      })
+      return row
     }
 
     _getPanelArrowSide() {

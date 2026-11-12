@@ -28,13 +28,15 @@ export class IndicatorUIUpdater {
     return BROWSER_MPRIS_PREFIXES.some((prefix) => lower.includes(prefix));
   }
 
-  _browserIsIdle(name, manager) {
-    if (!this._isBrowserPlayer(name)) return false;
+  // A player is idle when it is not making sound any more. This applies to
+  // every player: a stopped local app must hand over to one that is playing.
+  // Browsers keep a stopped tab (with a title) as the current player.
+  _isPlayerIdle(name, manager) {
     try {
       const info = manager.getPlayerInfo(name);
       if (!info) return true;
       if (info.status === "Playing" || info.status === "Paused") return false;
-      if (info.status === "Stopped" && info.title) return false;
+      if (info.status === "Stopped" && info.title && this._isBrowserPlayer(name)) return false;
       return true;
     } catch (_) {
       return true;
@@ -107,7 +109,7 @@ export class IndicatorUIUpdater {
         // reset icon and label to defaults when player is stopped
         this._indicator._panelUI.resetToDefault();
         this._indicator.show();
-        const currentIsIdleBrowser = this._browserIsIdle(currentPlayer, manager);
+        const currentIsIdleBrowser = this._isPlayerIdle(currentPlayer, manager);
 
         if (currentIsIdleBrowser) {
           const fallback = this._findBestFallback(
@@ -215,6 +217,11 @@ export class IndicatorUIUpdater {
       if (this._indicator._panelUI?.panelPlayBtn?.child)
         this._indicator._panelUI.panelPlayBtn.child.icon_name = playIcon;
 
+      // Controls only work while something is actually playing or paused.
+      this._indicator._panelUI?.setControlsEnabled?.(
+        info.status === "Playing" || info.status === "Paused",
+      );
+
       this.updateLabel();
       this.updateTabs();
     } catch (e) {console.warn('[dash-to-panel] updateUI: ' + ((e && e.message) ? e.message : e)) }
@@ -275,6 +282,9 @@ export class IndicatorUIUpdater {
           return;
         }
       }
+
+      // A stopped player has no paused track to keep showing
+      if (info && info.status === "Stopped") this._lastLabelText = null;
 
       if (this._lastLabelText) {
         this._indicator._panelUI.startScrolling(

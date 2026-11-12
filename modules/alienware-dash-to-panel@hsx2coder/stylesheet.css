@@ -423,7 +423,7 @@
 
 /* Popup surface: softer, rounder card than the theme's square menus */
 .popup-menu-content.amc-media-popup {
-    border-radius: 20px;
+    border-radius: 0;
     padding: 14px 4px 16px;
     box-shadow: 0 12px 36px rgba(0, 0, 0, 0.45);
 }

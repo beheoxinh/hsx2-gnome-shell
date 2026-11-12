@@ -354,12 +354,11 @@ class SizedClone extends Clutter.Clone {
                 if (this.source && !this._isDestroyed)
                     this.queue_relayout();
             });
-            this._srcAllocId = src.connect('notify::allocation', () => {
-                // Do not trigger relayout from notify::allocation. During
-                // lock/unlock Mutter may still be rebuilding stage views;
-                // queueing relayout here can create an allocation storm and
-                // block the shell main loop.
-            });
+            // No notify::allocation handler: relayout from it caused an
+            // allocation storm during lock/unlock, and the empty handler
+            // that replaced it still crossed into JS on every allocation of
+            // the cloned top-bar box (each clock tick, graph repaint and
+            // indicator change), per secondary monitor, for nothing.
         }
     }
 
@@ -386,7 +385,6 @@ class SizedClone extends Clutter.Clone {
         const src = this.source;
         if (src) {
             if (this._srcNotifyId) { try { src.disconnect(this._srcNotifyId); } catch (_e) { /* already disconnected */ } this._srcNotifyId = 0; }
-            if (this._srcAllocId) { try { src.disconnect(this._srcAllocId); } catch (_e) { /* already disconnected */ } this._srcAllocId = 0; }
         }
         this.source = null;
         super.destroy();

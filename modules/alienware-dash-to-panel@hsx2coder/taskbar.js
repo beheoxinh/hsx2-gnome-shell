@@ -364,6 +364,17 @@ export const Taskbar = class extends EventEmitter {
       this._redisplay.bind(this),
     )
 
+    // Main drops the deferred work when _box is destroyed. If the panel is
+    // torn down by a parent cascade (or Panel.disable() throws before it
+    // reaches taskbar.destroy()), the per-workspace window-added/removed
+    // handlers used to survive, and every window opened/closed afterwards
+    // ran them for a dead taskbar ("Invalid work id N" + JS stack trace in
+    // the journal, once per leaked panel). Tie their lifetime to _box.
+    this._box.connect('destroy', () => {
+      this._workId = null
+      this._disconnectWorkspaceSignals()
+    })
+
     this._settings = new Gio.Settings({ schema_id: 'org.gnome.shell' })
     this._hiddenAppsSettings = SETTINGS
 
@@ -476,6 +487,10 @@ export const Taskbar = class extends EventEmitter {
   }
 
   destroy() {
+    // First, so nothing below (which may throw on a half-torn-down panel)
+    // can leave window-added/removed handlers connected to the workspace.
+    this._disconnectWorkspaceSignals()
+
     if (this._waitIdleId) {
       GLib.source_remove(this._waitIdleId)
       this._waitIdleId = 0
@@ -755,6 +770,9 @@ export const Taskbar = class extends EventEmitter {
   _connectWorkspaceSignals() {
     this._disconnectWorkspaceSignals()
 
+    // Taskbar already torn down: do not attach to the new workspace.
+    if (this._workId == null) return
+
     this._lastWorkspace =
       Utils.DisplayWrapper.getWorkspaceManager().get_active_workspace()
 
@@ -778,6 +796,7 @@ export const Taskbar = class extends EventEmitter {
   }
 
   _queueRedisplay() {
+    if (this._workId == null) return
     Main.queueDeferredWork(this._workId)
   }
 

@@ -255,6 +255,9 @@ export class PanelUI {
     this._panelNextBtn = this._makeButton("media-skip-forward-symbolic");
     this._panelControlsBox.add_child(this._panelNextBtn);
 
+    // No active media yet: the controls stay disabled until a player plays.
+    this.setControlsEnabled(false);
+
     this._labelContainer = new St.BoxLayout({
       y_align: Clutter.ActorAlign.CENTER,
       style: "margin-left: 0;",
@@ -510,11 +513,22 @@ export class PanelUI {
     this.setCurrentPlayer(currentPlayer, manager);
   }
 
+  /** Enable or disable the prev / play-pause / next buttons in the panel. */
+  setControlsEnabled(on) {
+    for (const btn of [this._panelPrevBtn, this._panelPlayBtn, this._panelNextBtn]) {
+      if (!btn || !_isSafeActor(btn)) continue;
+      btn.reactive = on;
+      btn.can_focus = on;
+      btn.opacity = on ? 255 : 100;
+    }
+  }
+
   resetToDefault() {
     this._playingPlayer = null;
     this._currentPlayer = null;
     this._lastIconSource = null;
     this._lastColourGicon = null;
+    this.setControlsEnabled(false);
     if (this._icon && typeof this._icon.set_gicon === 'function')
       this._icon.gicon = Gio.ThemedIcon.new("audio-x-generic-symbolic");
     if (this.panelPlayBtn?.child)

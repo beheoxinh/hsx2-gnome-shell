@@ -85,6 +85,11 @@ export const MediaIndicator = GObject.registerClass(
       });
       this._menuItem.add_child(this._controls);
       this.menu.addMenuItem(this._menuItem);
+
+      // Own manager, as weather/bluetooth do: it owns the grab, so a click
+      // outside the popup closes it. Without it the menu stayed open.
+      this._localMgr = new PopupMenu.PopupMenuManager(this);
+      this._localMgr.addMenu(this.menu);
       // Rounded "now playing" card look, see .amc-media-popup in stylesheet
       this.menu.box?.add_style_class_name("amc-media-popup");
 
