@@ -235,19 +235,7 @@ const Preferences = class {
     let pageHiddenApps = this._builder.get_object('hidden_apps_page')
 
     // Media Controller pages integrated from AMC
-    let mcSettings = null
-    try {
-      const GioSSS = Gio.SettingsSchemaSource
-      const schemaDir = GLib.build_filenamev([this._path, 'media', 'schemas'])
-      if (GLib.file_test(schemaDir, GLib.FileTest.IS_DIR)) {
-        const schemaSource = GioSSS.new_from_directory(schemaDir, GioSSS.get_default(), false)
-        const schemaObj = schemaSource.lookup('org.gnome.shell.extensions.advanced-media-controller', true)
-        if (schemaObj)
-          mcSettings = new Gio.Settings({settings_schema: schemaObj})
-      }
-    } catch (e) {
-      logError(e, '[DTP] Failed to load Media Controller settings for tabs')
-    }
+    let mcSettings = this._getMediaSettings()
 
     const _createMediaPreferenceWidget = (mcSet) => {
       const mediaSubPages = [
@@ -767,6 +755,54 @@ const Preferences = class {
       },
     )
     dialog.set_default_size(520, -1)
+    dialog.present()
+  }
+
+  // Loads the Media Player (AMC) schema from the bundled media/schemas folder.
+  // Returns null if the schema is unavailable, so callers skip the media UI.
+  _getMediaSettings() {
+    if (this._mediaSettings !== undefined) return this._mediaSettings
+
+    this._mediaSettings = null
+    try {
+      const GioSSS = Gio.SettingsSchemaSource
+      const schemaDir = GLib.build_filenamev([this._path, 'media', 'schemas'])
+      if (GLib.file_test(schemaDir, GLib.FileTest.IS_DIR)) {
+        const schemaSource = GioSSS.new_from_directory(schemaDir, GioSSS.get_default(), false)
+        const schemaObj = schemaSource.lookup('org.gnome.shell.extensions.advanced-media-controller', true)
+        if (schemaObj)
+          this._mediaSettings = new Gio.Settings({settings_schema: schemaObj})
+      }
+    } catch (e) {
+      logError(e, '[DTP] Failed to load Media Controller settings')
+    }
+    return this._mediaSettings
+  }
+
+  // Gear on the Media box row: General, Popup and Player Filter in one dialog.
+  // Pages are rebuilt on each open so they always read current settings.
+  _showMediaBoxOptions() {
+    const mcSettings = this._getMediaSettings()
+    if (!mcSettings) return
+
+    const stack = new Adw.ViewStack()
+    const subPages = [
+      { id: 'media_general', title: _('General'), icon: 'preferences-system-symbolic', page: buildGeneralPage(mcSettings) },
+      { id: 'media_popup', title: _('Popup'), icon: 'view-paged-symbolic', page: buildPopupPage(mcSettings) },
+      { id: 'media_filter', title: _('Player Filter'), icon: 'edit-find-symbolic', page: buildPlayerFilterPage(mcSettings) },
+    ]
+    subPages.forEach((p) => stack.add_titled_with_icon(p.page, p.id, p.title, p.icon))
+
+    const switcher = new Adw.ViewSwitcher({ stack, policy: Adw.ViewSwitcherPolicy.WIDE })
+    const content = new Gtk.Box({
+      orientation: Gtk.Orientation.VERTICAL,
+      spacing: 12,
+    })
+    content.append(switcher)
+    content.append(stack)
+
+    const dialog = this._createPreferencesDialog(_('Media Box options'), content)
+    dialog.set_default_size(680, 600)
     dialog.present()
   }
 

@@ -29,23 +29,8 @@
           </object>
         </child>
         <child>
-          <object class="AdwSwitchRow" id="move_clock">
-            <property name="title" translatable="yes">Move the clock</property>
-          </object>
-        </child>
-        <child>
           <object class="AdwSwitchRow" id="compact_display">
             <property name="title" translatable="yes">Compact Display</property>
-          </object>
-        </child>
-        <child>
-          <object class="AdwSwitchRow" id="center_display">
-            <property name="title" translatable="yes">Display in the Middle</property>
-          </object>
-        </child>
-        <child>
-          <object class="AdwSwitchRow" id="left_display">
-            <property name="title" translatable="yes">Display on the Left</property>
           </object>
         </child>
         <child>

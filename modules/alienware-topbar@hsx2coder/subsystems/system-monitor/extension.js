@@ -50,6 +50,8 @@ const NetworkManager = NM;
 const UPower = UPowerGlib;
 // Copied as of https://gitlab.gnome.org/GNOME/gnome-shell/-/blob/5fa08fe53376f5dca755360bd005a4a51ca78917/js/ui/panel.js#L45
 const PANEL_ICON_SIZE = 16;
+// width of the per-row bar in the hover card (px)
+const TIP_BAR_WIDTH = 200;
 
 // stale network shares will cause the shell to freeze, enable this with caution
 const ENABLE_NETWORK_DISK_USAGE = false;
@@ -71,6 +73,13 @@ Clutter.Actor.prototype.reparent = function reparent(newParent) {
 
 function l_limit(t) {
     return (t > 0) ? t : 1000;
+}
+
+/** "downerrors" -> "Downerrors", "" and null pass through unchanged */
+function capitalize(text) {
+    if (!text)
+        return text;
+    return text.charAt(0).toUpperCase() + text.slice(1);
 }
 
 function change_text() {
@@ -811,6 +820,7 @@ const Pie = class SystemMonitor_Pie extends Graph {
         let xc = width / 2;
         let yc = height / 2;
         let pi = Math.PI;
+
         function arc(r, value, max, angle) {
             if (max === 0) {
                 return angle;
@@ -897,34 +907,42 @@ const Pie = class SystemMonitor_Pie extends Graph {
 
             let curve_text = `used ${used_str}/${total_str} (${perc_str})`;
 
-            // Draw curved text along the arc
-            cr.setSourceRGB(0, 0, 0);
-            let textAngle = startAngle + 0.05;
+            // Draw curved text along the arc (current source colour applies)
+            const drawCurved = () => {
+                let textAngle = startAngle + 0.05;
+                for (let i = 0; i < curve_text.length; i++) {
+                    let char = curve_text[i];
+                    let extents = cr.textExtents(char);
+                    let charWidth = extents.x_advance || extents.xAdvance;
+                    if (charWidth === undefined) {
+                        charWidth = extents.width || (fontsize * 0.4);
+                    }
+                    if (charWidth === 0 && char === ' ') {
+                        charWidth = fontsize * 0.4;
+                    }
 
-            for (let i = 0; i < curve_text.length; i++) {
-                let char = curve_text[i];
-                let extents = cr.textExtents(char);
-                let charWidth = extents.x_advance || extents.xAdvance;
-                if (charWidth === undefined) {
-                    charWidth = extents.width || (fontsize * 0.4);
+                    let charAngle = charWidth / r;
+
+                    // Black over the used part of the ring, white over the unfilled part
+                    const midAngle = textAngle + charAngle / 2;
+                    if (midAngle >= startAngle && midAngle <= endAngle)
+                        cr.setSourceRGB(0, 0, 0);
+                    else
+                        cr.setSourceRGBA(1, 1, 1, 0.92);
+
+                    cr.save();
+                    cr.translate(xc, yc);
+                    cr.rotate(midAngle + pi / 2);
+                    cr.translate(0, -r);
+
+                    cr.moveTo(-charWidth / 2, fontsize * 0.3);
+                    cr.showText(char);
+                    cr.restore();
+
+                    textAngle += charAngle;
                 }
-                if (charWidth === 0 && char === ' ') {
-                    charWidth = fontsize * 0.4;
-                }
-
-                let charAngle = charWidth / r;
-
-                cr.save();
-                cr.translate(xc, yc);
-                cr.rotate(textAngle + charAngle / 2 + pi / 2);
-                cr.translate(0, -r);
-
-                cr.moveTo(-charWidth / 2, fontsize * 0.3);
-                cr.showText(char);
-                cr.restore();
-
-                textAngle += charAngle;
-            }
+            };
+            drawCurved();
 
             r -= ring_width;
             y += ring_width;
@@ -945,19 +963,6 @@ const Pie = class SystemMonitor_Pie extends Graph {
     }
 }
 
-let TipItem = GObject.registerClass(
-    {
-        GTypeName: 'TipItem'
-    },
-    class SystemMonitor_TipItem extends PopupMenu.PopupBaseMenuItem {
-        _init() {
-            super._init();
-            // PopupMenu.PopupBaseMenuItem.prototype._init.call(this);
-            this.actor.remove_style_class_name('popup-menu-item');
-            this.actor.add_style_class_name('sm-tooltip-item');
-        }
-    }
-);
 const TipMenu = class SystemMonitor_TipMenu extends PopupMenu.PopupMenuBase {
     constructor(sourceActor) {
         // PopupMenu.PopupMenuBase.prototype._init.call(this, sourceActor, 'sm-tooltip-box');
@@ -1395,17 +1400,122 @@ const ElementBase = class SystemMonitor_ElementBase extends TipBox {
                 unit.push(all_unit);
             }
         }
-        for (let i = 0; i < this.color_name.length; i++) {
-            let tipline = new TipItem();
-            this.tipmenu.addMenuItem(tipline);
-            tipline.actor.add_child(new St.Label({ text: _(this.color_name[i]) }));
-            this.tip_labels[i] = new St.Label({ text: '' });
-            tipline.actor.add_child(this.tip_labels[i]);
+        if (this._tipCard) {
+            // the card is built once; a later call only changes the units
+            for (let i = 0; i < this.color_name.length; i++)
+                this.tip_unit_labels[i].text = unit[i];
+            this._tipUnits = unit.slice();
+            return;
+        }
+        this._tipUnits = unit.slice();
 
-            this.tip_unit_labels[i] = new St.Label({ text: unit[i] });
-            tipline.actor.add_child(this.tip_unit_labels[i]);
+        const card = new St.BoxLayout({ vertical: true, style_class: 'sm-tip-card' });
+
+        // header: title + optional subtitle
+        const head = new St.BoxLayout({ vertical: true, style_class: 'sm-tip-head' });
+        if (this.item_name)
+            head.add_child(new St.Label({ text: capitalize(this.item_name), style_class: 'sm-tip-title' }));
+        this._tipSubtitleLabel = new St.Label({ text: '', style_class: 'sm-tip-subtitle', visible: false });
+        head.add_child(this._tipSubtitleLabel);
+        card.add_child(head);
+
+        // hero: the primary reading, large, with its unit
+        const hero = new St.BoxLayout({ style_class: 'sm-tip-hero', x_expand: true });
+        hero.add_child(new St.Label({
+            text: this.color_name.length ? capitalize(_(this.color_name[0])) : '',
+            style_class: 'sm-tip-hero-key',
+            y_align: Clutter.ActorAlign.CENTER,
+            x_expand: true,
+        }));
+        this._tipHeroValue = new St.Label({ text: '', style_class: 'sm-tip-hero-value', y_align: Clutter.ActorAlign.CENTER });
+        hero.add_child(this._tipHeroValue);
+        this._tipHeroUnit = new St.Label({ text: '', style_class: 'sm-tip-hero-unit', y_align: Clutter.ActorAlign.CENTER });
+        hero.add_child(this._tipHeroUnit);
+        card.add_child(hero);
+
+        // rows: dot | name | value | unit, each followed by a bar track
+        // (both only on percentage-style units, where the bar has a meaning)
+        const grid = new St.Widget({
+            x_expand: true,
+            layout_manager: new Clutter.GridLayout({ column_spacing: 10, row_spacing: 4 }),
+        });
+        card.add_child(grid);
+        this._tipCard = card;
+        this.tipmenu.box.add_child(card);
+
+        const layout = grid.layout_manager;
+        this.tip_bars = [];
+        this.tip_tracks = [];
+        // CSS colour from a Clutter.Color, so the dot and bar keep their rounded corners
+        const cssRGB = (c) => `rgb(${Math.round(c.red)},${Math.round(c.green)},${Math.round(c.blue)})`;
+        for (let i = 0; i < this.color_name.length; i++) {
+            const color = this.colors?.[i];
+            const dot = new St.Widget({ style_class: 'sm-tip-dot', y_align: Clutter.ActorAlign.CENTER });
+            dot.set_size(8, 8);
+            if (color)
+                dot.set_style(`background-color: ${cssRGB(color)};`);
+            const name = new St.Label({
+                text: capitalize(_(this.color_name[i])),
+                style_class: 'sm-tip-name',
+                y_align: Clutter.ActorAlign.CENTER,
+            });
+            this.tip_labels[i] = new St.Label({
+                text: '',
+                style_class: 'sm-tip-value',
+                x_align: Clutter.ActorAlign.END,
+                y_align: Clutter.ActorAlign.CENTER,
+            });
+            this.tip_unit_labels[i] = new St.Label({
+                text: unit[i],
+                style_class: 'sm-tip-unit',
+                x_align: Clutter.ActorAlign.START,
+                y_align: Clutter.ActorAlign.CENTER,
+            });
+            const fill = new St.Widget({ style_class: 'sm-tip-fill' });
+            if (color)
+                fill.set_style(`background-color: ${cssRGB(color)};`);
+            fill.set_size(0, 3);
+            // full row width; the fill is sized against it on each refresh
+            const track = new St.Widget({ style_class: 'sm-tip-track', x_expand: true });
+            track.set_height(3);
+            track.add_child(fill);
+            this.tip_bars[i] = fill;
+            this.tip_tracks[i] = track;
+
+            layout.attach(dot, 0, 2 * i, 1, 1);
+            layout.attach(name, 1, 2 * i, 1, 1);
+            layout.attach(this.tip_labels[i], 2, 2 * i, 1, 1);
+            layout.attach(this.tip_unit_labels[i], 3, 2 * i, 1, 1);
+            layout.attach(track, 0, 2 * i + 1, 4, 1);
             this.tip_vals[i] = 0;
         }
+    }
+    /** Keep the hero reading, the row bars and the labels in step with tip_vals */
+    _updateTipVisuals() {
+        if (!this._tipCard)
+            return;
+        const units = this._tipUnits ?? [];
+        if (this._tipHeroValue) {
+            const text = this.tip_vals[0] !== undefined ? String(this.tip_vals[0]) : '';
+            if (this._tipHeroValue.text !== text)
+                this._tipHeroValue.text = text;
+            const unitText = units[0] ?? '';
+            if (this._tipHeroUnit.text !== unitText)
+                this._tipHeroUnit.text = unitText;
+        }
+        for (let i = 0; i < (this.tip_bars?.length ?? 0); i++) {
+            // the bar only means something on percentage rows
+            const isPercent = units[i] === '%';
+            this.tip_tracks[i].visible = isPercent;
+            const numeric = Number(this.tip_vals[i]);
+            const frac = isPercent && Number.isFinite(numeric) ? Math.max(0, Math.min(1, numeric / 100)) : 0;
+            const width = this.tip_tracks[i].get_width() || TIP_BAR_WIDTH;
+            this.tip_bars[i].set_width(Math.round(frac * width));
+        }
+    }
+    /** Optional second line under the card title; '' hides it */
+    tipSubtitle() {
+        return '';
     }
     //        set_tip_unit: function(unit) {
     //           for (let i = 0;i < this.tip_unit_labels.length;i++) {
@@ -1436,6 +1546,13 @@ const ElementBase = class SystemMonitor_ElementBase extends TipBox {
                 this.tip_labels[i].text = text;
             }
         }
+        const subtitle = this._tipSubtitleLabel ? this.tipSubtitle() : '';
+        if (this._tipSubtitleLabel && this._tip_subtitle_shown !== subtitle) {
+            this._tip_subtitle_shown = subtitle;
+            this._tipSubtitleLabel.text = subtitle;
+            this._tipSubtitleLabel.visible = subtitle !== '';
+        }
+        this._updateTipVisuals();
         return GLib.SOURCE_CONTINUE;
     }
     _stopUpdates() {
@@ -1504,10 +1621,8 @@ const Battery = class SystemMonitor_Battery extends ElementBase {
 
         this.update_battery();
         this.update_tips();
-        // this.hide_system_icon();
         this.update();
 
-        // Schema.connect('changed::' + this.elt + '-hidesystem', this.hide_system_icon.bind(this));
         extension._Schema.connect('changed::' + this.elt + '-time', this.update_tips.bind(this));
     }
     refresh() {
@@ -1581,26 +1696,6 @@ const Battery = class SystemMonitor_Battery extends ElementBase {
         if (this.extension._Schema.get_boolean(this.elt + '-show-menu') && !this.menu_visible) {
             this.menu_visible = true;
             build_menu_info(this.extension);
-        }
-    }
-    hide_system_icon(override) {
-        let value = this.extension._Schema.get_boolean(this.elt + '-hidesystem');
-        if (!override) {
-            value = false;
-        }
-        if (value && this.extension._Schema.get_boolean(this.elt + '-display')) {
-            const StatusArea = Main.panel.statusArea;
-            if (StatusArea.battery.actor.visible) {
-                StatusArea.battery.destroy();
-                this.icon_hidden = true;
-            }
-        } else if (this.icon_hidden) {
-            // TODO: Figure out what to put here instead
-            // (git blame for more info)
-            // let Indicator = new Panel.PANEL_ITEM_IMPLEMENTATIONS.battery();
-            // Main.panel.addToStatusArea('battery', Indicator, Main.sessionMode.panel.right.indexOf('battery'), 'right');
-            this.icon_hidden = false;
-            // Main.panel._updatePanel('right');
         }
     }
     get_battery_unit() {
@@ -2386,7 +2481,18 @@ const Net = class SystemMonitor_Net extends ElementBase {
         for (const dev of [...this._nmDevices])
             this._unwatchNmDevice(dev);
         this.client = null;
+        if (this._digitWidthSignalIds) {
+            for (const id of this._digitWidthSignalIds) {
+                try {
+                    this.extension._Schema.disconnect(id);
+                } catch (_) {}
+            }
+            this._digitWidthSignalIds = null;
+        }
         super.destroy();
+    }
+    tipSubtitle() {
+        return this.ifs.join(', ');
     }
     update_units() {
         this.speed_in_bits = this.extension._Schema.get_boolean(this.elt + '-speed-in-bits');
@@ -2560,7 +2666,34 @@ const Net = class SystemMonitor_Net extends ElementBase {
         this._applyFontSize(items[2], 1, -1);
         this._applyFontSize(items[4]);
         this._applyFontSize(items[5], 1, -1);
+
+        // _applyFontSize replaces the inline style, so the width is set here
+        // instead, after the font is applied
+        this._digitValueLabels = [items[1], items[4]];
+        this._digitUnitLabels = [items[2], items[5]];
+        this._applyDigitWidths();
+        if (!this._digitWidthSignalIds) {
+            this._digitWidthSignalIds = ['net-digit-value-width', 'net-digit-unit-width'].map(key =>
+                this.extension._Schema.connect(`changed::${key}`, () => this._applyDigitWidths()));
+        }
         return items;
+    }
+    /**
+     * Fixed widths for the digit-mode labels so the text does not shift when
+     * the number or unit changes. 0 in the settings restores automatic width.
+     */
+    _applyDigitWidths() {
+        const Schema = this.extension._Schema;
+        const valueWidth = Schema.get_int('net-digit-value-width');
+        const unitWidth = Schema.get_int('net-digit-unit-width');
+        for (const lbl of this._digitValueLabels ?? []) {
+            lbl.x_align = Clutter.ActorAlign.END;
+            lbl.set_width(valueWidth > 0 ? valueWidth : -1);
+        }
+        for (const lbl of this._digitUnitLabels ?? []) {
+            lbl.x_align = Clutter.ActorAlign.START;
+            lbl.set_width(unitWidth > 0 ? unitWidth : -1);
+        }
     }
     create_menu_items() {
         const Style = this.extension._Style;
@@ -3308,10 +3441,17 @@ export default class SystemMonitorExtension extends Extension {
     openSystemMonitor() {
         let _appSys = Shell.AppSystem.get_default();
         let _gsmApp = _appSys.lookup_app('org.gnome.SystemMonitor.desktop') || _appSys.lookup_app('gnome-system-monitor.desktop');
+        // lookup_app returns null when GNOME System Monitor is not installed
+        const activateDefault = () => {
+            if (_gsmApp)
+                _gsmApp.activate();
+            else
+                sm_log('No system monitor application found', 'error');
+        };
         let customCmd = this._Schema.get_string('custom-monitor-command');
 
         if (!customCmd || customCmd.trim() === '') {
-            _gsmApp.activate();
+            activateDefault();
             return;
         }
 
@@ -3320,7 +3460,7 @@ export default class SystemMonitorExtension extends Extension {
             let [success, argv] = GLib.shell_parse_argv(customCmd);
             if (!success) {
                 sm_log('Failed to parse custom monitor command: ' + customCmd, 'error');
-                _gsmApp.activate();
+                activateDefault();
                 return;
             }
 
@@ -3339,7 +3479,7 @@ export default class SystemMonitorExtension extends Extension {
             });
         } catch (e) {
             sm_log('Failed to execute custom monitor command: ' + e.message, 'error');
-            _gsmApp.activate();
+            activateDefault();
         }
     }
 
@@ -3413,6 +3553,8 @@ export default class SystemMonitorExtension extends Extension {
             bar: new Bar(this),
             elts: [],
         };
+        // the whole dropdown is one dark, translucent surface (see stylesheet.css)
+        this.__sm.tray.menu.box.add_style_class_name('sm-main-menu');
 
         // Items to Monitor
         let tray = this.__sm.tray;

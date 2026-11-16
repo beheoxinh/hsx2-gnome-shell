@@ -69,6 +69,7 @@ export const optionDialogFunctions = {}
 optionDialogFunctions[SHOW_APPS_BTN] = '_showShowAppsButtonOptions'
 optionDialogFunctions[DESKTOP_BTN] = '_showDesktopButtonOptions'
 optionDialogFunctions[TASKBAR] = '_showTaskbarPositionOptions'
+optionDialogFunctions[RIGHT_BOX] = '_showMediaBoxOptions'
 
 export function checkIfCentered(position) {
   return position == CENTERED || position == CENTERED_MONITOR

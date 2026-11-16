@@ -34,6 +34,8 @@ export class DateMenuCustomizer {
     #clocksItemSync = null;
     #clocksItemShowSignal = null;
     #calendarOrder = null;
+    #calendarMenu = null;
+    #panelsCreatedId = null;
 
     /**
      * @param {Gio.Settings} settings gnome-customizer-manager settings
@@ -50,11 +52,27 @@ export class DateMenuCustomizer {
         for (const [key, apply] of this.#table()) {
             this.#signalIds.push(this.#settings.connect(`changed::${key}`,
                 () => this.#run(key, () => apply(false))));
-            this.#run(key, () => apply(false));
         }
+        this.#applyAll();
+
+        // Dash-to-Panel builds its own date menu when its panels are created
+        // (and again if they are rebuilt); the one that is on screen is that
+        // one, so re-apply to it then.
+        const dtp = global.dashToPanel;
+        if (dtp)
+            this.#panelsCreatedId = dtp.connect('panels-created', () => this.#applyAll());
     }
 
     stop() {
+        if (this.#panelsCreatedId) {
+            try {
+                global.dashToPanel?.disconnect(this.#panelsCreatedId);
+            } catch (_) {
+                /* already gone */
+            }
+            this.#panelsCreatedId = null;
+        }
+
         for (const id of this.#signalIds) {
             try {
                 this.#settings.disconnect(id);
@@ -66,6 +84,16 @@ export class DateMenuCustomizer {
 
         for (const [key, apply] of this.#table())
             this.#run(key, () => apply(true));
+    }
+
+    #applyAll() {
+        // a rebuilt date menu no longer contains the boxes the calendar order
+        // was taken from, so the snapshot is dropped rather than restored
+        if (this.#calendarOrder && this.#calendarMenu !== this.#dateMenu())
+            this.#calendarOrder = null;
+
+        for (const [key, apply] of this.#table())
+            this.#run(key, () => apply(false));
     }
 
     /** [key, apply(revert)] — `revert` restores the GNOME default */
@@ -95,8 +123,14 @@ export class DateMenuCustomizer {
         }
     }
 
+    /**
+     * The date menu the user actually sees. In Dash-to-Panel's standalone top
+     * panel that is DTP's own instance; GNOME's stock one stays hidden there,
+     * so changes made to it have no visible effect.
+     */
     #dateMenu() {
-        return Main.panel?.statusArea?.dateMenu ?? null;
+        const dtpPanel = global.dashToPanel?.panels?.[0];
+        return dtpPanel?.statusArea?.dateMenu ?? Main.panel?.statusArea?.dateMenu ?? null;
     }
 
     #styleClass(type, add) {
@@ -258,6 +292,7 @@ export class DateMenuCustomizer {
             _clocksItem: clocksItem, _weatherItem: weatherItem} = dateMenu;
         const displayBox = eventsItem?.get_parent();
         const calendarBox = calendar?.get_parent();
+        this.#calendarMenu = dateMenu;
         this.#calendarOrder = [displayBox, calendarBox]
             .filter(Boolean)
             .map(box => [box, box.get_children()]);

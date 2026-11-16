@@ -97,3 +97,105 @@
     padding: 8px;
     min-width: 384px;
 }
+
+/* System Monitor hover tooltip: card with header, hero reading, and per-row bars */
+.sm-tip-card {
+    background-color: transparent;
+    border: none;
+    border-radius: 0;
+    padding: 14px 18px 14px 18px;
+    box-shadow: none;
+    font-size: 10pt;
+    color: rgba(255, 255, 255, 0.92);
+}
+
+.sm-tip-title {
+    color: #f2f3f7;
+    font-weight: 700;
+    font-size: 11.5pt;
+}
+
+.sm-tip-subtitle {
+    color: rgba(255, 255, 255, 0.50);
+    font-size: 9pt;
+    margin-top: 1px;
+}
+
+.sm-tip-hero {
+    margin: 12px 0 12px 0;
+    padding: 9px 12px;
+    border-radius: 12px;
+    background-color: rgba(255, 255, 255, 0.04);
+}
+
+.sm-tip-hero-key {
+    color: rgba(255, 255, 255, 0.50);
+    font-size: 8.5pt;
+    font-weight: 600;
+}
+
+.sm-tip-hero-value {
+    color: #ffffff;
+    font-size: 19pt;
+    font-weight: 800;
+}
+
+.sm-tip-hero-unit {
+    color: rgba(255, 255, 255, 0.50);
+    font-size: 10pt;
+    font-weight: 600;
+    margin-left: 2px;
+}
+
+.sm-tip-name {
+    color: rgba(255, 255, 255, 0.66);
+    font-size: 10pt;
+    min-width: 96px;
+}
+
+.sm-tip-value {
+    color: #ffffff;
+    font-size: 10.5pt;
+    font-weight: 700;
+    min-width: 52px;
+}
+
+.sm-tip-unit {
+    color: rgba(255, 255, 255, 0.50);
+    font-size: 9pt;
+    min-width: 36px;
+}
+
+.sm-tip-dot {
+    border-radius: 4px;
+}
+
+.sm-tip-track {
+    background-color: rgba(255, 255, 255, 0.07);
+    border-radius: 3px;
+    margin-bottom: 2px;
+}
+
+.sm-tip-fill {
+    border-radius: 3px;
+}
+
+/* the menu box is only a holder: the card above is the one visible surface */
+.popup-menu-content.sm-tooltip-box,
+.sm-tooltip-box {
+    background-color: rgba(18, 20, 26, 0.94);
+    background-image: none;
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: 18px;
+    box-shadow: 0 14px 34px rgba(0, 0, 0, 0.5), inset 0 1px 0 rgba(255, 255, 255, 0.04);
+    padding: 0;
+    margin: 0;
+}
+
+/* System Monitor dropdown: one dark, slightly translucent surface, same tone as the hover card */
+.popup-menu-content.sm-main-menu {
+    background-color: rgba(18, 20, 26, 0.92);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: 18px;
+    box-shadow: 0 14px 34px rgba(0, 0, 0, 0.5);
+}

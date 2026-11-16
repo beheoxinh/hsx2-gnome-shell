@@ -534,6 +534,18 @@
       <summary>Network font size</summary>
       <description>Font size in pt for network widget</description>
     </key>
+    <key name="net-digit-value-width" type="i">
+      <default>28</default>
+      <range min="0" max="200"/>
+      <summary>Network digit value width</summary>
+      <description>Fixed width in pixels of the network speed number in digit mode; 0 keeps the width automatic</description>
+    </key>
+    <key name="net-digit-unit-width" type="i">
+      <default>0</default>
+      <range min="0" max="200"/>
+      <summary>Network digit unit width</summary>
+      <description>Fixed width in pixels of the network speed unit in digit mode; 0 keeps the width automatic</description>
+    </key>
     <key name="disk-font-size" type="d">
       <default>10.0</default>
       <summary>Disk font size</summary>
