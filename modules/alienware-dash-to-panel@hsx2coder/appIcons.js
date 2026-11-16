@@ -1942,6 +1942,17 @@ export class TaskbarSecondaryMenu extends AppMenu.AppMenu {
     ])
   }
 
+  // GNOME's AppMenu reads app.appInfo.get_boolean() when it refreshes the GPU
+  // item, on every app state change. Windows whose app has no desktop entry
+  // (appInfo === null, e.g. some Chromium/ddterm windows) made that throw as a
+  // JS ERROR from the shell's own state handler. Such apps have no GPU launch
+  // preference, so report "none" instead of touching the null appInfo.
+  _getNonDefaultLaunchGpu() {
+    if (!this._app?.appInfo)
+      return false
+    return super._getNonDefaultLaunchGpu()
+  }
+
   _hideApp(app) {
     let appId = app.get_id()
     let settings = SETTINGS
