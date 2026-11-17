@@ -382,9 +382,10 @@ var DesktopManager = class {
             for (let gridindex of gridschanged) {
                 let desktop = this._desktops[gridindex];
                 desktop.updateGridDescription(newdesktoplist[gridindex]);
-                if (monitorschanged.includes(gridindex)) {
-                    desktop.resizeWindow();
-                }
+                // Margin-only changes (panel resized, topbar/taskbar appearing after
+                // DING started) also change the usable area, so the window itself
+                // must be resized and re-titled, not only the icon grid.
+                desktop.resizeWindow();
                 desktop.resizeGrid();
             }
             this._desktopList = newdesktoplist;
@@ -1216,6 +1217,15 @@ var DesktopManager = class {
                 }
             } catch (err) {
                 print(`Exception triggering refreshGeometry from Refresh menu: ${err.message}`);
+            }
+            // Re-apply the last known geometry to the windows, so Refresh also
+            // realigns a window that ended up mispositioned or mis-sized.
+            for (let desktop of this._desktops) {
+                try {
+                    desktop.resizeWindow();
+                } catch (err) {
+                    print(`Exception resizing desktop window from Refresh: ${err.message}`);
+                }
             }
             this._updateDesktop().catch(e => {
                 print(`Exception while updating Desktop after Refresh: ${e.message}\n${e.stack}`);
