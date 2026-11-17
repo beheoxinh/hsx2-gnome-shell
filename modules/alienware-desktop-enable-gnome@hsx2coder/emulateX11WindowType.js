@@ -105,6 +105,15 @@ class ManageWindow {
             GLib.source_remove(this._moveIntoPlaceID);
         }
         this._moveIntoPlaceID = GLib.timeout_add(GLib.PRIORITY_LOW, 250, () => {
+            // Margins may have changed since the title was parsed (panel
+            // resized, work area updated): recompute from the latest data.
+            if (this._desktopIndex !== undefined && this._desktopIndex !== null) {
+                const d = this._X11Emulator.getMonitorData(this._desktopIndex);
+                if (d) {
+                    this._x = d.x + (d.marginLeft || 0);
+                    this._y = d.y + (d.marginTop || 0);
+                }
+            }
             if (this._fixed && (this._x !== null) && (this._y !== null)) {
                 this._window.move_frame(true, this._x, this._y);
             }
@@ -204,9 +213,13 @@ class ManageWindow {
                 this._fixed = true;
                 try {
                     const desktopIndex = parseInt(title.substring(14).trim());
-                    const desktopData = this._X11Emulator.getMonitorData(desktopIndex - 1);
-                    this._x = desktopData.x;
-                    this._y = desktopData.y;
+                    this._desktopIndex = desktopIndex - 1;
+                    const desktopData = this._X11Emulator.getMonitorData(this._desktopIndex);
+                    // The desktop window is sized to the usable area (monitor minus
+                    // panel margins), so it must be placed at the usable area origin.
+                    // Using the bare monitor origin put its top rows under the topbar.
+                    this._x = desktopData.x + (desktopData.marginLeft || 0);
+                    this._y = desktopData.y + (desktopData.marginTop || 0);
                 } catch (e) {
                     console.log(`Exception ${e.message}.\n${e.stack}`);
                 }
