@@ -98,6 +98,36 @@ export default class DashToPanelExtension extends Extension {
 
     tracker = Shell.WindowTracker.get_default()
 
+    // Hook tracker.get_window_app to separate multiple Claude desktop instances
+    // (claude2, claude3) based on the process cmdline (--user-data-dir)
+    if (!tracker._dtp_orig_get_window_app) {
+      tracker._dtp_orig_get_window_app = tracker.get_window_app
+      tracker.get_window_app = function(metaWindow) {
+        let app = tracker._dtp_orig_get_window_app.call(tracker, metaWindow)
+        try {
+          let wmClass = metaWindow?.get_wm_class?.() || ''
+          if (wmClass.toLowerCase().includes('claude')) {
+            let pid = metaWindow?.get_pid?.() || 0
+            if (pid > 0) {
+              let [ok, contents] = GLib.file_get_contents(`/proc/${pid}/cmdline`)
+              if (ok) {
+                let cmd = new TextDecoder().decode(contents)
+                let appSys = Shell.AppSystem.get_default()
+                if (cmd.includes('claude3')) {
+                  let a = appSys.lookup_app('claude3.desktop')
+                  if (a) return a
+                } else if (cmd.includes('claude-dummy') || cmd.includes('claude2')) {
+                  let a = appSys.lookup_app('claude2.desktop')
+                  if (a) return a
+                }
+              }
+            }
+          }
+        } catch (e) {}
+        return app
+      }
+    }
+
     //create a global object that can emit signals and conveniently expose functionalities to other extensions
     global.dashToPanel = new EventEmitter()
 
@@ -238,6 +268,11 @@ export default class DashToPanelExtension extends Extension {
     PanelSettings.clearCache()
 
     DTP_EXTENSION = null
+    if (Shell.WindowTracker.get_default()._dtp_orig_get_window_app) {
+      let tr = Shell.WindowTracker.get_default()
+      tr.get_window_app = tr._dtp_orig_get_window_app
+      delete tr._dtp_orig_get_window_app
+    }
     SETTINGS = null
     DESKTOPSETTINGS = null
     TERMINALSETTINGS = null
