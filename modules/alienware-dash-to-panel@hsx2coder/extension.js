@@ -99,7 +99,7 @@ export default class DashToPanelExtension extends Extension {
     tracker = Shell.WindowTracker.get_default()
 
     // Hook tracker.get_window_app to separate multiple Claude desktop instances
-    // (claude2, claude3) based on the process cmdline (--user-data-dir)
+    // based on the process cmdline (--user-data-dir in .claude-dummy/<user>)
     if (!tracker._dtp_orig_get_window_app) {
       tracker._dtp_orig_get_window_app = tracker.get_window_app
       tracker.get_window_app = function(metaWindow) {
@@ -113,12 +113,11 @@ export default class DashToPanelExtension extends Extension {
               if (ok) {
                 let cmd = new TextDecoder().decode(contents)
                 let appSys = Shell.AppSystem.get_default()
-                if (cmd.includes('claude3')) {
-                  let a = appSys.lookup_app('claude3.desktop')
-                  if (a) return a
-                } else if (cmd.includes('claude-dummy') || cmd.includes('claude2')) {
-                  let a = appSys.lookup_app('claude2.desktop')
-                  if (a) return a
+                for (let user of ['dungnx', 'hungvt', 'tudv']) {
+                  if (cmd.includes(user)) {
+                    let a = appSys.lookup_app(`claude-${user}.desktop`)
+                    if (a) return a
+                  }
                 }
               }
             }
