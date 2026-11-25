@@ -45,7 +45,7 @@ export const defaults = [
   { element: ACTIVITIES_BTN, visible: false, position: STACKED_TL },
   { element: WEATHER, visible: true, position: STACKED_TL },
   { element: LEFT_BOX, visible: true, position: STACKED_TL },
-  { element: TASKBAR, visible: true, position: STACKED_TL },
+  { element: TASKBAR, visible: true, position: CENTERED_MONITOR },
   { element: CENTER_BOX, visible: true, position: STACKED_BR },
   { element: RIGHT_BOX, visible: true, position: STACKED_BR },
   { element: DATE_MENU, visible: true, position: STACKED_BR },
