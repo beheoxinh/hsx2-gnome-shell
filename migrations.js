@@ -226,13 +226,17 @@ export function runMigrations(extension, log = () => {}) {
         const targets = step.moves ?? [];
         const flagPending = suite.settings_schema.has_key(step.flag) && !suite.get_boolean(step.flag);
         if (!flagPending) {
-            for (const [, , toId, toKey] of targets)
-                earlierTargets.add(`${toId}\u0000${toKey}`);
+            for (const [fromId, fromKey, toId, toKey] of targets) {
+                if (fromId !== toId || fromKey !== toKey)
+                    earlierTargets.add(`${toId}\u0000${toKey}`);
+            }
             continue;
         }
         const result = runStep(extension.path, step, log, earlierTargets);
-        for (const [, , toId, toKey] of targets)
-            earlierTargets.add(`${toId}\u0000${toKey}`);
+        for (const [fromId, fromKey, toId, toKey] of targets) {
+            if (fromId !== toId || fromKey !== toKey)
+                earlierTargets.add(`${toId}\u0000${toKey}`);
+        }
         if (!result) {
             log(`[alienware-suite] ${step.flag}: legacy schemas missing, will retry`);
             continue;

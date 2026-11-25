@@ -11,9 +11,18 @@ export class FullscreenAdapter {
             if (!settingsManager.fullscreenEnabled) {
                 return;
             }
-            const monitorProto = Object.getPrototypeOf(Main.layoutManager.primaryMonitor);
+            const primaryMonitor = Main.layoutManager.primaryMonitor;
+            if (!primaryMonitor) {
+                original();
+                return;
+            }
+            const monitorProto = Object.getPrototypeOf(primaryMonitor);
             // biome-ignore lint/style/noNonNullAssertion: it's present in supported shell versions
             const originalDescriptor = Object.getOwnPropertyDescriptor(monitorProto, "inFullscreen");
+            if (!originalDescriptor) {
+                original();
+                return;
+            }
             Object.defineProperty(monitorProto, "inFullscreen", {
                 get: () => false,
                 configurable: true,

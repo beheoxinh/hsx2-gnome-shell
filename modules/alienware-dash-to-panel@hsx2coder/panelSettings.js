@@ -241,6 +241,13 @@ export function getPrimaryIndex(dtpPrimaryId) {
   return availableMonitors.findIndex((am) => am.primary)
 }
 
+function isVirtualRemoteMonitor(connector, vendor) {
+  return Boolean(
+    (typeof connector === 'string' && connector.startsWith('Meta-')) ||
+      vendor === 'MetaVendor',
+  )
+}
+
 export function setMonitorsInfo(settings) {
   return new Promise((resolve, reject) => {
     try {
@@ -250,6 +257,7 @@ export function setMonitorsInfo(settings) {
           if (e) return reject(`Error getting display state: ${e}`)
 
           let ids = {}
+          let virtualCount = 0
 
           //https://gitlab.gnome.org/GNOME/mutter/-/blob/main/data/dbus-interfaces/org.gnome.Mutter.DisplayConfig.xml#L347
           displayInfo[2].forEach((logicalMonitor, i) => {
@@ -257,10 +265,18 @@ export function setMonitorsInfo(settings) {
             let id = i
             let primary = logicalMonitor[4]
 
-            // if by any chance 2 monitors have the same id, use the connector string
-            // instead, which should be unique but varies between x11 and wayland :(
-            // worst case scenario, resort to using the dumbass index
-            if (vendor && serial) id = `${vendor}-${serial}`
+            if (isVirtualRemoteMonitor(connector, vendor)) {
+              id =
+                virtualCount === 0
+                  ? HEADLESS_MONITOR_ID
+                  : `${HEADLESS_MONITOR_ID}-${virtualCount}`
+              virtualCount++
+            } else if (vendor && serial) {
+              // if by any chance 2 monitors have the same id, use the connector string
+              // instead, which should be unique but varies between x11 and wayland :(
+              // worst case scenario, resort to using the dumbass index
+              id = `${vendor}-${serial}`
+            }
 
             if (ids[id]) id = connector && !ids[connector] ? connector : i
 
@@ -352,6 +368,10 @@ const PANEL_MONITOR_SETTINGS = [
   'panel-visible',
 ]
 
+function isEphemeralMonitorKey(key) {
+  return key === '-1' || key.startsWith('MetaVendor-')
+}
+
 function isHeadlessMonitorList() {
   return (
     availableMonitors.length === 1 &&
@@ -373,13 +393,15 @@ function migrateHeadlessMonitorSettings(settings, originals) {
     )
     if (sourceKeys.length === 0) continue
 
-    // Prefer a real monitor's saved layout, otherwise use the most recent
-    // virtual-monitor entry. This is only a one-time seed for the stable
-    // headless id; later edits are stored under that id directly.
+    // Prefer the most recent virtual-monitor entry (edits made directly in
+    // RDP), otherwise fall back to a saved physical monitor's layout. This is
+    // only a one-time seed for the stable headless id; later edits are stored
+    // under that id directly.
+    const metaKeys = sourceKeys.filter((key) => key.startsWith('MetaVendor-'))
     const sourceKey =
-      sourceKeys.find(
-        (key) => !key.startsWith('MetaVendor-') && key !== '-1',
-      ) || sourceKeys[sourceKeys.length - 1]
+      metaKeys[metaKeys.length - 1] ||
+      sourceKeys.find((key) => !isEphemeralMonitorKey(key)) ||
+      sourceKeys[sourceKeys.length - 1]
 
     current[HEADLESS_MONITOR_ID] = original[sourceKey]
     setSettingsJson(settings, settingName, current)
@@ -413,4 +435,13 @@ export function adjustMonitorSettings(settings) {
   PANEL_MONITOR_SETTINGS.forEach(updateSettings)
 
   migrateHeadlessMonitorSettings(settings, originals)
+
+  for (const settingName of PANEL_MONITOR_SETTINGS) {
+    let current = getSettingsJson(settings, settingName)
+    if (!current || typeof current !== 'object') continue
+    const ephemeralKeys = Object.keys(current).filter(isEphemeralMonitorKey)
+    if (ephemeralKeys.length === 0) continue
+    for (const key of ephemeralKeys) delete current[key]
+    setSettingsJson(settings, settingName, current)
+  }
 }

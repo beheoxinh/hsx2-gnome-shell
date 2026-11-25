@@ -5,6 +5,7 @@
 // Run: gjs -m tests/guard-registerclass.test.js
 import GObject from 'gi://GObject';
 import GLib from 'gi://GLib';
+import System from 'system';
 import {guardClass} from '../lib/guard.js';
 
 let failures = 0;
@@ -32,6 +33,16 @@ const Local = GObject.registerClass(class LocalTestClass extends GObject.Object 
 
 const local = new Local();
 check(local.value() === 42, 'guarded class still returns values');
+const expectedNamePart = GObject.gtypeNameBasedOnJSPath
+    ? 'guard-registerclass_test_LocalTestClass'
+    : 'LocalTestClass';
+check(Local.$gtype.name.includes(expectedNamePart), `GTypeName (${Local.$gtype.name}) matches expected pattern`);
+check(!Local.$gtype.name.includes('lib_guard'), 'GTypeName does not leak lib_guard prefix');
+
+// 1b. Multiple classes with identical JS names without explicit GTypeName must not collide.
+const IndicatorA = GObject.registerClass(class Indicator extends GObject.Object {});
+const IndicatorB = GObject.registerClass({Properties: {}}, class Indicator extends GObject.Object {});
+check(IndicatorA.$gtype.name !== IndicatorB.$gtype.name, 'same-named classes receive distinct GTypeNames');
 
 let threw = false;
 try {
@@ -76,6 +87,7 @@ function finish() {
     GLib.idle_add(GLib.PRIORITY_DEFAULT, () => {
         print(failures === 0 ? 'ALL GUARD REGRESSION CHECKS PASSED' : `${failures} CHECK(S) FAILED`);
         loop.quit();
+        System.exit(failures === 0 ? 0 : 1);
         return GLib.SOURCE_REMOVE;
     });
 }
