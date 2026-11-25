@@ -460,7 +460,7 @@ var FileItemMenu = class {
             if (fileItems[0].isDirectory) {
                 mimetype = 'inode/directory';
             }
-            const chooser = Gtk.AppChooserDialog.new_for_content_type(
+            let chooser = Gtk.AppChooserDialog.new_for_content_type(
                 this._currentFileItem.container.get_toplevel(),
                 Gtk.DialogFlags.MODAL | Gtk.DialogFlags.USE_HEADER_BAR,
                 mimetype);
@@ -480,8 +480,8 @@ var FileItemMenu = class {
                         appInfo.launch(fileList, context);
                     }
                 }
-                chooser.hide();
                 signals.disconnectAllSignals();
+                chooser.destroy();
                 chooser = null;
                 signals = null;
             });

@@ -1179,8 +1179,23 @@ class AppIndicatorsIconActor extends St.Icon {
             return new Gio.FileIcon({file});
 
         try {
-            const [format, width, height] = await GdkPixbuf.Pixbuf.get_file_info_async(
-                file.get_path(), cancellable);
+            let format, width, height;
+            try {
+                [format, width, height] = await GdkPixbuf.Pixbuf.get_file_info_async(
+                    file.get_path(), cancellable);
+            } catch (firstErr) {
+                if (firstErr.matches?.(Gio.IOErrorEnum, Gio.IOErrorEnum.CANCELLED))
+                    throw firstErr;
+                await new PromiseUtils.TimeoutPromise(100, GLib.PRIORITY_DEFAULT_IDLE, cancellable);
+                [format, width, height] = await GdkPixbuf.Pixbuf.get_file_info_async(
+                    file.get_path(), cancellable);
+            }
+
+            if (!format) {
+                await new PromiseUtils.TimeoutPromise(100, GLib.PRIORITY_DEFAULT_IDLE, cancellable);
+                [format, width, height] = await GdkPixbuf.Pixbuf.get_file_info_async(
+                    file.get_path(), cancellable);
+            }
 
             if (!format) {
                 Util.Logger.critical(`${this.debugId}, Invalid image format: ${file.get_path()}`);

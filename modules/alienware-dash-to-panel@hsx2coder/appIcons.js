@@ -666,6 +666,7 @@ export const TaskbarAppIcon = GObject.registerClass(
         })
 
         this._dotsContainer.add_child(this._unfocusedDots)
+        this._containerSize = this._containerSize || 0
 
         this._updateWindows()
 
@@ -694,6 +695,11 @@ export const TaskbarAppIcon = GObject.registerClass(
       this._unfocusedIsWide = this._isWideDotStyle(unfocusedDotStyle)
       ;[, this._containerSize] =
         this._container[`get_preferred_${sizeProp}`](-1)
+      this._containerSize = Utils.finiteSize(
+        this._containerSize,
+        0,
+        'dots-container',
+      )
 
       if (!ignoreSizeReset) {
         ;[this._focusedDots, this._unfocusedDots].forEach((d) => {
@@ -1060,6 +1066,7 @@ export const TaskbarAppIcon = GObject.registerClass(
 
       if (newOtherOpacity == 0) otherDots.opacity = newOtherOpacity
 
+      if (!Number.isFinite(newSize) || newSize < 0) newSize = 0
       tweenOpts[sizeProp] = newSize
 
       Utils.animate(dots, tweenOpts)

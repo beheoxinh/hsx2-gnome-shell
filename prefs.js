@@ -133,7 +133,6 @@ export default class AlienwareSuitePreferences extends ExtensionPreferences {
         }
 
         // Module provides its own window (ViewSwitcher + ViewStack top tabs)
-        log(`[alienware-suite] prefs for ${def.uuid}: openPreferences=${typeof subPrefs.openPreferences}`);
         if (typeof subPrefs.openPreferences === 'function') {
             try {
                 subPrefs.openPreferences(parent);

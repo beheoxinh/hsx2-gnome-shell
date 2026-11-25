@@ -1616,6 +1616,7 @@ export const TaskbarItemContainer = GObject.registerClass(
     vfunc_allocate(box) {
       if (this.child == null) return
 
+      Utils.sanitizeBox(box, 'taskbar-item')
       this.set_allocation(box)
 
       let availWidth = box.x2 - box.x1
@@ -1632,6 +1633,7 @@ export const TaskbarItemContainer = GObject.registerClass(
       childBox.x2 = childBox.x1 + childWidth
       childBox.y2 = childBox.y1 + childHeight
 
+      Utils.sanitizeBox(childBox, 'taskbar-item-child')
       this.child.allocate(childBox)
     }
 

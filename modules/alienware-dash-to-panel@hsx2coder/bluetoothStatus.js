@@ -160,6 +160,7 @@ export const BluetoothStatus = GObject.registerClass(
       try {
         this._deferredMenuIdleId = GLib.idle_add(GLib.PRIORITY_DEFAULT_IDLE, () => {
           this._deferredMenuIdleId = null
+          if (this._isDestroyed) return GLib.SOURCE_REMOVE
           this.menu = new PopupMenu.PopupMenu(this, 0.0, St.Side.BOTTOM)
           try { Main.uiGroup.add_child(this.menu.actor); this.menu.actor.hide() } catch (e) {console.warn('[dash-to-panel] _init: ' + ((e && e.message) ? e.message : e)) }
           this._localMgr = new PopupMenu.PopupMenuManager(this)
@@ -260,6 +261,8 @@ export const BluetoothStatus = GObject.registerClass(
             this._poll()
             this._timerId = GLib.timeout_add_seconds(
               GLib.PRIORITY_DEFAULT, POLL_INTERVAL_SEC, () => {
+                if ((Main.layoutManager.monitors?.length ?? 0) === 0 || Main.sessionMode?.isLocked)
+                  return GLib.SOURCE_CONTINUE
                 try { this._poll() } catch (e) {
                   logError(e, `${TAG} poll failed`)
                 }
@@ -543,6 +546,8 @@ export const BluetoothStatus = GObject.registerClass(
       if (intervalSec > 300) intervalSec = 300
       this._rollerTimerId = GLib.timeout_add_seconds(
         GLib.PRIORITY_DEFAULT, intervalSec, () => {
+          if ((Main.layoutManager.monitors?.length ?? 0) === 0 || Main.sessionMode?.isLocked)
+            return GLib.SOURCE_CONTINUE
           this._advanceRoller()
           return GLib.SOURCE_CONTINUE
         },

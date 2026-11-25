@@ -110,6 +110,7 @@ export const PanelManager = class {
     global.dashToPanel.emit('panels-created')
 
     this._setDesktopIconsMargins()
+    this._lastMarginsSignature = null
 
     this._updatePanelElementPositions()
 
@@ -410,16 +411,16 @@ export const PanelManager = class {
       )
     }
 
-    // Torn down on reset too: enable() recreates both, so skipping this here
-    // leaked one 3s timer and one usable-area object per reset.
+    if (reset) return
+
+    // Torn down only on real disable: reset() re-runs enable(true) which
+    // returns early before recreating _desktopIconsUsableArea/_marginsTimerId.
     if (this._marginsTimerId) {
       GLib.source_remove(this._marginsTimerId)
       this._marginsTimerId = 0
     }
     this._desktopIconsUsableArea?.destroy()
     this._desktopIconsUsableArea = null
-
-    if (reset) return
 
     this._disabled = true
 
@@ -836,11 +837,13 @@ export const PanelManager = class {
       monitor =
         monitor ||
         Main.layoutManager.findMonitorForActor(boxPointer.sourceActor)
+      if (!monitor) return [alloc.min_size, alloc.natural_size]
       let panel = Utils.find(
         global.dashToPanel.panels,
         (p) => p.monitor == monitor,
       )
-      let excess = alloc.natural_size + panel.outerSize + 10 - monitor.height // 10 is arbitrary
+      if (!panel?.geom) return [alloc.min_size, alloc.natural_size]
+      let excess = alloc.natural_size + (panel.geom.outerSize || 0) + 10 - monitor.height // 10 is arbitrary
 
       if (excess > 0) {
         alloc.natural_size -= excess

@@ -528,10 +528,21 @@ export const Panel = GObject.registerClass(
 
         this._setShowDesktopButton(false)
 
+        if (this._weatherStatus) {
+          try { this._weatherStatus.destroy() } catch (_) {}
+          this._weatherStatus = null
+        }
+        if (this._btStatus) {
+          try { this._btStatus.destroy() } catch (_) {}
+          this._btStatus = null
+        }
+
         delete this.panel._toggleMenu
-        delete Utils.getIndicators(
-          this.statusArea[systemMenuName]._volumeOutput,
-        )._dtpIgnoreScroll
+        if (this.statusArea[systemMenuName]?._volumeOutput) {
+          delete Utils.getIndicators(
+            this.statusArea[systemMenuName]._volumeOutput,
+          )._dtpIgnoreScroll
+        }
 
         this._injectionManager.clear()
 
@@ -1721,6 +1732,7 @@ export const SecondaryPanel = GObject.registerClass(
     }
 
     vfunc_allocate(box) {
+      Utils.sanitizeBox(box, 'secondary-panel')
       this.set_allocation(box)
     }
   },

@@ -309,8 +309,15 @@ export const DBusClient = GObject.registerClass({
 
         const requestedProperties = Array.from(this._propertiesRequestedFor);
         this._propertiesRequestedFor.clear();
-        const [result] = await this.GetGroupPropertiesAsync(requestedProperties,
-            [], cancellable);
+        let result;
+        try {
+            [result] = await this.GetGroupPropertiesAsync(requestedProperties,
+                [], cancellable);
+        } catch (e) {
+            if (e.matches?.(Gio.DBusError, Gio.DBusError.UNKNOWN_METHOD))
+                return;
+            throw e;
+        }
 
         result.forEach(([id, properties]) => {
             const item = this._items.get(id);

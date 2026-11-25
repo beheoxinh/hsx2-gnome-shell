@@ -707,7 +707,8 @@ const Bar = class SystemMonitor_Bar extends Graph {
         extension._MountsMonitor.add_listener(this.update_mounts.bind(this));
         this._refresh_timeout = GLib.timeout_add_seconds(
             GLib.PRIORITY_DEFAULT, 2, () => {
-                this.actor.queue_repaint();
+                if (this.extension._menuIsOpen && this.actor.visible)
+                    this.actor.queue_repaint();
                 return GLib.SOURCE_CONTINUE;
             });
     }
@@ -806,7 +807,8 @@ const Pie = class SystemMonitor_Pie extends Graph {
         extension._MountsMonitor.add_listener(this.update_mounts.bind(this));
         this._refresh_timeout = GLib.timeout_add_seconds(
             GLib.PRIORITY_DEFAULT, 2, () => {
-                this.actor.queue_repaint();
+                if (this.extension._menuIsOpen && this.actor.visible)
+                    this.actor.queue_repaint();
                 return GLib.SOURCE_CONTINUE;
             });
     }
@@ -1378,6 +1380,11 @@ const ElementBase = class SystemMonitor_ElementBase extends TipBox {
                 if (this._disposed) {
                     this.timeout = null;
                     return GLib.SOURCE_REMOVE;
+                }
+                if ((Main.layoutManager.monitors?.length ?? 0) === 0 ||
+                    Main.sessionMode?.isLocked ||
+                    Main.screenShield?.locked) {
+                    return GLib.SOURCE_CONTINUE;
                 }
                 try {
                     this.update();

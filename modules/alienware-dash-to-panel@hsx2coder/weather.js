@@ -117,6 +117,7 @@ export const WeatherStatus = GObject.registerClass(
 
         this._deferredMenuIdleId = GLib.idle_add(GLib.PRIORITY_DEFAULT_IDLE, () => {
           this._deferredMenuIdleId = null
+          if (!this._cancellable) return GLib.SOURCE_REMOVE
           this.menu = new PopupMenu.PopupMenu(this, 0.0, St.Side.BOTTOM)
           try { Main.uiGroup.add_child(this.menu.actor); this.menu.actor.hide() } catch (e) {console.warn('[dash-to-panel] _init: ' + ((e && e.message) ? e.message : e)) }
           this._localMgr = new PopupMenu.PopupMenuManager(this)
@@ -134,6 +135,8 @@ export const WeatherStatus = GObject.registerClass(
 
         this._timerId = GLib.timeout_add_seconds(
           GLib.PRIORITY_DEFAULT, WX_POLL_SEC, () => {
+            if ((Main.layoutManager.monitors?.length ?? 0) === 0 || Main.sessionMode?.isLocked)
+              return GLib.SOURCE_CONTINUE
             this._execQuery()
             return GLib.SOURCE_CONTINUE
           },
