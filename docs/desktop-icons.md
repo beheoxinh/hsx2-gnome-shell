@@ -70,7 +70,20 @@ Schema: `org.gnome.shell.extensions.ding` (22 keys)
 | `use-nemo` | b | false | Use Nemo for file operations |
 | `check-x11wayland` | b | true | Check for X11/Wayland compatibility |
 
-### 2.4 Stacking
+### 2.4 Nautilus Context (dùng chung desktop + Nautilus)
+
+Mỗi key bật/tắt một mục ở **cả hai nơi cùng lúc**: menu desktop (`app/fileItemMenu.js`) và plugin Nautilus (`nautilus/*.py`) đều đọc trực tiếp cùng một key, nên đổi xong có hiệu lực ngay, không cần restart Nautilus.
+
+| Key | Type | Default | Mô tả |
+|-----|------|---------|-------|
+| `nautilus-integration` | b | false | Cài/gỡ snapshot plugin vào `~/.local/share/nautilus-python/extensions` |
+| `context-copy-content` | b | true | "Copy file content" (1 file, tối đa 50 MB) |
+| `context-copy-path` | b | true | "Copy file path" / "Copy folder path" |
+| `context-duplicate` | b | true | "Duplicate ..." → `name (Duplicate N).ext`, chạy `cp -a --reflink=auto` |
+| `open-with-enabled` | b | true | "Open with {open-with-label}" chạy `open-with-command` (parse kiểu shell) |
+| `context-git-emblems` | b | true | Emblem trạng thái git, chỉ có ở Nautilus |
+
+### 2.5 Stacking
 
 | Key | Type | Default | Mô tả |
 |-----|------|---------|-------|
@@ -102,6 +115,40 @@ User right-click on desktop
   → process thực hiện file operations
   → icons update on screen
 ```
+
+---
+
+### 3.3 Nautilus Context sync
+
+```
+prefs › Nautilus Context › "Install into Nautilus" (nautilus-integration)
+  → nautilusSync.reconcile()
+       on  → install(): render nautilus/<plugin>.py + _common.py (điền schema dir)
+              → ghi atomic vào ~/.local/share/nautilus-python/extensions/
+              → file trùng tên không có marker (plugin cũ của user) và
+                open_with_antigravity.py → chuyển sang extensions-backup/
+       off → uninstall(): chỉ xoá file có marker "alienware-nautilus-context"
+  → nút "Restart Nautilus" (nautilus -q): Nautilus chỉ load plugin lúc khởi động
+extension.js innerEnable() → 5 giây sau: nautilusSync.syncIfEnabled()
+  nautilus-integration = true → install() lại để đẩy snapshot mới (sau khi cập nhật extension)
+  nautilus-integration = false → không làm gì (không bao giờ tự gỡ)
+```
+
+Quy tắc giống nhau ở desktop và Nautilus (kiểm bằng `bash tests/e2e/run-all.sh [--window]`, xem `tests/e2e/README.md`):
+
+- "Open with …" ẩn khi `open-with-command` rỗng hoặc không parse được (`GLib.shell_parse_argv`); label rỗng → `IDE`; mỗi item chạy một lần với cwd là thư mục chứa nó.
+- Duplicate chọn nhiều item: tên đã "hứa" cho item trước được giữ lại, nên `a.txt` + `a (Duplicate).txt` ra `(Duplicate 2)` và `(Duplicate 3)`, không ghi đè nhau. Symlink tới folder được coi là folder.
+- Backup trùng giây không ghi đè nhau (thêm hậu tố `-N`).
+
+Ràng buộc của nautilus-python (đã gặp khi debug):
+
+- Không dùng thread Python trong plugin: thread không chạy ổn định, và lock dùng chung với UI có thể làm Nautilus treo. Clipboard đưa dữ liệu qua stdin của `wl-copy`/`xclip` (`Popen`, không chờ). Git emblems refresh nền bằng `Gio.Subprocess.communicate_async` trên main loop.
+- `Nautilus.FileInfo.lookup_for_uri`/`create_for_uri` gọi một function pointer mà Nautilus chỉ gán khi class `NautilusFile` đã tồn tại; gọi sớm hơn là **segfault**. Plugin chỉ gọi sau khi `update_file_info` đã nhận một `Nautilus.FileInfo` thật.
+- Tắt `context-git-emblems` vẫn ghi nhớ URI (không chạy git, không monitor), nên bật lại hiện emblem ngay, không cần F5.
+
+- Thiếu `nautilus-python` (không tìm thấy `libnautilus-python.so`): tab hiện cảnh báo kèm lệnh cài theo distro.
+- Plugin bị mồ côi (extension bị gỡ, không đọc được schema): mọi mục tự ẩn.
+- Muốn thêm plugin: thêm file vào `nautilus/`, khai báo trong `PLUGINS` (`nautilusSync.js`), thêm key vào schema, tăng `SNAPSHOT_VERSION`.
 
 ---
 

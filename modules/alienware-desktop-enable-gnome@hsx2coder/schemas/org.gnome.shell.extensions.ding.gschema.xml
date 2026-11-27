@@ -170,5 +170,30 @@
         <summary>Animate transfer cards</summary>
         <description>If true, transfer cards slide in. If false, they appear instantly.</description>
     </key>
+    <key type="b" name="nautilus-integration">
+        <default>false</default>
+        <summary>Install the context menu entries into Nautilus</summary>
+        <description>If true, the bundled nautilus-python snapshot is synced into ~/.local/share/nautilus-python/extensions so Nautilus shows the same entries as the desktop menu. If false, the synced files are removed. Requires nautilus-python.</description>
+    </key>
+    <key type="b" name="context-copy-content">
+        <default>true</default>
+        <summary>Copy file content entry</summary>
+        <description>Shows "Copy file content" in the desktop menu and, when installed, in Nautilus.</description>
+    </key>
+    <key type="b" name="context-copy-path">
+        <default>true</default>
+        <summary>Copy file/folder path entry</summary>
+        <description>Shows "Copy file path" / "Copy folder path" in the desktop menu and, when installed, in Nautilus.</description>
+    </key>
+    <key type="b" name="context-duplicate">
+        <default>true</default>
+        <summary>Duplicate entry</summary>
+        <description>Shows "Duplicate ..." in the desktop menu and, when installed, in Nautilus.</description>
+    </key>
+    <key type="b" name="context-git-emblems">
+        <default>true</default>
+        <summary>Git status emblems</summary>
+        <description>Shows git status emblems on files and folders in Nautilus (Nautilus only; the desktop has no emblems).</description>
+    </key>
     </schema>
 </schemalist>

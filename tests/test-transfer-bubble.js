@@ -208,7 +208,7 @@ export default [
         const prefs = readFile('modules/alienware-desktop-enable-gnome@hsx2coder/prefs.js');
         for (const m of ["title: 'Transfers'", 'transferPosition', 'transferMargin',
             'transferCardWidth', 'transferHideDelay', '#spin', '#connectInt',
-            '#connectPosition', 'transfer-progress-symbolic']) {
+            '#connectPosition', 'ding-transfers-symbolic']) {
             if (!prefs.includes(m))
                 throw new Error(`missing prefs tab invariant: ${m}`);
         }

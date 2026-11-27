@@ -342,47 +342,56 @@ var FileItemMenu = class {
 
             this._addSeparator();
 
-            if (selectedItemsNum === 1 && !fileItem.isDirectory) {
+            // These entries share their GSettings keys with the Nautilus
+            // snapshot (nautilus/*.py): one switch drives both places.
+            if (selectedItemsNum === 1 && !fileItem.isDirectory &&
+                Prefs.desktopSettings.get_boolean('context-copy-content')) {
                 this._addElementToMenu(
                     _('Copy file content'),
                     this._doCopyContent.bind(this)
                 );
             }
-            
-            if (selectedItemsNum === 1) {
+
+            if (selectedItemsNum === 1 && Prefs.desktopSettings.get_boolean('context-copy-path')) {
                 this._addElementToMenu(
                     fileItem.isDirectory ? _('Copy folder path') : _('Copy file path'),
                     this._doCopyPath.bind(this)
                 );
             }
 
-            let hasFile = false;
-            let hasFolder = false;
-            for (let item of this._desktopManager.getCurrentSelection(false)) {
-                if (item.isDirectory) hasFolder = true;
-                else hasFile = true;
+            if (Prefs.desktopSettings.get_boolean('context-duplicate')) {
+                let hasFile = false;
+                let hasFolder = false;
+                for (let item of this._desktopManager.getCurrentSelection(false)) {
+                    if (item.isDirectory)
+                        hasFolder = true;
+                    else
+                        hasFile = true;
+                }
+                let dupLabel;
+                if (selectedItemsNum === 1)
+                    dupLabel = hasFolder ? _('Duplicate folder') : _('Duplicate file');
+                else if (hasFile && hasFolder)
+                    dupLabel = _('Duplicate {0} items').replace('{0}', selectedItemsNum);
+                else if (hasFolder)
+                    dupLabel = _('Duplicate {0} folders').replace('{0}', selectedItemsNum);
+                else
+                    dupLabel = _('Duplicate {0} files').replace('{0}', selectedItemsNum);
+                this._addElementToMenu(
+                    dupLabel,
+                    this._doDuplicate.bind(this)
+                );
             }
-            let dupLabel = "";
-            if (selectedItemsNum === 1) {
-                dupLabel = hasFolder ? _('Duplicate folder') : _('Duplicate file');
-            } else {
-                if (hasFile && hasFolder) dupLabel = _(`Duplicate ${selectedItemsNum} items`);
-                else if (hasFolder) dupLabel = _(`Duplicate ${selectedItemsNum} folders`);
-                else dupLabel = _(`Duplicate ${selectedItemsNum} files`);
-            }
-            this._addElementToMenu(
-                dupLabel,
-                this._doDuplicate.bind(this)
-            );
 
-            if (Prefs.desktopSettings.get_boolean('open-with-enabled')) {
-                let owLabel = Prefs.desktopSettings.get_string('open-with-label');
+            // Hidden when the command is empty or does not parse, like in Nautilus.
+            if (Prefs.desktopSettings.get_boolean('open-with-enabled') && this._openWithArgv()) {
+                let owLabel = Prefs.desktopSettings.get_string('open-with-label') || 'IDE';
                 let owDisplay = selectedItemsNum === 1
                     ? `Open with ${owLabel}`
                     : `Open ${selectedItemsNum} items with ${owLabel}`;
                 this._addElementToMenu(
                     owDisplay,
-                    this._doOpenWithAntigravity.bind(this)
+                    this._doOpenWithCommand.bind(this)
                 );
             }
 
@@ -612,6 +621,14 @@ var FileItemMenu = class {
     _doCopyContent() {
         let fileItems = this._desktopManager.getCurrentSelection(false);
         if (fileItems && fileItems.length === 1 && !fileItems[0].isDirectory) {
+            // Same 50 MB cap as the Nautilus entry: a huge file would freeze the clipboard.
+            try {
+                const info = fileItems[0].file.query_info('standard::size', Gio.FileQueryInfoFlags.NONE, null);
+                if (info.get_size() > 50 * 1024 * 1024)
+                    return;
+            } catch (e) {
+                return;
+            }
             let filePath = fileItems[0].file.get_path();
             let isWayland = GLib.getenv('XDG_SESSION_TYPE') === 'wayland';
             let copyCmd = isWayland ? 'wl-copy' : 'xclip -sel clip';
@@ -636,7 +653,11 @@ var FileItemMenu = class {
     _doDuplicate() {
         let fileItems = this._desktopManager.getCurrentSelection(false);
         if (!fileItems || fileItems.length === 0) return;
-        
+
+        // cp runs asynchronously: names promised to earlier items of this
+        // batch may not exist yet, so track them (a.txt + "a (Duplicate).txt").
+        const taken = new Set();
+        const isFree = path => !taken.has(path) && !GLib.file_test(path, GLib.FileTest.EXISTS);
         for (let target of fileItems) {
             let sourcePath = target.file.get_path();
             let parentDir = GLib.path_get_dirname(sourcePath);
@@ -657,24 +678,23 @@ var FileItemMenu = class {
 
             let destinationPath = GLib.build_filenamev([parentDir, `${namePart} (Duplicate)${extension}`]);
 
-            if (GLib.file_test(destinationPath, GLib.FileTest.EXISTS)) {
+            if (!isFree(destinationPath)) {
                 let counter = 2;
                 while (true) {
                     let newFilename = `${namePart} (Duplicate ${counter})${extension}`;
                     destinationPath = GLib.build_filenamev([parentDir, newFilename]);
-                    if (!GLib.file_test(destinationPath, GLib.FileTest.EXISTS)) {
+                    if (isFree(destinationPath)) {
                         break;
                     }
                     counter++;
                 }
             }
+            taken.add(destinationPath);
 
             try {
-                if (target.isDirectory) {
-                    DesktopIconsUtil.trySpawn(null, ['cp', '-r', sourcePath, destinationPath]);
-                } else {
-                    DesktopIconsUtil.trySpawn(null, ['cp', sourcePath, destinationPath]);
-                }
+                // Same command as the Nautilus entry: -a keeps symlinks, modes
+                // and times; reflink is free on btrfs/xfs.
+                DesktopIconsUtil.trySpawn(null, ['cp', '-a', '--reflink=auto', '--no-target-directory', '--', sourcePath, destinationPath]);
             } catch (e) {
                 console.error(e, 'Error duplicating item');
             }
@@ -684,13 +704,29 @@ var FileItemMenu = class {
         this._desktopManager.unselectAll();
     }
 
-    _doOpenWithAntigravity() {
+    // argv of open-with-command, parsed like the Nautilus entry (so
+    // "code --new-window" works in both), or null when empty/invalid.
+    _openWithArgv() {
+        const cmd = Prefs.desktopSettings.get_string('open-with-command').trim();
+        if (!cmd)
+            return null;
+        try {
+            const [ok, argv] = GLib.shell_parse_argv(cmd);
+            return ok && argv.length ? argv : null;
+        } catch (e) {
+            return null;
+        }
+    }
+
+    _doOpenWithCommand() {
         let fileItems = this._desktopManager.getCurrentSelection(false);
-        let cmd = Prefs.desktopSettings.get_string('open-with-command');
-        let args = [cmd];
+        const args = this._openWithArgv();
+        if (!args)
+            return;
         for (let target of fileItems) {
             let filePath = target.file.get_path();
-            DesktopIconsUtil.trySpawn(null, [...args, filePath]);
+            if (filePath)
+                DesktopIconsUtil.trySpawn(GLib.path_get_dirname(filePath), [...args, filePath]);
         }
     }
 };

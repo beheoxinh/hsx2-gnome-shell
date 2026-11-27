@@ -29,6 +29,7 @@ import * as Main from 'resource:///org/gnome/shell/ui/main.js'
 import * as EmulateX11 from './emulateX11WindowType.js';
 import * as VisibleArea from './visibleArea.js';
 import * as GnomeShellOverride from './gnomeShellOverride.js';
+import * as NautilusSync from './nautilusSync.js';
 
 const Clipboard = St.Clipboard.get_default();
 const CLIPBOARD_TYPE = St.ClipboardType.CLIPBOARD;
@@ -202,6 +203,36 @@ export default class DING extends Extension {
             GLib.source_remove(this.data.launchDesktopId);
             this.data.launchDesktopId = 0;
         }
+        if (this.data.nautilusSyncId) {
+            GLib.source_remove(this.data.nautilusSyncId);
+            this.data.nautilusSyncId = 0;
+        }
+    }
+
+    /**
+     * Push an updated Nautilus snapshot (nautilus/*.py) once per enable, only
+     * when the user turned "Install into Nautilus" on. Runs on a low-priority
+     * idle a few seconds after startup; a handful of small files.
+     * Prefs does the install/remove itself when the switch is flipped.
+     */
+    _scheduleNautilusSync() {
+        if (this.data.nautilusSyncId)
+            return;
+        this.data.nautilusSyncId = GLib.timeout_add_seconds(GLib.PRIORITY_LOW, 5, () => {
+            this.data.nautilusSyncId = 0;
+            try {
+                const result = NautilusSync.syncIfEnabled(Gio.File.new_for_path(this.path));
+                if (!result)
+                    return GLib.SOURCE_REMOVE;
+                if (result.written.length)
+                    console.log(`[DING] Nautilus snapshot updated: ${result.written.join(', ')}`);
+                for (const err of result.errors)
+                    console.warn(`[DING] Nautilus sync: ${err}`);
+            } catch (e) {
+                console.warn(`[DING] Nautilus sync failed: ${e.message}`);
+            }
+            return GLib.SOURCE_REMOVE;
+        });
     }
 
     /**
@@ -214,6 +245,7 @@ export default class DING extends Extension {
         }
 
         this.data.GnomeShellOverride.enable();
+        this._scheduleNautilusSync();
 
         // under X11 we don't need to cheat, so only do all this under wayland
         if (is_wayland_compositor()) {
